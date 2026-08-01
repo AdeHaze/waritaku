@@ -340,6 +340,9 @@ function rewriteUrls(html, siteUrl, extraDomains = new Set()) {
     );
   }
 
+  // 3. Final Catch-all: Rewrite any remaining protocol-less or absolute wp-content/uploads paths
+  html = html.replace(/(?:https?:)?(?:\/\/[^\/]+)?\/?wp-content\/uploads\//gi, '/uploads/');
+
   return html;
 }
 

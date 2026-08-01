@@ -87,9 +87,4 @@ Once you're happy with your local environment, you can push your database and me
 | `npm run dev --remote` | Starts dev server using remote Cloudflare D1 database |
 | `npm run build` | Builds production output to `./dist/` |
 
-## Development Rules
 
-- **Database Rule**: Do not wipe, delete, or recreate the database folder (`.wrangler`) unless explicitly authorized.
-- **Migration Rule**: NEVER run `wrangler d1 migrations apply --local` blindly. If the `d1_migrations` table is empty or missing, Wrangler may forcefully wipe the local database to apply migrations from scratch, causing total data loss. Always verify state first.
-- **Data Integrity**: Do not insert arbitrary or fake data into the database.
-- **Writing Standard**: All documentation prose follows ASD-STE100 Simplified Technical English (STE-flavored rules).

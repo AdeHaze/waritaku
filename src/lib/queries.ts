@@ -299,7 +299,8 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             .limit(pageSize)
             .offset((currentPage - 1) * pageSize);
 
-        const categoryArticles = await Promise.all(articlesResult.map(async (r: any) => {
+        const categoryArticles = [];
+        for (const r of articlesResult) {
             const data = JSON.parse(r.entry.data || '{}');
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
@@ -307,7 +308,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             
             const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
 
-            return {
+            categoryArticles.push({
                 id: r.entry.id,
                 slug: r.entry.slug,
                 canonicalUrl: `/${canonicalUrl}`,
@@ -316,8 +317,8 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 authorName: r.author?.name || 'Writer',
                 categoryName: taxonomyData?.label || 'Term',
                 excerpt
-            };
-        }));
+            });
+        }
 
         // Extend data with taxonomy context for SEO/indexing
         const archiveData = {

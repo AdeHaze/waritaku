@@ -373,7 +373,7 @@ if (Astro.request.method === 'POST') {
             return;
           }
 
-          if (payload?.version !== '1.0') {
+          if (payload?.version !== '1.0' && payload?.version !== '2.0') {
             setStatus('⚠ Unrecognised format. Generate a fresh import_payload.json with: node scripts/wp-import.mjs', 'error');
             return;
           }

@@ -42,7 +42,7 @@ if (env?.DB) {
         const nfi = await db.run(sql`
             SELECT id, json_extract(data, '$.title') as title, slug FROM entries
             WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
-              AND status = 'published' AND (json_extract(data, '$.featuredImageUrl') IS NULL OR json_extract(data, '$.featuredImageUrl') = '')
+              AND status = 'published' AND (json_extract(data, '$.featuredImage') IS NULL OR json_extract(data, '$.featuredImage') = '')
             ORDER BY id LIMIT 500`);
         noFeaturedImage = (nfi as any).results || [];
 

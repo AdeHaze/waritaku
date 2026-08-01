@@ -27,7 +27,19 @@ export default defineConfig({
             if (!req.url) return next();
             // req.url strips the /uploads prefix because of the mount point
             const decodedUrlPath = decodeURIComponent(req.url.split('?')[0]);
-            const filePath = path.join(process.cwd(), 'local_uploads', decodedUrlPath);
+            let filePath = path.join(process.cwd(), 'local_uploads', decodedUrlPath);
+            
+            // Auto-fallback to .webp if the .jpg/.png doesn't exist but the converted .webp does
+            if (!fs.existsSync(filePath)) {
+              const ext = path.extname(filePath).toLowerCase();
+              if (['.jpg', '.jpeg', '.png'].includes(ext)) {
+                const webpPath = filePath.substring(0, filePath.length - ext.length) + '.webp';
+                if (fs.existsSync(webpPath)) {
+                  filePath = webpPath;
+                }
+              }
+            }
+
             if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
               res.setHeader('Cache-Control', 'public, max-age=31536000');
               const ext = path.extname(filePath).toLowerCase();
@@ -56,5 +68,10 @@ export default defineConfig({
   },
   trailingSlash: 'ignore',
   output: 'server',
-  adapter: cloudflare()
+  adapter: cloudflare({
+    platformProxy: {
+      enabled: true,
+      configPath: 'wrangler.jsonc'
+    }
+  })
 });

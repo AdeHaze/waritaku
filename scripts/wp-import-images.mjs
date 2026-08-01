@@ -97,8 +97,29 @@ const WP_WEBP_COMPANION_RE = /\.(jpe?g|png|gif|bmp|tiff?)\.webp$/i;
 // Type C: image.bk.jpg, image.bak.png (Plugin backups from Smush, ShortPixel, etc)
 const WP_BACKUP_RE = /\.(?:bk|bak)\.(?:jpe?g|png|gif|webp|bmp|tiff?)$/i;
 
-function isWordPressGenerated(filename) {
-  return WP_RESIZED_RE.test(filename) || WP_WEBP_COMPANION_RE.test(filename) || WP_BACKUP_RE.test(filename);
+function isWordPressGenerated(filePath, filename) {
+  // Check Type B: image.jpg.webp (WebP companions)
+  if (WP_WEBP_COMPANION_RE.test(filename)) return true;
+  
+  // Check Type C: image.bk.jpg (Plugin backups)
+  if (WP_BACKUP_RE.test(filename)) return true;
+
+  // Check Type A: Resized variants (e.g. image-1536x864-1.jpg)
+  // We extract what the original filename WOULD be (e.g. image-1.jpg).
+  // If that original file ACTUALLY EXISTS in the same directory, then THIS file
+  // is definitely just a WordPress-generated thumbnail.
+  // If the original file DOES NOT EXIST, then THIS file is the true original
+  // (it just happens to have dimensions in its name), so we DO NOT skip it!
+  const match = filename.match(/^(.*?)(-\d{2,5}x\d{2,5}(?:@\dx)?(?:[-.a-z0-9_]*))(\.(?:jpe?g|png|gif|webp|bmp|tiff?))$/i);
+  if (match) {
+    const originalName = match[1] + match[3];
+    const originalPath = join(dirname(filePath), originalName);
+    if (existsSync(originalPath)) {
+      return true; // We found the original, so this is a thumbnail.
+    }
+  }
+
+  return false;
 }
 
 // ── Fast MD5 of first 64KB (for dedup heuristic, not cryptographic) ──────────────────────────────
@@ -292,7 +313,7 @@ for (let i = 0; i < allFiles.length; i++) {
   // Skip ALL WordPress-generated derived files:
   //   Type A: image-300x200.jpg (resized)
   //   Type B: image.jpg.webp, image-300x200.jpg.webp (WebP companions, WordPress 5.3+)
-  if (isWordPressGenerated(filename)) {
+  if (isWordPressGenerated(filePath, filename)) {
     countSkippedResized++;
     continue;
   }
