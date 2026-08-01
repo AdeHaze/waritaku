@@ -48,20 +48,14 @@ if (Astro.request.method === 'POST') {
         
         if (db) {
             // Update or Insert navbar_links
-            const existingNav = await db.select().from(settings).where(eq(settings.key, 'navbar_links'));
-            if (existingNav.length > 0) {
-                await db.update(settings).set({ value: navbarLinksStr }).where(eq(settings.key, 'navbar_links'));
-            } else {
-                await db.insert(settings).values({ key: 'navbar_links', value: navbarLinksStr });
-            }
+            await db.insert(settings)
+                .values({ key: 'navbar_links', value: navbarLinksStr })
+                .onConflictDoUpdate({ target: settings.key, set: { value: navbarLinksStr } });
 
             // Update or Insert footer_links
-            const existingFoot = await db.select().from(settings).where(eq(settings.key, 'footer_links'));
-            if (existingFoot.length > 0) {
-                await db.update(settings).set({ value: footerLinksStr }).where(eq(settings.key, 'footer_links'));
-            } else {
-                await db.insert(settings).values({ key: 'footer_links', value: footerLinksStr });
-            }
+            await db.insert(settings)
+                .values({ key: 'footer_links', value: footerLinksStr })
+                .onConflictDoUpdate({ target: settings.key, set: { value: footerLinksStr } });
 
             message = 'Navigation settings updated successfully.';
             

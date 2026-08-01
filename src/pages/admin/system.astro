@@ -51,12 +51,9 @@ if (Astro.request.method === 'POST') {
         if (action === 'update_environment') {
             const newEnv = formData.get('databaseEnvironment') as string;
             if (db && newEnv) {
-                const existing = await db.select().from(settings).where(eq(settings.key, 'database_environment'));
-                if (existing.length > 0) {
-                    await db.update(settings).set({ value: newEnv }).where(eq(settings.key, 'database_environment'));
-                } else {
-                    await db.insert(settings).values({ key: 'database_environment', value: newEnv });
-                }
+                await db.insert(settings)
+                    .values({ key: 'database_environment', value: newEnv })
+                    .onConflictDoUpdate({ target: settings.key, set: { value: newEnv } });
                 message = 'Database environment label updated successfully.';
                 dbEnvironment = newEnv;
             }
@@ -73,13 +70,9 @@ if (Astro.request.method === 'POST') {
 
             if (db) {
                 const configStr = JSON.stringify(newSecrets);
-                const existing = await db.select().from(settings).where(eq(settings.key, 'system_secrets'));
-                
-                if (existing.length > 0) {
-                    await db.update(settings).set({ value: configStr }).where(eq(settings.key, 'system_secrets'));
-                } else {
-                    await db.insert(settings).values({ key: 'system_secrets', value: configStr });
-                }
+                await db.insert(settings)
+                    .values({ key: 'system_secrets', value: configStr })
+                    .onConflictDoUpdate({ target: settings.key, set: { value: configStr } });
 
                 message = 'System secrets updated successfully.';
                 secrets = newSecrets;

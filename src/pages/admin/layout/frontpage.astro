@@ -24,12 +24,9 @@ if (Astro.request.method === 'POST') {
         const homepagePageId = formData.get('homepagePageId') as string;
         
         if (db && homepagePageId) {
-            const existingSetting = await db.select().from(settings).where(eq(settings.key, 'homepage_page_id'));
-            if (existingSetting.length > 0) {
-                await db.update(settings).set({ value: homepagePageId }).where(eq(settings.key, 'homepage_page_id'));
-            } else {
-                await db.insert(settings).values({ key: 'homepage_page_id', value: homepagePageId });
-            }
+            await db.insert(settings)
+                .values({ key: 'homepage_page_id', value: homepagePageId })
+                .onConflictDoUpdate({ target: settings.key, set: { value: homepagePageId } });
             message = 'Homepage setting updated successfully.';
         }
     } catch (e) {

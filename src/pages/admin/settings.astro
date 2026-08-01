@@ -63,13 +63,10 @@ if (Astro.request.method === 'POST') {
 
         if (db) {
             const configStr = JSON.stringify(newConfig);
-            const existing = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
             
-            if (existing.length > 0) {
-                await db.update(settings).set({ value: configStr }).where(eq(settings.key, 'general_settings'));
-            } else {
-                await db.insert(settings).values({ key: 'general_settings', value: configStr });
-            }
+            await db.insert(settings)
+                .values({ key: 'general_settings', value: configStr })
+                .onConflictDoUpdate({ target: settings.key, set: { value: configStr } });
 
             message = 'General settings updated successfully.';
             generalConfig = newConfig;

@@ -26,12 +26,9 @@ if (Astro.request.method === 'POST') {
         const dashboardLayout = formData.get('dashboardLayout') as string;
         
         if (db && dashboardLayout) {
-            const existing = await db.select().from(settings).where(eq(settings.key, 'dashboard_layout'));
-            if (existing.length > 0) {
-                await db.update(settings).set({ value: dashboardLayout }).where(eq(settings.key, 'dashboard_layout'));
-            } else {
-                await db.insert(settings).values({ key: 'dashboard_layout', value: dashboardLayout });
-            }
+            await db.insert(settings)
+                .values({ key: 'dashboard_layout', value: dashboardLayout })
+                .onConflictDoUpdate({ target: settings.key, set: { value: dashboardLayout } });
             message = 'Dashboard layout updated successfully.';
         }
     } catch (e) {

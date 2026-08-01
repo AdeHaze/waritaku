@@ -72,6 +72,16 @@ export const entries = sqliteTable('entries', {
   authorIdx: index('entries_author_idx').on(t.authorId),
 }));
 
+export const entryRevisions = sqliteTable('entry_revisions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  entryId: integer('entry_id').references(() => entries.id, { onDelete: 'cascade' }).notNull(),
+  authorId: integer('author_id').references(() => users.id),
+  data: text('data').notNull(), // JSON snapshot of the entry (including slug, status, custom fields, and terms)
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (t) => ({
+  entryIdx: index('entry_revisions_entry_idx').on(t.entryId),
+}));
+
 export const taxonomies = sqliteTable('taxonomies', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   slug: text('slug').notNull().unique(), // e.g. 'categories', 'tags', 'product-categories'

@@ -18,12 +18,9 @@ let isError = false;
 
 async function saveSetting(key: string, value: string) {
     if (!db) return;
-    const existing = await db.select().from(settings).where(eq(settings.key, key));
-    if (existing.length > 0) {
-        await db.update(settings).set({ value }).where(eq(settings.key, key));
-    } else {
-        await db.insert(settings).values({ key, value });
-    }
+    await db.insert(settings)
+        .values({ key, value })
+        .onConflictDoUpdate({ target: settings.key, set: { value } });
 }
 
 async function getSetting(key: string, defaultVal: any) {

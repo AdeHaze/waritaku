@@ -60,13 +60,9 @@ if (Astro.request.method === 'POST') {
         
         if (db) {
             const jsonString = JSON.stringify(newThemeColors);
-            const existing = await db.select().from(settings).where(eq(settings.key, 'theme_colors'));
-            
-            if (existing.length > 0) {
-                await db.update(settings).set({ value: jsonString }).where(eq(settings.key, 'theme_colors'));
-            } else {
-                await db.insert(settings).values({ key: 'theme_colors', value: jsonString });
-            }
+            await db.insert(settings)
+                .values({ key: 'theme_colors', value: jsonString })
+                .onConflictDoUpdate({ target: settings.key, set: { value: jsonString } });
             message = 'Theme colors updated successfully.';
             themeColors = newThemeColors;
         }

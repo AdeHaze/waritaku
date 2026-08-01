@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import TaxonomySelector from './TaxonomySelector';
 import BlockBuilder from './BlockBuilder';
 import Editor from '../Editor';
+import RevisionDiff from './RevisionDiff';
 
 interface FieldSchema {
     name: string;
@@ -23,9 +24,78 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
     const [formData, setFormData] = useState<any>(initialEntry || { status: 'draft', selectedTerms: [] });
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
+    const [showRevisions, setShowRevisions] = useState(false);
+    const [revisions, setRevisions] = useState<any[]>([]);
+    const [selectedRevisions, setSelectedRevisions] = useState<number[]>([]);
+    const [diffRevision, setDiffRevision] = useState<any>(null);
     
+    let supportsRevisions = false;
+    try {
+        if (supports) supportsRevisions = !!JSON.parse(supports).revisions;
+    } catch(e) {}
+
     const handleChange = (name: string, value: any) => {
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const loadRevisions = async () => {
+        if (!initialEntry?.id) return;
+        try {
+            const res = await fetch(`/api/content/${collectionSlug}/entries/${initialEntry.id}/revisions`);
+            const json = await res.json();
+            if (res.ok) {
+                setRevisions(json.data || []);
+                setShowRevisions(true);
+            } else {
+                alert('Error loading revisions: ' + json.error);
+            }
+        } catch(e) {
+            console.error(e);
+        }
+    };
+
+    const restoreRevision = (rev: any) => {
+        if (!confirm('Are you sure you want to replace the current content with this snapshot? (You must click Save to make it permanent)')) return;
+        try {
+            const snapshot = JSON.parse(rev.data);
+            setFormData({ ...formData, ...snapshot });
+            setShowRevisions(false);
+            setDiffRevision(null);
+            setMessage('Revision loaded! Click Save Entry to apply.');
+        } catch(e) {
+            alert('Failed to parse revision data.');
+        }
+    };
+
+    const deleteSelectedRevisions = async () => {
+        if (!confirm('Are you sure you want to delete the selected revisions?')) return;
+        try {
+            const res = await fetch(`/api/content/${collectionSlug}/entries/${initialEntry.id}/revisions`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedRevisions })
+            });
+            if (res.ok) {
+                setRevisions(revisions.filter(r => !selectedRevisions.includes(r.id)));
+                setSelectedRevisions([]);
+            } else {
+                alert('Error deleting revisions');
+            }
+        } catch(e) {
+            console.error(e);
+        }
+    };
+
+    const toggleSelection = (id: number) => {
+        setSelectedRevisions(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
+    };
+
+    const toggleAllSelection = () => {
+        if (selectedRevisions.length === revisions.length) {
+            setSelectedRevisions([]);
+        } else {
+            setSelectedRevisions(revisions.map(r => r.id));
+        }
     };
 
     const parseBlocks = (val: any) => {
@@ -73,6 +143,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
     };
 
     return (
+        <>
         <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
                 {message && (
@@ -115,7 +186,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                         {field.type === 'richtext' && (
                             <Editor 
                                 content={formData[field.name] || ''} 
-                                setContent={(val) => handleChange(field.name, val)} 
+                                onChange={(val) => handleChange(field.name, val)} 
                             />
                         )}
 
@@ -164,6 +235,18 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                     <h3 className="text-sm font-bold uppercase tracking-wider mb-4 pb-2 border-b border-border">Publishing</h3>
                     
                     <div className="space-y-4">
+                        {supportsRevisions && initialEntry?.id && (
+                            <div className="flex items-center justify-between bg-accent/50 p-3 rounded-lg border border-border mb-4">
+                                <span className="text-sm font-medium">Revisions</span>
+                                <button 
+                                    type="button" 
+                                    onClick={loadRevisions}
+                                    className="px-3 py-1.5 text-xs font-semibold bg-background border border-input hover:bg-accent rounded transition-colors"
+                                >
+                                    View History
+                                </button>
+                            </div>
+                        )}
                         <div>
                             <label className="block text-xs font-semibold text-muted-foreground mb-1">Status</label>
                             <select 
@@ -269,5 +352,92 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                 ))}
             </div>
         </form>
+
+        {showRevisions && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+                {diffRevision ? (
+                    <div className="bg-card w-full max-w-5xl h-[90vh] rounded-xl shadow-lg border border-border flex flex-col overflow-hidden">
+                        <RevisionDiff 
+                            currentData={formData}
+                            revisionData={JSON.parse(diffRevision.data)}
+                            schema={schema}
+                            onRestore={() => restoreRevision(diffRevision)}
+                            onBack={() => setDiffRevision(null)}
+                        />
+                    </div>
+                ) : (
+                    <div className="bg-card w-full max-w-3xl rounded-xl shadow-lg border border-border flex flex-col max-h-[85vh]">
+                        <div className="flex items-center justify-between p-4 border-b border-border">
+                            <h2 className="text-lg font-bold">Revision History</h2>
+                            <button type="button" onClick={() => setShowRevisions(false)} className="text-muted-foreground hover:text-foreground">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            </button>
+                        </div>
+                        
+                        <div className="flex items-center justify-between p-4 bg-accent/30 border-b border-border">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={revisions.length > 0 && selectedRevisions.length === revisions.length}
+                                    onChange={toggleAllSelection}
+                                    className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                                />
+                                <span className="text-sm font-medium">Select All</span>
+                            </label>
+                            
+                            {selectedRevisions.length > 0 && (
+                                <button 
+                                    type="button"
+                                    onClick={deleteSelectedRevisions}
+                                    className="px-3 py-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 text-xs font-bold rounded transition-colors"
+                                >
+                                    Delete Selected ({selectedRevisions.length})
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="p-4 overflow-y-auto flex-1 space-y-2">
+                            {revisions.length === 0 ? (
+                                <p className="text-muted-foreground text-center py-8">No revisions found.</p>
+                            ) : (
+                                revisions.map((rev) => (
+                                    <div key={rev.id} className="flex items-center justify-between p-3 rounded bg-accent/30 border border-border">
+                                        <div className="flex items-center gap-4">
+                                            <input 
+                                                type="checkbox"
+                                                checked={selectedRevisions.includes(rev.id)}
+                                                onChange={() => toggleSelection(rev.id)}
+                                                className="rounded border-input text-primary focus:ring-primary w-4 h-4"
+                                            />
+                                            <div>
+                                                <div className="font-medium text-sm">{new Date(rev.createdAt).toLocaleString()}</div>
+                                                <div className="text-xs text-muted-foreground">Saved by {rev.authorName || 'Unknown'}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                type="button"
+                                                onClick={() => setDiffRevision(rev)}
+                                                className="px-3 py-1.5 bg-background border border-input text-xs font-semibold rounded hover:bg-accent transition-colors"
+                                            >
+                                                Compare
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => restoreRevision(rev)}
+                                                className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded hover:bg-primary/90 transition-colors"
+                                            >
+                                                Restore
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
+        </>
     );
 }

@@ -61,7 +61,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
                 
                 const collObj = await db.select().from(collections).where(eq(collections.slug, collSlug)).get();
                 if (collObj) {
+                    const existingDbEntries = await db.select({ id: entries.id, slug: entries.slug }).from(entries).all();
+                    const existingIds = new Set(existingDbEntries.map(e => e.id));
+                    const existingSlugs = new Set(existingDbEntries.map(e => e.slug));
+                    
                     const entriesToInsert = payload.collections[collSlug].map((e: any) => {
+                        let finalSlug = e.slug;
+                        if (!existingIds.has(e.id)) {
+                            let counter = 1;
+                            while (existingSlugs.has(finalSlug)) {
+                                finalSlug = `${e.slug}-${++counter}`;
+                            }
+                            existingSlugs.add(finalSlug);
+                        }
+
                         const dataObj = {
                             title: e.title,
                             content: e.content,
@@ -75,7 +88,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
                         return {
                             id: e.id,
                             collectionId: collObj.id,
-                            slug: e.slug,
+                            slug: finalSlug,
                             status: e.status,
                             authorId: validUserIds.has(Number(e.authorId)) ? Number(e.authorId) : null,
                             data: JSON.stringify(dataObj),
