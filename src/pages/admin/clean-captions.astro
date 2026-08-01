@@ -1,0 +1,42 @@
+---
+import { articles } from '../../db/schema';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../lib/db';
+
+import { eq } from 'drizzle-orm';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin');
+}
+
+let processed = 0;
+let updated = 0;
+
+if (env && env.DB) {
+  const db = getDb(env);
+  
+  // Fetch all articles
+  const allArticles = await db.select().from(articles);
+  processed = allArticles.length;
+  
+  for (const article of allArticles) {
+      if (article.content && article.content.includes('[caption')) {
+          // Replace [caption id="..."] and [/caption]
+          let newContent = article.content.replace(/\[caption[^\]]*\]/gi, '<div class="wp-caption">');
+          newContent = newContent.replace(/\[\/caption\]/gi, '</div>');
+          
+          await db.update(articles).set({ content: newContent }).where(eq(articles.id, article.id));
+          updated++;
+      }
+  }
+}
+---
+
+<html>
+    <body>
+        <h1>Cleanup Complete</h1>
+        <p>Processed: {processed}</p>
+        <p>Updated: {updated}</p>
+    </body>
+</html>

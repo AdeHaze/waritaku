@@ -1,0 +1,147 @@
+---
+// DisplaySettings.astro
+---
+
+<div class="fixed bottom-6 right-6 z-50">
+    {/* Floating Action Button */}
+    <button 
+        id="display-settings-btn" 
+        class="bg-primary text-primary-foreground w-12 h-12 rounded-full flex items-center justify-center shadow-lg hover:bg-primary/90 hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-ring"
+        aria-label="Display Settings"
+        title="Display Settings"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+    </button>
+
+    {/* Settings Panel */}
+    <div 
+        id="display-settings-panel" 
+        class="hidden absolute bottom-16 right-0 w-72 bg-background border border-border rounded-xl shadow-2xl overflow-hidden flex-col"
+    >
+        <div class="bg-muted/50 px-4 py-3 border-b border-border flex justify-between items-center">
+            <h3 class="font-bold text-sm uppercase tracking-wider text-foreground">Display Settings</h3>
+            <button id="close-settings-btn" class="text-muted-foreground hover:text-foreground">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        
+        <div class="p-4 space-y-6">
+            {/* Theme */}
+            <div class="space-y-2">
+                <label class="text-xs font-semibold text-muted-foreground uppercase">Theme</label>
+                <div class="flex bg-muted rounded-lg p-1">
+                    <button class="settings-theme-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-theme="light">Light</button>
+                    <button class="settings-theme-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-theme="dark">Dark</button>
+                    <button class="settings-theme-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-theme="system">Auto</button>
+                </div>
+            </div>
+
+            {/* Font Size */}
+            <div class="space-y-2">
+                <label class="text-xs font-semibold text-muted-foreground uppercase">Font Size</label>
+                <div class="flex bg-muted rounded-lg p-1">
+                    <button class="settings-text-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-text="small">A-</button>
+                    <button class="settings-text-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-text="normal">A</button>
+                    <button class="settings-text-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-text="large">A+</button>
+                </div>
+            </div>
+
+            {/* Spacing */}
+            <div class="space-y-2">
+                <label class="text-xs font-semibold text-muted-foreground uppercase">Spacing</label>
+                <div class="flex bg-muted rounded-lg p-1">
+                    <button class="settings-spacing-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-spacing="compact">Compact</button>
+                    <button class="settings-spacing-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-spacing="normal">Normal</button>
+                    <button class="settings-spacing-btn flex-1 py-1.5 text-xs font-bold rounded-md transition-all text-muted-foreground hover:text-foreground" data-spacing="relaxed">Relaxed</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Logic for toggling panel and applying settings
+    const btn = document.getElementById('display-settings-btn');
+    const closeBtn = document.getElementById('close-settings-btn');
+    const panel = document.getElementById('display-settings-panel');
+
+    function togglePanel() {
+        if (panel) {
+            panel.classList.toggle('hidden');
+            panel.classList.toggle('flex');
+        }
+    }
+
+    btn?.addEventListener('click', togglePanel);
+    closeBtn?.addEventListener('click', togglePanel);
+
+    // Close on click outside
+    document.addEventListener('click', (e) => {
+        if (panel && !panel.classList.contains('hidden')) {
+            if (!panel.contains(e.target as Node) && e.target !== btn && !btn?.contains(e.target as Node)) {
+                togglePanel();
+            }
+        }
+    });
+
+    // Helper to update active button styles
+    function updateActiveButtons(category: string, activeValue: string) {
+        document.querySelectorAll(`.settings-${category}-btn`).forEach((button: any) => {
+            if (button.dataset[category] === activeValue) {
+                button.classList.add('bg-background', 'text-foreground', 'shadow-sm');
+                button.classList.remove('text-muted-foreground');
+            } else {
+                button.classList.remove('bg-background', 'text-foreground', 'shadow-sm');
+                button.classList.add('text-muted-foreground');
+            }
+        });
+    }
+
+    // Load initial settings
+    const currentTheme = localStorage.getItem('theme') || 'system';
+    const currentText = localStorage.getItem('textSize') || 'normal';
+    const currentSpacing = localStorage.getItem('spacing') || 'normal';
+
+    updateActiveButtons('theme', currentTheme);
+    updateActiveButtons('text', currentText);
+    updateActiveButtons('spacing', currentSpacing);
+
+    // Apply Settings Events
+    document.querySelectorAll('.settings-theme-btn').forEach((btn: any) => {
+        btn.addEventListener('click', () => {
+            const theme = btn.dataset.theme;
+            localStorage.setItem('theme', theme);
+            updateActiveButtons('theme', theme);
+            
+            const root = document.documentElement;
+            root.classList.remove('light', 'dark');
+            if (theme === 'system') {
+                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                root.classList.add(systemDark ? 'dark' : 'light');
+            } else {
+                root.classList.add(theme);
+            }
+        });
+    });
+
+    document.querySelectorAll('.settings-text-btn').forEach((btn: any) => {
+        btn.addEventListener('click', () => {
+            const size = btn.dataset.text;
+            localStorage.setItem('textSize', size);
+            updateActiveButtons('text', size);
+            document.documentElement.dataset.textSize = size;
+        });
+    });
+
+    document.querySelectorAll('.settings-spacing-btn').forEach((btn: any) => {
+        btn.addEventListener('click', () => {
+            const spacing = btn.dataset.spacing;
+            localStorage.setItem('spacing', spacing);
+            updateActiveButtons('spacing', spacing);
+            document.documentElement.dataset.spacing = spacing;
+        });
+    });
+</script>

@@ -1,0 +1,41 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../../lib/db';
+import { collections, taxonomies } from '../../../../db/schema';
+import { eq, like } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+
+const user = Astro.locals.user;
+if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return Astro.redirect('/admin/login');
+}
+
+const { collection_slug } = Astro.params;
+const db = getDb(env);
+
+const colRes = await db.select().from(collections).where(eq(collections.slug, collection_slug as string)).limit(1);
+if (colRes.length === 0) {
+    return Astro.redirect('/404');
+}
+const collection = colRes[0];
+const schema = JSON.parse(collection.fields || '[]');
+
+// Fetch allowed taxonomies for this collection
+const taxQuery = await db.select().from(taxonomies).where(like(taxonomies.allowedCollections, `%"${collection.slug}"%`));
+const allowedTaxonomies = taxQuery.map(t => t.slug);
+
+import DynamicEntryEditor from '../../../../components/admin/DynamicEntryEditor';
+---
+
+<AdminLayout title={`Create New ${collection.label}`}>
+    <div class="mb-8 flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">Create {collection.label}</h1>
+            <p class="text-muted-foreground mt-1">Add a new entry to this collection.</p>
+        </div>
+        <a href={`/admin/content/${collection.slug}`} class="text-sm text-muted-foreground hover:text-primary transition-colors">&larr; Back to list</a>
+    </div>
+
+    <!-- The React Root for our Editor -->
+    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} taxonomies={allowedTaxonomies} initialEntry={null} supports={collection.supports} />
+</AdminLayout>

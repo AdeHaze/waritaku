@@ -1,0 +1,101 @@
+---
+import { articles } from '../../db/schema';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../lib/db';
+
+import { like, or, eq } from 'drizzle-orm';
+import slugify from 'slugify';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin');
+}
+
+let processed = 0;
+let cleanedQuotes = 0;
+let fixedSlugs = 0;
+
+if (env && env.DB) {
+  const db = getDb(env);
+  
+  // Fetch all articles
+  const allArticles = await db.select().from(articles);
+  processed = allArticles.length;
+  
+  for (const article of allArticles) {
+      let needsUpdate = false;
+      let newTitle = article.title;
+      let newContent = article.content;
+      let newExcerpt = article.excerpt || '';
+      let newSlug = article.slug;
+
+      // 1. Clean Quotes
+      // The DB has literal \' and \" in text
+      if (newTitle.includes('\\\'') || newTitle.includes('\\"')) {
+          newTitle = newTitle.replace(/\\'/g, "'").replace(/\\"/g, '"');
+          needsUpdate = true;
+      }
+      if (newContent.includes('\\\'') || newContent.includes('\\"')) {
+          newContent = newContent.replace(/\\'/g, "'").replace(/\\"/g, '"');
+          needsUpdate = true;
+      }
+      if (newExcerpt.includes('\\\'') || newExcerpt.includes('\\"')) {
+          newExcerpt = newExcerpt.replace(/\\'/g, "'").replace(/\\"/g, '"');
+          needsUpdate = true;
+      }
+      
+      // 1.5 Clean Unicode Alien Characters
+      const normalizedTitle = newTitle.normalize('NFKC');
+      if (normalizedTitle !== newTitle) {
+          newTitle = normalizedTitle;
+          needsUpdate = true;
+      }
+
+      // 2. Fix Ugly URL Encoded Slugs
+      if (newSlug.includes('%')) {
+          // It's likely url-encoded from unicode. Let's re-slugify from the CLEANED title.
+          newSlug = slugify(newTitle, {
+              lower: true,
+              strict: true,
+              trim: true
+          });
+          
+          // Fallback if slugify strips everything out (e.g. all non-latin)
+          if (!newSlug || newSlug.trim() === '') {
+              newSlug = `article-${article.id}`;
+          }
+          
+          needsUpdate = true;
+          fixedSlugs++;
+      }
+
+      if (needsUpdate) {
+          // Use direct SQL string replacements for speed and accuracy
+          // Wait, we can just use Drizzle's update.
+          try {
+              await db.update(articles).set({
+                  title: newTitle,
+                  content: newContent,
+                  excerpt: newExcerpt,
+                  slug: newSlug
+              }).where(eq(articles.id, article.id));
+              cleanedQuotes++;
+          } catch (e) {
+              console.error(`Failed to update article ${article.id}:`, e);
+          }
+      }
+  }
+}
+---
+
+<html>
+    <head>
+        <title>Database Cleanup Complete</title>
+    </head>
+    <body style="font-family: sans-serif; padding: 2rem;">
+        <h1>Database Cleanup Complete</h1>
+        <p>Total Articles Checked: {processed}</p>
+        <p>Articles Updated (Quotes Fixed): {cleanedQuotes}</p>
+        <p>Articles Updated (Ugly Slugs Fixed): {fixedSlugs}</p>
+    </body>
+</html>

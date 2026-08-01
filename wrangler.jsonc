@@ -1,0 +1,31 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"compatibility_date": "2026-07-26",
+	// nodejs_compat enables Node.js built-ins (crypto, buffer, etc.) in the Worker.
+	// Required for bcryptjs to verify legacy WordPress password hashes.
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+	"name": "waritaku",
+	"main": "@astrojs/cloudflare/entrypoints/server",
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "waritaku_db",
+			"database_id": "waritaku-local-dev",
+			"migrations_dir": "drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "UPLOADS",
+			"bucket_name": "waritaku-uploads"
+		}
+	]
+}

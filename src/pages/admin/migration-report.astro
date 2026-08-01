@@ -1,0 +1,411 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDb } from '../../lib/db';
+import { sql } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin');
+}
+
+// ── Queries ────────────────────────────────────────────────────────────────
+interface Row { id: number; title: string; slug: string; [k: string]: any }
+
+let dbAvailable = false;
+let errorMessage = '';
+let totalArticles = 0, publishedArticles = 0, draftArticles = 0;
+let noFeaturedImage: Row[] = [];
+// Own-domain WP URLs not rewritten — truly broken import (ideally 0 after v2)
+let ownDomainWpUrls: Row[] = [];
+// External sites' WP uploads hotlinked into content — different problem
+let externalHotlinks: Row[] = [];
+let unresolvedShortcodes: Row[] = [];
+let totalTags = 0, totalUsers = 0;
+let phpassUsers: { id: number; name: string; email: string }[] = [];
+let bcryptUsers = 0, nativeUsers = 0;
+
+if (env?.DB) {
+    dbAvailable = true;
+    try {
+        const db = getDb(env);
+
+        // Article counts
+        const sc = await db.run(sql`SELECT status, COUNT(*) as cnt FROM entries WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles') GROUP BY status`);
+        for (const r of (sc as any).results || []) {
+            if (r.status === 'published') publishedArticles = Number(r.cnt);
+            else if (r.status === 'draft') draftArticles = Number(r.cnt);
+            totalArticles += Number(r.cnt);
+        }
+
+        // Missing featured image (published only)
+        const nfi = await db.run(sql`
+            SELECT id, json_extract(data, '$.title') as title, slug FROM entries
+            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+              AND status = 'published' AND (json_extract(data, '$.featuredImageUrl') IS NULL OR json_extract(data, '$.featuredImageUrl') = '')
+            ORDER BY id LIMIT 500`);
+        noFeaturedImage = (nfi as any).results || [];
+
+        // Own-domain unrewritten WP URLs — articles where old site domain wp-content/uploads survived
+        const ownWp = await db.run(sql`
+            SELECT id, json_extract(data, '$.title') as title, slug FROM entries
+            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+               AND (json_extract(data, '$.content') LIKE '%waritaku.com/wp-content/uploads%'
+               OR json_extract(data, '$.content') LIKE '%128.199.139.85/wp-content/uploads%')
+            ORDER BY id LIMIT 500`);
+        ownDomainWpUrls = (ownWp as any).results || [];
+
+        // External hotlinks — articles that embed images from OTHER websites' WP uploads
+        const extHl = await db.run(sql`
+            SELECT id, json_extract(data, '$.title') as title, slug FROM entries
+            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+              AND (json_extract(data, '$.content') LIKE '%/wp-content/uploads%' OR json_extract(data, '$.content') LIKE '%.wordpress.com%')
+              AND json_extract(data, '$.content') NOT LIKE '%waritaku.com%'
+              AND json_extract(data, '$.content') NOT LIKE '%128.199.139.85%'
+              AND json_extract(data, '$.content') NOT LIKE '%127.0.0.1%'
+              AND json_extract(data, '$.content') NOT LIKE '%localhost%'
+            ORDER BY id LIMIT 500`);
+        externalHotlinks = (extHl as any).results || [];
+
+        // Unresolved shortcodes (common plugin shortcodes)
+        const sc2 = await db.run(sql`
+            SELECT id, json_extract(data, '$.title') as title, slug FROM entries
+            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+               AND (json_extract(data, '$.content') LIKE '%[caption%'
+               OR json_extract(data, '$.content') LIKE '%[gallery%'
+               OR json_extract(data, '$.content') LIKE '%[vc_%'
+               OR json_extract(data, '$.content') LIKE '%[su_%'
+               OR json_extract(data, '$.content') LIKE '%[et_%'
+               OR json_extract(data, '$.content') LIKE '%[tabs%'
+               OR json_extract(data, '$.content') LIKE '%[spoiler%'
+               OR json_extract(data, '$.content') LIKE '%[accordion%')
+            ORDER BY id LIMIT 500`);
+        unresolvedShortcodes = (sc2 as any).results || [];
+
+        // Tags count
+        const tr = await db.run(sql`SELECT COUNT(*) as cnt FROM terms WHERE taxonomy_id = (SELECT id FROM taxonomies WHERE slug = 'tags')`);
+        totalTags = Number((tr as any).results?.[0]?.cnt ?? 0);
+
+        // Users + hash types
+        const ur = await db.run(sql`SELECT id, name, email, password_hash FROM users`);
+        const allUsers: any[] = (ur as any).results || [];
+        totalUsers = allUsers.length;
+        for (const u of allUsers) {
+            const h = u.password_hash || '';
+            if (h.startsWith('$P$') || h.startsWith('$H$')) {
+                phpassUsers.push({ id: u.id, name: u.name, email: u.email });
+            } else if (h.startsWith('$wp$') || h.startsWith('$2y$') || h.startsWith('$2b$')) {
+                bcryptUsers++;
+            } else if (h.includes(':')) {
+                nativeUsers++;
+            }
+        }
+    } catch (err: any) {
+        errorMessage = err?.message || String(err);
+    }
+}
+
+// Health score: only own-domain failures count as critical.
+// External hotlinks are informational (pre-existing broken hotlinks, not import failure).
+const healthScore = totalArticles > 0 ? Math.max(0, Math.round(
+    100
+    - (noFeaturedImage.length / Math.max(publishedArticles, 1)) * 25
+    - (ownDomainWpUrls.length / Math.max(totalArticles, 1)) * 40
+    - (unresolvedShortcodes.length / Math.max(totalArticles, 1)) * 20
+    - (phpassUsers.length / Math.max(totalUsers, 1)) * 15
+)) : 0;
+
+const scoreColor = healthScore >= 90 ? 'text-green-600 dark:text-green-400'
+    : healthScore >= 70 ? 'text-yellow-600 dark:text-yellow-400'
+    : 'text-destructive';
+const scoreBg = healthScore >= 90 ? 'text-green-500'
+    : healthScore >= 70 ? 'text-yellow-500' : 'text-destructive';
+
+type Severity = 'ok' | 'info' | 'med' | 'high';
+interface Metric { label: string; value: number; total: number; icon: string; desc: string; severity: Severity }
+const metrics: Metric[] = [
+    { label: 'Missing Featured Images', value: noFeaturedImage.length, total: publishedArticles, icon: '🖼️',
+      desc: 'Published articles without a featured image',
+      severity: noFeaturedImage.length > 50 ? 'high' : noFeaturedImage.length > 0 ? 'med' : 'ok' },
+    { label: 'Import URL Failures', value: ownDomainWpUrls.length, total: totalArticles, icon: '🔴',
+      desc: 'Articles where wp-content URLs were NOT rewritten (ideally 0 after v2 import)',
+      severity: ownDomainWpUrls.length > 0 ? 'high' : 'ok' },
+    { label: 'External Image Hotlinks', value: externalHotlinks.length, total: totalArticles, icon: '🔗',
+      desc: 'Content links to images on OTHER sites (broken hotlinks, pre-existing WP content problem)',
+      severity: externalHotlinks.length > 100 ? 'info' : 'ok' },
+    { label: 'Unresolved Shortcodes', value: unresolvedShortcodes.length, total: totalArticles, icon: '⚙️',
+      desc: 'Articles with plugin-specific shortcodes still in content',
+      severity: unresolvedShortcodes.length > 20 ? 'med' : unresolvedShortcodes.length > 0 ? 'info' : 'ok' },
+    { label: 'phpass Users (Need Reset)', value: phpassUsers.length, total: totalUsers, icon: '🔐',
+      desc: 'Old $P$ hash — cannot log in until password is reset',
+      severity: phpassUsers.length > 0 ? 'med' : 'ok' },
+    { label: 'bcrypt Users (WP Import)', value: bcryptUsers, total: totalUsers, icon: '✅',
+      desc: '$wp$2y$ bcrypt — can log in immediately',
+      severity: 'ok' },
+];
+---
+
+<AdminLayout title="Migration Report">
+    <div class="max-w-5xl">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+                <span class="text-2xl">🔍</span> Migration Health Report
+            </h2>
+            <p class="text-muted-foreground mt-2 text-sm">
+                Quality audit of the WordPress import. Identifies articles needing cleanup.
+            </p>
+        </div>
+
+        {!dbAvailable && (
+            <div class="p-6 bg-card border border-border rounded-xl text-muted-foreground text-sm">
+                Database not available. This report requires an active D1 database connection.
+            </div>
+        )}
+        {errorMessage && (
+            <div class="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm mb-6">
+                {errorMessage}
+            </div>
+        )}
+
+        {dbAvailable && (
+            <div class="space-y-6">
+
+                {/* Health Score */}
+                <div class="bg-card border border-border rounded-xl p-6 flex items-center gap-6">
+                    <div class="relative size-24 shrink-0">
+                        <svg class="size-24 -rotate-90" viewBox="0 0 36 36">
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" stroke-width="2.5" class="text-muted/30" />
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" stroke-width="2.5"
+                                stroke-dasharray={`${healthScore} ${100 - healthScore}`}
+                                stroke-linecap="round" class={scoreBg} />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <span class={`text-xl font-bold ${scoreColor}`}>{healthScore}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold">Migration Health Score</h3>
+                        <p class="text-muted-foreground text-sm mt-1">
+                            {healthScore >= 90 ? '✅ Excellent — migration looks clean.'
+                             : healthScore >= 70 ? '⚠ Good — some cleanup recommended.'
+                             : '❌ Needs attention — review the issues below.'}
+                        </p>
+                        <div class="flex flex-wrap gap-5 mt-3 text-sm text-muted-foreground">
+                            <span><strong class="text-foreground">{publishedArticles.toLocaleString()}</strong> published</span>
+                            <span><strong class="text-foreground">{draftArticles.toLocaleString()}</strong> draft</span>
+                            <span><strong class="text-foreground">{totalTags.toLocaleString()}</strong> tags</span>
+                            <span><strong class="text-foreground">{totalUsers}</strong> users</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Metric cards */}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {metrics.map(({ label, value, total, icon, desc, severity }) => {
+                        const bg = severity === 'high' ? 'border-destructive/30 bg-destructive/5'
+                                 : severity === 'med'  ? 'border-amber-500/30 bg-amber-50 dark:bg-amber-950/10'
+                                 : severity === 'info' ? 'border-blue-500/20 bg-blue-50 dark:bg-blue-950/10'
+                                 : 'border-border bg-card';
+                        const vc = severity === 'high' ? 'text-destructive'
+                                 : severity === 'med'  ? 'text-amber-600 dark:text-amber-400'
+                                 : severity === 'info' ? 'text-blue-600 dark:text-blue-400'
+                                 : 'text-green-600 dark:text-green-400';
+                        return (
+                            <div class={`rounded-xl border p-4 ${bg}`}>
+                                <div class="flex items-start gap-3">
+                                    <span class="text-2xl">{icon}</span>
+                                    <div class="flex-1 min-w-0">
+                                        <div class={`text-3xl font-bold ${vc}`}>{value.toLocaleString()}</div>
+                                        <div class="text-xs text-muted-foreground">of {total.toLocaleString()}</div>
+                                        <div class="font-semibold text-sm mt-1">{label}</div>
+                                        <div class="text-xs text-muted-foreground mt-0.5">{desc}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* ── Issue sections ── */}
+
+                {/* 1. Missing featured images */}
+                {noFeaturedImage.length > 0 && (
+                    <details class="bg-card border border-amber-500/30 rounded-xl overflow-hidden" open>
+                        <summary class="px-6 py-4 border-b border-border cursor-pointer font-bold flex items-center gap-2">
+                            <span>🖼️</span> Missing Featured Images
+                            <span class="ml-auto text-xs font-normal text-amber-600 dark:text-amber-400">{noFeaturedImage.length} articles</span>
+                        </summary>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-border bg-muted/30">
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">ID</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Title</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {noFeaturedImage.map(a => (
+                                        <tr class="border-b border-border/40 hover:bg-muted/20">
+                                            <td class="px-4 py-2 font-mono text-xs text-muted-foreground">{a.id}</td>
+                                            <td class="px-4 py-2 max-w-xs truncate">{a.title}</td>
+                                            <td class="px-4 py-2 whitespace-nowrap">
+                                                <a href={`/admin/articles/edit/${a.id}`} class="text-xs text-primary hover:underline mr-3">Edit</a>
+                                                <a href={`/${a.slug}`} target="_blank" class="text-xs text-muted-foreground hover:underline">Preview ↗</a>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                )}
+
+                {/* 2. Import URL failures (own-domain, truly broken) */}
+                {ownDomainWpUrls.length > 0 && (
+                    <details class="bg-card border border-destructive/30 rounded-xl overflow-hidden" open>
+                        <summary class="px-6 py-4 border-b border-border cursor-pointer font-bold flex items-center gap-2">
+                            <span>🔴</span> Import URL Failures
+                            <span class="ml-2 text-xs bg-destructive/10 text-destructive px-2 py-0.5 rounded-full">Critical</span>
+                            <span class="ml-auto text-xs font-normal text-destructive">{ownDomainWpUrls.length} articles</span>
+                        </summary>
+                        <div class="px-6 py-3 bg-destructive/5 text-xs text-muted-foreground border-b border-border">
+                            These articles still have <code class="font-mono bg-muted px-1 rounded">/wp-content/uploads</code> paths without a protocol prefix.
+                            Re-run <code class="font-mono bg-muted px-1 rounded">node scripts/wp-import.mjs</code> and re-upload the payload to fix them.
+                        </div>
+                        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="sticky top-0 bg-card z-10">
+                                    <tr class="border-b border-border bg-muted/30">
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">ID</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Title</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {ownDomainWpUrls.map(a => (
+                                        <tr class="border-b border-border/40 hover:bg-muted/20">
+                                            <td class="px-4 py-2 font-mono text-xs text-muted-foreground">{a.id}</td>
+                                            <td class="px-4 py-2 max-w-xs truncate">{a.title}</td>
+                                            <td class="px-4 py-2 whitespace-nowrap">
+                                                <a href={`/admin/articles/edit/${a.id}`} class="text-xs text-primary hover:underline mr-3">Edit</a>
+                                                <a href={`/${a.slug}`} target="_blank" class="text-xs text-muted-foreground hover:underline">Preview ↗</a>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                )}
+
+                {/* 3. External hotlinks (informational, pre-existing WP content problem) */}
+                {externalHotlinks.length > 0 && (
+                    <details class="bg-card border border-blue-500/20 rounded-xl overflow-hidden">
+                        <summary class="px-6 py-4 border-b border-border cursor-pointer font-bold flex items-center gap-2">
+                            <span>🔗</span> External Image Hotlinks
+                            <span class="ml-2 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">Informational</span>
+                            <span class="ml-auto text-xs font-normal text-blue-600 dark:text-blue-400">{externalHotlinks.length} articles</span>
+                        </summary>
+                        <div class="px-6 py-3 bg-blue-50/50 dark:bg-blue-950/10 text-xs text-muted-foreground border-b border-border">
+                            These articles embed images from <strong>other websites</strong> (e.g. <code class="font-mono bg-muted px-1 rounded">wm.adil.my.id/wp-content/uploads</code>).
+                            This is a pre-existing hotlinking problem in the original WordPress content — it is <strong>not an import failure</strong>.
+                            The images may already be broken on the live site. No automated fix is possible; edit each article manually.
+                        </div>
+                        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="sticky top-0 bg-card z-10">
+                                    <tr class="border-b border-border bg-muted/30">
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">ID</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Title</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {externalHotlinks.map(a => (
+                                        <tr class="border-b border-border/40 hover:bg-muted/20">
+                                            <td class="px-4 py-2 font-mono text-xs text-muted-foreground">{a.id}</td>
+                                            <td class="px-4 py-2 max-w-xs truncate">{a.title}</td>
+                                            <td class="px-4 py-2 whitespace-nowrap">
+                                                <a href={`/admin/articles/edit/${a.id}`} class="text-xs text-primary hover:underline mr-3">Edit</a>
+                                                <a href={`/${a.slug}`} target="_blank" class="text-xs text-muted-foreground hover:underline">Preview ↗</a>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                )}
+
+                {/* 4. Unresolved shortcodes */}
+                {unresolvedShortcodes.length > 0 && (
+                    <details class="bg-card border border-purple-500/20 rounded-xl overflow-hidden">
+                        <summary class="px-6 py-4 border-b border-border cursor-pointer font-bold flex items-center gap-2">
+                            <span>⚙️</span> Unresolved Plugin Shortcodes
+                            <span class="ml-auto text-xs font-normal text-purple-600 dark:text-purple-400">{unresolvedShortcodes.length} articles</span>
+                        </summary>
+                        <div class="px-6 py-3 bg-muted/20 text-xs text-muted-foreground border-b border-border">
+                            Plugin-specific shortcodes (Visual Composer <code class="font-mono bg-muted px-1 rounded">[vc_*]</code>, Shortcodes Ultimate <code class="font-mono bg-muted px-1 rounded">[su_*]</code>, etc.)
+                            Each needs a custom transformer. Check <code class="font-mono bg-muted px-1 rounded">scripts/migration_report.json</code> for the full breakdown.
+                        </div>
+                        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="sticky top-0 bg-card z-10">
+                                    <tr class="border-b border-border bg-muted/30">
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">ID</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Title</th>
+                                        <th class="text-left px-4 py-2 text-xs text-muted-foreground font-semibold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {unresolvedShortcodes.map(a => (
+                                        <tr class="border-b border-border/40 hover:bg-muted/20">
+                                            <td class="px-4 py-2 font-mono text-xs text-muted-foreground">{a.id}</td>
+                                            <td class="px-4 py-2 max-w-xs truncate">{a.title}</td>
+                                            <td class="px-4 py-2 whitespace-nowrap">
+                                                <a href={`/admin/articles/edit/${a.id}`} class="text-xs text-primary hover:underline mr-3">Edit</a>
+                                                <a href={`/${a.slug}`} target="_blank" class="text-xs text-muted-foreground hover:underline">Preview ↗</a>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                )}
+
+                {/* 5. phpass users */}
+                {phpassUsers.length > 0 && (
+                    <details class="bg-card border border-amber-500/30 rounded-xl overflow-hidden" open>
+                        <summary class="px-6 py-4 border-b border-border cursor-pointer font-bold flex items-center gap-2">
+                            <span>🔐</span> Users Requiring Password Reset
+                            <span class="ml-auto text-xs font-normal text-amber-600 dark:text-amber-400">{phpassUsers.length} users</span>
+                        </summary>
+                        <div class="px-6 py-3 bg-amber-50/50 dark:bg-amber-950/10 text-xs text-muted-foreground border-b border-border">
+                            These users have old WordPress phpass (<code class="font-mono bg-muted px-1 rounded">$P$</code>) hashes.
+                            They cannot log in until an admin resets their password.
+                            Go to <a href="/admin/users" class="text-primary hover:underline">Users &amp; Roles</a> → Reset Password.
+                        </div>
+                        <div class="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                            {phpassUsers.map(u => (
+                                <div class="flex items-center gap-2 p-2 bg-muted/20 rounded-md border border-border text-sm">
+                                    <span class="size-7 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-800 dark:text-amber-400 text-xs font-bold shrink-0">
+                                        {u.name[0]?.toUpperCase()}
+                                    </span>
+                                    <div class="min-w-0">
+                                        <div class="font-medium truncate">{u.name}</div>
+                                        <div class="text-xs text-muted-foreground truncate">{u.email}</div>
+                                    </div>
+                                    <a href="/admin/users" class="ml-auto text-xs text-primary hover:underline shrink-0">Reset →</a>
+                                </div>
+                            ))}
+                        </div>
+                    </details>
+                )}
+
+            </div>
+        )}
+    </div>
+</AdminLayout>
+

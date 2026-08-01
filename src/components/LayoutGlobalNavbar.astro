@@ -1,0 +1,53 @@
+---
+import { settings } from '../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../lib/db';
+
+let navbarLinks = [
+    { label: 'All', url: '/all' },
+    { label: 'Anime', url: '/anime' },
+    { label: 'Manga', url: '/manga' },
+    { label: 'Games', url: '/games' },
+    { label: 'Novel', url: '/novel' },
+    { label: 'Simak', url: '/simak' },
+    { label: 'Event', url: '/event' },
+    { label: 'Staff List', url: '/staff-list' },
+    { label: 'Recruitment', url: '/recruitment' }
+];
+
+if (env && env.DB) {
+    try {
+        const db = getDb(env);
+        const existing = await db.select().from(settings).where(eq(settings.key, 'navbar_links')).limit(1);
+        if (existing.length > 0) {
+            navbarLinks = JSON.parse(existing[0].value);
+        }
+    } catch(e) {
+        // Silently fail, fallback to default links
+    }
+}
+
+let linkClass = "transition-colors hover:text-primary text-foreground/90";
+---
+
+{/* Desktop Navigation */}
+<nav class="hidden lg:flex items-center space-x-8 text-sm font-bold uppercase tracking-wide">
+    {navbarLinks.map(link => (
+        <a href={link.url} class={linkClass}>{link.label}</a>
+    ))}
+</nav>
+
+{/* Mobile Menu Overlay */}
+<div id="mobile-menu" class="hidden fixed inset-x-0 top-[64px] h-[calc(100vh-64px)] z-[100] bg-background/95 backdrop-blur-sm border-t border-border overflow-y-auto">
+    <nav class="container mx-auto px-4 py-8 flex flex-col space-y-6 text-lg font-bold uppercase tracking-wide text-center">
+        {navbarLinks.map(link => (
+            <a href={link.url} class="transition-colors hover:text-primary text-foreground border-b border-border/50 pb-2">{link.label}</a>
+        ))}
+        
+        <div class="pt-4 flex flex-col space-y-6">
+            <a href="/about" class="transition-colors hover:text-primary text-muted-foreground text-base">About Us</a>
+            <a href="/login" class="transition-colors hover:text-primary text-primary text-base font-black">Admin Login</a>
+        </div>
+    </nav>
+</div>

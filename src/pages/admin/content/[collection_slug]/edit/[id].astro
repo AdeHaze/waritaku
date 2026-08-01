@@ -1,0 +1,68 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../../../lib/db';
+import { collections, entries, entryTerms, taxonomies } from '../../../../../db/schema';
+import { eq, and, like } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+
+const user = Astro.locals.user;
+if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return Astro.redirect('/admin/login');
+}
+
+const { collection_slug, id } = Astro.params;
+const entryId = parseInt(id as string, 10);
+const db = getDb(env);
+
+const colRes = await db.select().from(collections).where(eq(collections.slug, collection_slug as string)).limit(1);
+if (colRes.length === 0) {
+    return Astro.redirect('/404');
+}
+const collection = colRes[0];
+const schema = JSON.parse(collection.fields || '[]');
+
+const entryRes = await db.select().from(entries).where(and(eq(entries.id, entryId), eq(entries.collectionId, collection.id))).limit(1);
+if (entryRes.length === 0) {
+    return Astro.redirect('/404');
+}
+
+// Fetch assigned terms
+const termsRes = await db.select().from(entryTerms).where(eq(entryTerms.entryId, entryId));
+const selectedTerms = termsRes.map(t => t.termId.toString());
+
+const entry = {
+    id: entryRes[0].id,
+    slug: entryRes[0].slug,
+    status: entryRes[0].status,
+    publishedAt: entryRes[0].publishedAt,
+    selectedTerms,
+    ...JSON.parse(entryRes[0].data || '{}')
+};
+
+// Fetch allowed taxonomies for this collection
+const taxQuery = await db.select().from(taxonomies).where(like(taxonomies.allowedCollections, `%"${collection.slug}"%`));
+const allowedTaxonomies = taxQuery.map(t => t.slug);
+
+import DynamicEntryEditor from '../../../../../components/admin/DynamicEntryEditor';
+---
+
+<AdminLayout title={`Edit ${collection.label} Entry`}>
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">Edit {collection.label}</h1>
+            <p class="text-muted-foreground mt-1">Make changes to this entry.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            {entry.status === 'published' && (
+                <a href={`/${entry.slug}`} target="_blank" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+                    View Live
+                </a>
+            )}
+            <a href={`/admin/content/${collection.slug}`} class="text-sm text-muted-foreground hover:text-primary transition-colors">&larr; Back to list</a>
+        </div>
+    </div>
+
+    <!-- The React Root for our Editor -->
+    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} initialEntry={entry} taxonomies={allowedTaxonomies} />
+</AdminLayout>

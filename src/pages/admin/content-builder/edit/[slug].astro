@@ -1,0 +1,40 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../../lib/db';
+import { collections, taxonomies } from '../../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+import SchemaBuilder from '../../../../components/admin/SchemaBuilder';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin/login');
+}
+
+const { slug } = Astro.params;
+const db = getDb(env);
+
+const colRes = await db.select().from(collections).where(eq(collections.slug, slug as string)).limit(1);
+if (colRes.length === 0) {
+    return Astro.redirect('/404');
+}
+const collection = colRes[0];
+
+const allTaxonomies = await db.select().from(taxonomies);
+const availableTaxonomies = allTaxonomies.map(t => ({ slug: t.slug, name: t.label }));
+---
+
+<AdminLayout title={`Edit Schema: ${collection.label}`}>
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">Schema: {collection.label}</h1>
+            <p class="text-muted-foreground mt-1">Configure fields and settings for the <strong>{collection.slug}</strong> content type.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="/admin/content-builder" class="text-sm text-muted-foreground hover:text-primary transition-colors">&larr; Back to list</a>
+        </div>
+    </div>
+
+    <!-- The React Root for Schema Builder -->
+    <SchemaBuilder client:only="react" collection={collection} availableTaxonomies={availableTaxonomies} />
+</AdminLayout>

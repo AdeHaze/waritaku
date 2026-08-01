@@ -1,0 +1,91 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { settings } from '../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../../lib/db';
+
+import DashboardToolkitSettings from '../../../components/admin/DashboardToolkitSettings';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin/login');
+}
+
+let db = null;
+if (env && env.DB) {
+    db = getDb(env);
+}
+
+let message = '';
+let isError = false;
+
+if (Astro.request.method === 'POST') {
+    try {
+        const formData = await Astro.request.formData();
+        const dashboardLayout = formData.get('dashboardLayout') as string;
+        
+        if (db && dashboardLayout) {
+            const existing = await db.select().from(settings).where(eq(settings.key, 'dashboard_layout'));
+            if (existing.length > 0) {
+                await db.update(settings).set({ value: dashboardLayout }).where(eq(settings.key, 'dashboard_layout'));
+            } else {
+                await db.insert(settings).values({ key: 'dashboard_layout', value: dashboardLayout });
+            }
+            message = 'Dashboard layout updated successfully.';
+        }
+    } catch (e) {
+        message = 'An error occurred while saving the dashboard layout.';
+        isError = true;
+        console.error(e);
+    }
+}
+
+let dashboardWidgetsData = [
+  { id: 'summary', enabled: true, title: 'Summary Cards', description: 'Total count of Articles, Categories, Tags, and Writers' },
+  { id: 'calendar', enabled: true, title: 'Publishing Calendar & Analytics', description: 'Interactive monthly publishing calendar and day-of-week productivity stats' },
+  { id: 'activity', enabled: true, title: 'Recent Activity Table', description: 'Table of latest published articles and draft updates' }
+];
+
+if (db) {
+    const existingLayout = await db.select().from(settings).where(eq(settings.key, 'dashboard_layout'));
+    if (existingLayout.length > 0) {
+        try {
+            dashboardWidgetsData = JSON.parse(existingLayout[0].value);
+        } catch(e) { }
+    }
+}
+---
+
+<AdminLayout title="Dashboard Toolkit">
+    <div class="max-w-4xl">
+        <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <h2 class="text-3xl font-bold tracking-tight">Dashboard Toolkit</h2>
+                <p class="text-muted-foreground mt-2">Customize, enable, disable, and reorder the widgets on your Admin Dashboard.</p>
+            </div>
+            <a href="/admin" class="inline-flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full transition-colors border border-primary/20 shadow-sm shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                View Dashboard
+            </a>
+        </div>
+
+        {message && (
+            <div class={`p-4 rounded-md mb-8 ${isError ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+                {message}
+            </div>
+        )}
+
+        <form method="POST" class="space-y-8">
+            <div class="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                <DashboardToolkitSettings client:load initialWidgets={dashboardWidgetsData} />
+            </div>
+
+            <div class="flex justify-end pt-4 pb-12">
+                <button type="submit" class="px-6 py-2.5 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 transition-colors">
+                    Save Dashboard Layout
+                </button>
+            </div>
+        </form>
+    </div>
+</AdminLayout>

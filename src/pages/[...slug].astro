@@ -1,0 +1,722 @@
+---
+import LayoutArticlePage from '../layouts/LayoutArticlePage.astro';
+import GlobalSidebar from '../components/GlobalSidebar.astro';
+import Pagination from '../components/Pagination.astro';
+import ViewToggle from '../components/ViewToggle.astro';
+import BlockRenderer from '../components/BlockRenderer.astro';
+import { env } from "cloudflare:workers";
+import { getDb } from '../lib/db';
+import { resolveRouteData } from '../lib/queries';
+import { settings, entries, collections, users, taxonomies, terms, entryTerms } from '../db/schema';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+
+import { parseEmbeds } from '../utils/embedParser';
+
+let rawSlug = Astro.params.slug as string;
+if (!rawSlug) return Astro.redirect('/404');
+
+rawSlug = rawSlug.replace(/\/$/, '');
+
+let currentPage = 1;
+const pageMatch = rawSlug.match(/^(.*?)\/page\/(\d+)$/i);
+if (pageMatch) {
+    rawSlug = pageMatch[1];
+    currentPage = Math.max(1, parseInt(pageMatch[2], 10));
+} else {
+    const pageParam = Astro.url.searchParams.get('page');
+    if (pageParam) currentPage = Math.max(1, parseInt(pageParam, 10));
+}
+
+const slug = rawSlug;
+const pageSize = 12;
+
+let pageType: 'article' | 'page' | 'category' | null = null;
+let data: any = null;
+let categoryArticles: any[] = [];
+let totalPages = 1;
+let articleUpperHtml = '';
+let articleBottomHtml = '';
+
+let showLeftSidebar = false;
+let showRightSidebar = true;
+let headerStyle = 'default';
+let footerStyle = 'default';
+
+let layoutBlocks: any[] = [];
+let blockData: Record<string, any> = {};
+
+if (env && env.DB && slug) {
+  const db = getDb(env);
+  const resolved = await resolveRouteData(db, slug, currentPage, pageSize);
+  if (resolved) {
+      if (resolved.redirect) {
+          return Astro.redirect(resolved.redirect, 301);
+      }
+      pageType = resolved.pageType;
+      data = resolved.data;
+      categoryArticles = resolved.categoryArticles;
+      totalPages = resolved.totalPages;
+      articleUpperHtml = resolved.articleUpperHtml;
+      articleBottomHtml = resolved.articleBottomHtml;
+  }
+  
+  if (pageType) {
+      // Sidebar and Theme Overrides
+      const configRes = await db.select().from(settings).where(eq(settings.key, 'sidebar_layout_config')).limit(1);
+      
+      if (pageType === 'page') {
+          headerStyle = data.headerStyle || 'default';
+          footerStyle = data.footerStyle || 'default';
+          
+          let pageOverride = null;
+          if (data.layout_config) {
+              try {
+                  pageOverride = typeof data.layout_config === 'string' ? JSON.parse(data.layout_config) : data.layout_config;
+              } catch(e) {}
+          }
+          if (pageOverride && pageOverride.override) {
+              showLeftSidebar = pageOverride.showLeft;
+              showRightSidebar = pageOverride.showRight;
+          } else if (configRes.length > 0) {
+              try {
+                  const layoutConfig = JSON.parse(configRes[0].value);
+                  showLeftSidebar = layoutConfig.left?.showOnArticles ?? false;
+                  showRightSidebar = layoutConfig.right?.showOnArticles ?? true;
+              } catch(e) {}
+          }
+
+          // Handle Block Builder Data
+          if (data.is_block_builder && data.layout_blocks) {
+              try {
+                  layoutBlocks = typeof data.layout_blocks === 'string' ? JSON.parse(data.layout_blocks) : data.layout_blocks;
+              } catch(e) {}
+
+              const articlesColResult = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
+              const articlesColId = articlesColResult[0]?.id;
+
+              const fetchArticles = async (categoryId?: string | number, limit = 5, offset = 0, isRandom = false, tagSlug?: string) => {
+                  if (!articlesColId) return [];
+                  
+                  let query = db.selectDistinct({
+                      entry: entries,
+                      author: users
+                  })
+                  .from(entries)
+                  .leftJoin(users, eq(entries.authorId, users.id));
+
+                  let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesColId));
+
+                  if (categoryId && categoryId !== 'all' || tagSlug) {
+                      query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
+                      query = query.innerJoin(terms, eq(entryTerms.termId, terms.id));
+                      
+                      const termConditions = [];
+                      if (categoryId && categoryId !== 'all') {
+                          termConditions.push(eq(terms.id, parseInt(categoryId as string)));
+                      }
+                      if (tagSlug) {
+                          termConditions.push(eq(terms.slug, tagSlug));
+                      }
+                      if (termConditions.length > 0) {
+                          conditions = and(conditions, ...termConditions);
+                      }
+                  }
+
+                  query = query.where(conditions) as any;
+
+                  if (isRandom) {
+                      query = query.orderBy(sql`RANDOM()`) as any;
+                  } else {
+                      query = query.orderBy(desc(entries.publishedAt)) as any;
+                  }
+
+                  const result = await query.limit(limit).offset(offset);
+                  
+                  return result.map(r => {
+                      const data = JSON.parse(r.entry.data || '{}');
+                      const rawContent = data.content || '';
+                      const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+                      const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
+
+                      return {
+                          id: r.entry.id,
+                          slug: r.entry.slug,
+                          publishedAt: r.entry.publishedAt,
+                          ...data,
+                          categoryName: 'Article', // Can be populated if needed
+                          categorySlug: 'all',
+                          authorName: r.author?.name || 'Admin',
+                          authorId: r.author?.id || 1,
+                          excerpt: excerpt
+                      };
+                  });
+              };
+
+              const promises = layoutBlocks.map(async (block) => {
+                  if (block.type === 'hero' || block.type === 'hero_2' || block.type === 'hero_3') {
+                      blockData[block.id] = await fetchArticles('all', block.limit || 5, 0);
+                  } else if (block.type === 'category_block') {
+                      blockData[block.id] = await fetchArticles(block.categoryId, block.limit || 5, 0, false, block.tagSlug);
+                  } else if (block.type === 'category_block_2') {
+                      blockData[block.id] = await fetchArticles(block.categoryId, block.limit || 11, 0, false, block.tagSlug);
+                  } else if (block.type === 'article_grid') {
+                      blockData[block.id] = await fetchArticles('all', block.limit || 12, 0, true);
+                  } else if (block.type === 'categories_grid') {
+                      // Fetch categories from terms where taxonomy is 'categories'
+                      const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+                      if (catTax.length > 0) {
+                          blockData[block.id] = await db.select().from(terms).where(eq(terms.taxonomyId, catTax[0].id)).limit(block.limit || 12).offset(5);
+                      } else {
+                          blockData[block.id] = [];
+                      }
+                  }
+              });
+
+              await Promise.all(promises);
+          }
+      } else {
+          // Article or Category Global Sidebars
+          if (configRes.length > 0) {
+              try {
+                  const layoutConfig = JSON.parse(configRes[0].value);
+                  const ctx = pageType === 'category' ? 'category' : 'article';
+                  showLeftSidebar = layoutConfig.left?.[`showOn${ctx.charAt(0).toUpperCase() + ctx.slice(1)}s`] ?? false;
+                  showRightSidebar = layoutConfig.right?.[`showOn${ctx.charAt(0).toUpperCase() + ctx.slice(1)}s`] ?? true;
+              } catch(e) {}
+          }
+      }
+  }
+}
+
+if (!data || !pageType) {
+  return Astro.redirect('/404');
+}
+
+// Handle Password Protection
+let showPasswordPrompt = false;
+let passwordError = '';
+
+if (pageType === 'article' && data.visibility === 'password') {
+    const cookieName = `article_access_${data.id}`;
+    let hasAccess = Astro.cookies.has(cookieName);
+    
+    if (Astro.request.method === 'POST') {
+        const formData = await Astro.request.formData();
+        const inputPassword = formData.get('post_password') as string;
+        if (inputPassword === data.password) {
+            // Set cookie for 1 day
+            Astro.cookies.set(cookieName, 'true', { path: '/', maxAge: 60 * 60 * 24 });
+            hasAccess = true;
+        } else {
+            passwordError = 'Incorrect password.';
+        }
+    }
+    
+    if (!hasAccess) {
+        showPasswordPrompt = true;
+    }
+}
+
+let parsedContent = data.content || '';
+parsedContent = parsedContent.replace(/https?:\/\/(www\.)?waritaku\.com\/wp-content\/uploads/gi, '/uploads');
+parsedContent = parsedContent.replace(/https?:\/\/(128\.199\.139\.85)\/wp-content\/uploads/gi, '/uploads');
+parsedContent = parsedContent.replace(/https?:\/\/127\.0\.0\.1:\d+\/wp-content\/uploads/gi, '/uploads');
+parsedContent = parsedContent.replace(/https?:\/\/localhost:\d+\/wp-content\/uploads/gi, '/uploads');
+parsedContent = parsedContent.replace(/(\/uploads\/[^\s"'<>]+?)(-\d+x\d+)?\.(jpe?g|png)(?=["'\s>])/gi, '$1.webp');
+
+parsedContent = parsedContent.replace(/\[caption[^\]]*\]([\s\S]*?)\[\/caption\]/gi, (match, innerHtml) => {
+    const imgMatch = innerHtml.match(/(<a[^>]*>)?\s*(<img[^>]+>)\s*(<\/a>)?/i);
+    if (imgMatch) {
+        const fullImgHtml = imgMatch[0];
+        const captionText = innerHtml.replace(fullImgHtml, '').trim();
+        return `<figure class="my-8">${fullImgHtml}<figcaption class="text-center text-sm text-muted-foreground mt-2">${captionText}</figcaption></figure>`;
+    }
+    return match;
+});
+
+parsedContent = parsedContent.replace(/<img([^>]*)title="([^"]+)"([^>]*)>/gi, (match, before, title, after) => {
+    return `<figure class="my-8"><img${before}title="${title}"${after}><figcaption class="text-center text-sm text-muted-foreground mt-2">${title}</figcaption></figure>`;
+});
+
+const fallbackAlt = (data.title || data.name || '').replace(/"/g, '&quot;');
+parsedContent = parsedContent.replace(/<img([^>]*)>/gi, (match, attrs) => {
+    if (!/alt="[^"]+"/i.test(attrs)) {
+        let newAttrs = attrs.replace(/\s*alt=(["'])\1/gi, '');
+        return `<img alt="${fallbackAlt}" ${newAttrs}>`;
+    }
+    return match;
+});
+
+parsedContent = parsedContent.replace(/\[faq title="([^"]+)"\]([\s\S]*?)\[\/faq\]/gi, (match, title, answer) => {
+    return `<details class="group my-4 border border-border rounded-lg bg-card shadow-sm overflow-hidden"><summary class="flex justify-between items-center cursor-pointer p-4 font-semibold hover:bg-muted/50 transition-colors"><span>${title}</span><span class="transition-transform group-open:rotate-180">▼</span></summary><div class="p-4 border-t border-border text-muted-foreground">${answer.trim()}</div></details>`;
+});
+
+parsedContent = parseEmbeds(parsedContent);
+
+function generateToC(html: string) {
+    let tocHtml = '<div class="my-8 bg-muted/10 border-2 border-border/50 p-6 rounded-2xl shadow-sm"><h3 class="text-xl font-black mb-4 uppercase tracking-widest text-primary border-l-4 border-primary pl-3">Konten</h3><ul class="space-y-3">';
+    let hasHeadings = false;
+    let counter = 1;
+    
+    const modifiedHtml = html.replace(/<(h[23])[^>]*>(.*?)<\/\1>/gi, (match, tag, text) => {
+        hasHeadings = true;
+        const rawText = text.replace(/<[^>]+>/g, '').trim();
+        const id = `toc-${counter++}`;
+        const padding = tag.toLowerCase() === 'h3' ? 'pl-6 text-sm text-muted-foreground' : 'font-bold text-foreground';
+        const icon = tag.toLowerCase() === 'h3' ? '↳' : '•';
+        
+        tocHtml += `<li class="${padding} transition-colors hover:text-primary"><a href="#${id}" class="flex items-start gap-2"><span class="text-primary/70">${icon}</span> <span>${rawText}</span></a></li>`;
+        
+        return `<${tag} id="${id}" class="scroll-mt-28">${text}</${tag}>`;
+    });
+    
+    tocHtml += '</ul></div>';
+    
+    if (hasHeadings) {
+        const firstParagraphEnd = modifiedHtml.indexOf('</p>');
+        if (firstParagraphEnd !== -1 && firstParagraphEnd < 800) {
+            return modifiedHtml.substring(0, firstParagraphEnd + 4) + tocHtml + modifiedHtml.substring(firstParagraphEnd + 4);
+        }
+        return tocHtml + modifiedHtml;
+    }
+    return html;
+}
+
+if (!data.is_block_builder) {
+    if (data.content) {
+        data.content = parseEmbeds(data.content);
+    }
+    parsedContent = generateToC(parsedContent);
+}
+
+function getThumbnail(content: string) {
+    if (!content) return '/placeholder.webp';
+    const match = content.match(/<img[^>]+src="([^">]+)"/i);
+    return match ? match[1] : '/placeholder.webp';
+}
+
+const headerImage = data.featuredImageUrl || getThumbnail(parsedContent);
+const pageTitle = data.metaTitle || data.title || data.name;
+const siteUrl = Astro.url.origin;
+const currentUrl = Astro.url.href;
+
+let schemaObj: any = null;
+
+if (pageType === 'article') {
+    schemaObj = {
+        "@context": "https://schema.org",
+        "@type": "NewsArticle",
+        "headline": pageTitle,
+        "image": headerImage ? [
+            headerImage.startsWith('http') ? headerImage : `${siteUrl}${headerImage}`
+        ] : [],
+        "datePublished": data.publishedAt || new Date().toISOString(),
+        "dateModified": data.updatedAt || data.publishedAt || new Date().toISOString(),
+        "author": [{
+            "@type": "Person",
+            "name": data.authorName || 'Writer',
+            "url": `${siteUrl}/author/${data.authorSlug}`
+        }]
+    };
+} else if (pageType === 'page') {
+    schemaObj = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": pageTitle,
+        "url": currentUrl,
+        "datePublished": data.publishedAt || new Date().toISOString()
+    };
+} else if (pageType === 'category') {
+    schemaObj = {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": pageTitle,
+        "url": currentUrl
+    };
+}
+
+let schemaString = schemaObj ? JSON.stringify(schemaObj) : undefined;
+
+let breadcrumbSchema: any = null;
+if (data.supports?.breadcrumbs !== false) {
+    breadcrumbSchema = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": currentUrl.origin
+            }
+        ]
+    };
+    if (pageType === 'article') {
+        breadcrumbSchema.itemListElement.push({
+            "@type": "ListItem",
+            "position": 2,
+            "name": data.categoryName || "Category",
+            "item": `${currentUrl.origin}/${data.categorySlug}`
+        });
+        breadcrumbSchema.itemListElement.push({
+            "@type": "ListItem",
+            "position": 3,
+            "name": pageTitle,
+            "item": currentUrl.href
+        });
+    } else {
+        breadcrumbSchema.itemListElement.push({
+            "@type": "ListItem",
+            "position": 2,
+            "name": pageType ? pageType.charAt(0).toUpperCase() + pageType.slice(1) : 'Page',
+            "item": `${currentUrl.origin}/${pageType || 'page'}`
+        });
+        breadcrumbSchema.itemListElement.push({
+            "@type": "ListItem",
+            "position": 3,
+            "name": pageTitle,
+            "item": currentUrl.href
+        });
+    }
+}
+
+if (schemaObj && breadcrumbSchema) {
+    schemaString = JSON.stringify([schemaObj, breadcrumbSchema]);
+} else if (breadcrumbSchema) {
+    schemaString = JSON.stringify(breadcrumbSchema);
+}
+
+if (data.customSchema) {
+    schemaString = data.customSchema;
+}
+
+const acceptHeader = Astro.request.headers.get('Accept') || '';
+if (acceptHeader.includes('text/markdown') && (pageType === 'article' || pageType === 'page')) {
+    let mdContent = parsedContent;
+    try {
+        const TurndownService = (await import('turndown')).default;
+        const turndownService = new TurndownService();
+        mdContent = turndownService.turndown(parsedContent);
+    } catch (e) {
+        mdContent = parsedContent.replace(/<[^>]+>/g, '\n').replace(/\n\n+/g, '\n\n').trim();
+    }
+    
+    const tagsList = data.tags ? data.tags.map((t: any) => t.name).join(', ') : '';
+    const mdHeader = `---\ntitle: ${pageTitle}\ncategory: ${data.categoryName || ''}\ntags: ${tagsList}\npublishedAt: ${data.publishedAt}\nauthor: ${data.authorName || ''}\n---\n\n`;
+    
+    return new Response(mdHeader + mdContent, {
+        status: 200,
+        headers: {
+            'Content-Type': 'text/markdown',
+            'x-markdown-tokens': 'true'
+        }
+    });
+}
+---
+
+<LayoutArticlePage 
+    title={pageTitle} 
+    metaDescription={data.metaDescription} 
+    schema={schemaString} 
+    headerStyle={headerStyle} 
+    footerStyle={footerStyle} 
+    canonicalUrl={Astro.url.origin + (data.canonicalUrl ? data.canonicalUrl : `/${data.slug}`)}
+    noindex={data.taxonomy?.allowIndexing === false}
+>
+    {pageType === 'article' && (
+        <article class="w-full">
+            <div class="w-full h-[45vh] md:h-[65vh] relative overflow-hidden bg-muted">
+                <img 
+                    src={headerImage} 
+                    alt={data.title}
+                    class="w-full h-full object-cover"
+                    onError="this.src='https://placehold.co/1920x1080/333/FFF?text=Waritaku'"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
+                
+                <div class="absolute bottom-0 left-0 w-full">
+                    <div class="container mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12">
+                            <div class="lg:col-span-2 space-y-4">
+                                {data.supports?.breadcrumbs !== false && (
+                                <nav class={`flex text-sm text-muted-foreground/80 font-medium mb-4 drop-shadow-sm ${data.supports?.breadcrumbs === 'hidden' ? 'sr-only' : ''}`} aria-label="Breadcrumb">
+                                    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                                        <li class="inline-flex items-center">
+                                            <a href="/" class="inline-flex items-center hover:text-white transition-colors">
+                                                <svg class="w-3 h-3 mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/></svg>
+                                                Home
+                                            </a>
+                                        </li>
+                                        {data.categorySlug && (
+                                            <li>
+                                                <div class="flex items-center">
+                                                    <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                                    </svg>
+                                                    <a href={`/${data.categorySlug}`} class="ml-1 hover:text-white md:ml-2 transition-colors">{data.categoryName}</a>
+                                                </div>
+                                            </li>
+                                        )}
+                                        <li aria-current="page">
+                                            <div class="flex items-center">
+                                                <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                                </svg>
+                                                <span class="ml-1 text-white md:ml-2 truncate max-w-[200px] sm:max-w-[300px] inline-block">{data.title}</span>
+                                            </div>
+                                        </li>
+                                    </ol>
+                                </nav>
+                                )}
+
+                                <a href={`/${data.categorySlug}`} class="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-semibold tracking-wide uppercase backdrop-blur-sm hover:bg-primary hover:text-primary-foreground transition-colors">
+                                    {data.categoryName}
+                                </a>
+                                <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-tight drop-shadow-sm">
+                                    {data.title}
+                                </h1>
+                                <div class="flex items-center text-muted-foreground pt-4 font-medium">
+                                    <span>By <a href={`/author/${data.authorSlug}`} class="hover:text-primary transition-colors">{data.authorName}</a></span>
+                                    <span class="mx-3">•</span>
+                                    <time datetime={data.publishedAt}>{new Date(data.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-1 hidden lg:block"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class={`container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 ${!showLeftSidebar && !showRightSidebar ? 'max-w-4xl' : ''}`}>
+                <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
+                    
+                    {showLeftSidebar && (
+                        <aside class="lg:col-span-1 mt-12 lg:mt-0 order-last lg:order-first">
+                            <GlobalSidebar zone="left" context="article" />
+                        </aside>
+                    )}
+
+                    <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'} overflow-hidden prose prose-neutral dark:prose-invert prose-lg md:prose-xl prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-xl prose-img:shadow-lg max-w-none`}>
+                        {showPasswordPrompt ? (
+                            <div class="bg-muted/10 border-2 border-border/50 p-8 rounded-2xl shadow-sm text-center max-w-md mx-auto my-12">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4 text-primary"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                <h3 class="text-2xl font-bold mb-2 uppercase tracking-wide">Protected Content</h3>
+                                <p class="text-muted-foreground mb-6 text-sm">This content is password protected. To view it please enter your password below:</p>
+                                
+                                {passwordError && <p class="text-destructive font-semibold mb-4 text-sm">{passwordError}</p>}
+                                
+                                <form method="POST" class="flex flex-col gap-4">
+                                    <input type="password" name="post_password" placeholder="Password" required class="w-full h-12 rounded-lg border-2 border-border bg-background px-4 text-center focus-visible:outline-none focus-visible:border-primary transition-colors" />
+                                    <button type="submit" class="h-12 w-full bg-primary text-primary-foreground font-bold uppercase tracking-widest rounded-lg hover:bg-primary/90 transition-colors">Submit</button>
+                                </form>
+                            </div>
+                        ) : (
+                            <>
+                                {articleUpperHtml && <div class="mb-8" set:html={articleUpperHtml} />}
+                                <div set:html={parsedContent} />
+                            </>
+                        )}
+                        
+                        {data.tags && data.tags.length > 0 && !showPasswordPrompt && (
+                            <div class="mt-12 flex flex-wrap gap-2">
+                                {data.tags.map((tag: any) => (
+                                    <a href={`/tag/${tag.slug}`} class="inline-flex items-center justify-center px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors">
+                                        {tag.name}
+                                    </a>
+                                ))}
+                            </div>
+                        )}
+
+                        {!showPasswordPrompt && articleBottomHtml && (
+                            <div class="mt-16 pt-12 border-t border-border">
+                                <div class="bg-card border border-border p-6 rounded-xl shadow-sm" set:html={articleBottomHtml} />
+                            </div>
+                        )}
+                    </div>
+
+                    {showRightSidebar && (
+                        <aside class="lg:col-span-1 mt-12 lg:mt-0">
+                            <GlobalSidebar zone="right" context="article" />
+                        </aside>
+                    )}
+                </div>
+            </div>
+        </article>
+    )}
+
+    {pageType === 'category' && (
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+            <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
+                
+                {showLeftSidebar && (
+                    <aside class="lg:col-span-1 mt-12 lg:mt-0 order-last lg:order-first">
+                        <GlobalSidebar zone="left" context="category" />
+                    </aside>
+                )}
+
+                <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
+                    <div class="mb-12 border-b-4 border-primary pb-2 flex justify-between items-end">
+                        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight uppercase text-foreground">
+                            Kategori: {data.name} {currentPage > 1 ? `(Page ${currentPage})` : ''}
+                        </h1>
+                        <ViewToggle />
+                    </div>
+                    
+                    <div class="article-archive-layout mb-12">
+                        {categoryArticles.map(article => (
+                            <a href={article.canonicalUrl} class="article-archive-card group flex bg-muted/20 border border-border rounded-xl overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1">
+                                <div class="article-archive-card-img-wrapper relative overflow-hidden flex-shrink-0">
+                                    <img 
+                                        src={article.featuredImageUrl || getThumbnail(article.content)} 
+                                        alt={article.title} 
+                                        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                                        loading="lazy" 
+                                    />
+                                </div>
+                                <div class="p-4 flex flex-col flex-1 min-w-0">
+                                    <div class="flex items-center space-x-2 text-[10px] uppercase font-bold tracking-wider mb-2 text-muted-foreground flex-wrap">
+                                        <span class="truncate max-w-full">{article.authorName}</span>
+                                        <span>&bull;</span>
+                                        <time class="flex-shrink-0">{new Date(article.publishedAt).toLocaleDateString()}</time>
+                                        <span class="hidden md:inline">&bull;</span>
+                                        <span class="hidden md:inline text-primary truncate max-w-[120px]">{data.name}</span>
+                                    </div>
+                                    <h3 class="text-base md:text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-3 mb-2">
+                                        {article.title}
+                                    </h3>
+                                    <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
+                                        {article.excerpt}
+                                    </p>
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+
+                    <Pagination 
+                        currentPage={currentPage} 
+                        totalPages={totalPages} 
+                        baseUrl={`/${data.slug}`} 
+                    />
+                </div>
+
+                {showRightSidebar && (
+                    <aside class="lg:col-span-1 mt-12 lg:mt-0">
+                        <GlobalSidebar zone="right" context="category" />
+                    </aside>
+                )}
+            </div>
+        </div>
+    )}
+
+    {pageType === 'page' && data.is_block_builder && (
+        <main class="w-full">
+            <BlockRenderer layoutBlocks={layoutBlocks} blockData={blockData} showLeftSidebar={showLeftSidebar} showRightSidebar={showRightSidebar} />
+        </main>
+    )}
+
+    {pageType === 'page' && !data.is_block_builder && (
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+            <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
+                {showLeftSidebar && (
+                    <aside class="lg:col-span-1 mt-12 lg:mt-0 order-last lg:order-first">
+                        <GlobalSidebar zone="left" context="article" />
+                    </aside>
+                )}
+                
+                <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
+                    {data.supports?.breadcrumbs !== false && (
+                    <nav class={`flex text-sm text-muted-foreground/80 font-medium mb-8 ${data.supports?.breadcrumbs === 'hidden' ? 'sr-only' : ''}`} aria-label="Breadcrumb">
+                          <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                              <li class="inline-flex items-center">
+                                  <a href="/" class="inline-flex items-center hover:text-foreground transition-colors">
+                                      <svg class="w-3 h-3 mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/></svg>
+                                      Home
+                                  </a>
+                              </li>
+                              <li aria-current="page">
+                                  <div class="flex items-center">
+                                      <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                          <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                      </svg>
+                                      <span class="ml-1 text-foreground md:ml-2 truncate max-w-[200px] sm:max-w-[300px] inline-block">{data.title || data.name}</span>
+                                  </div>
+                              </li>
+                          </ol>
+                      </nav>
+                      )}
+
+                      <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground mb-12 border-b pb-6">
+                          {data.title || data.name}
+                      </h1>
+                      
+                      <div class="prose prose-neutral dark:prose-invert prose-lg md:prose-xl prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-xl prose-img:shadow-lg max-w-none">
+                          <div set:html={parsedContent} />
+                      </div>
+                </div>
+                
+                {showRightSidebar && (
+                    <aside class="lg:col-span-1 mt-12 lg:mt-0">
+                        <GlobalSidebar zone="right" context="article" />
+                    </aside>
+                )}
+            </div>
+        </div>
+    )}
+
+    {pageType !== 'article' && pageType !== 'page' && pageType !== 'category' && pageType !== null && (
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+            <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
+                {showLeftSidebar && (
+                    <aside class="lg:col-span-1 mt-12 lg:mt-0 order-last lg:order-first">
+                        <GlobalSidebar zone="left" context="article" />
+                    </aside>
+                )}
+                
+                <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
+                    {data.supports?.breadcrumbs !== false && (
+                    <nav class={`flex text-sm text-muted-foreground/80 font-medium mb-8 ${data.supports?.breadcrumbs === 'hidden' ? 'sr-only' : ''}`} aria-label="Breadcrumb">
+                        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                            <li class="inline-flex items-center">
+                                <a href="/" class="inline-flex items-center hover:text-foreground transition-colors">
+                                    <svg class="w-3 h-3 mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/></svg>
+                                    Home
+                                </a>
+                            </li>
+                            <li aria-current="page">
+                                <div class="flex items-center">
+                                    <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                    </svg>
+                                    <span class="ml-1 text-foreground md:ml-2 truncate max-w-[200px] sm:max-w-[300px] inline-block">{pageType.charAt(0).toUpperCase() + pageType.slice(1)}</span>
+                                </div>
+                            </li>
+                            <li aria-current="page">
+                                <div class="flex items-center">
+                                    <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                    </svg>
+                                    <span class="ml-1 text-foreground md:ml-2 truncate max-w-[200px] sm:max-w-[300px] inline-block">{data.title || data.name}</span>
+                                </div>
+                            </li>
+                        </ol>
+                    </nav>
+                    )}
+
+                    <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground mb-12 border-b pb-6">
+                        {data.title || data.name}
+                    </h1>
+                    
+                    <div class="prose prose-neutral dark:prose-invert prose-lg md:prose-xl prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-xl prose-img:shadow-lg max-w-none">
+                        <div set:html={parsedContent} />
+                    </div>
+                </div>
+                
+                {showRightSidebar && (
+                    <aside class="lg:col-span-1 mt-12 lg:mt-0">
+                        <GlobalSidebar zone="right" context="article" />
+                    </aside>
+                )}
+            </div>
+        </div>
+    )}
+</LayoutArticlePage>

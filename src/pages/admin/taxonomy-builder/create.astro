@@ -1,0 +1,169 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../lib/db';
+import { collections } from '../../../db/schema';
+import { env } from 'cloudflare:workers';
+import { Save, ArrowLeft } from 'lucide-react';
+
+const user = Astro.locals.user;
+if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return Astro.redirect('/admin/login');
+}
+
+const db = getDb(env);
+const allCollections = await db.select().from(collections);
+---
+
+<AdminLayout title="Create Taxonomy">
+    <div class="max-w-4xl mx-auto space-y-6 pb-20">
+        <div class="flex items-center gap-4">
+            <a href="/admin/taxonomy-builder" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors">
+                <ArrowLeft size={20} />
+            </a>
+            <div>
+                <h1 class="text-3xl font-black text-foreground uppercase tracking-tight">Create Taxonomy</h1>
+                <p class="text-muted-foreground mt-1">Define a new classification structure.</p>
+            </div>
+        </div>
+
+        <form id="create-taxonomy-form" class="space-y-8">
+            <div class="bg-card border border-border rounded-xl shadow-sm p-6 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-foreground">Taxonomy Name <span class="text-destructive">*</span></label>
+                        <input type="text" name="label" required placeholder="e.g. Product Categories" class="w-full bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold text-foreground">Slug <span class="text-destructive">*</span></label>
+                        <input type="text" name="slug" required placeholder="e.g. product-categories" class="w-full bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm" />
+                    </div>
+                </div>
+                
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-foreground">Description</label>
+                    <textarea name="description" rows="2" placeholder="Brief description of what this taxonomy is used for..." class="w-full bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"></textarea>
+                </div>
+            </div>
+
+            <div class="bg-card border border-border rounded-xl shadow-sm p-6 space-y-6">
+                <h3 class="font-bold text-lg border-b border-border pb-2">Routing & SEO Settings</h3>
+                <p class="text-sm text-muted-foreground">Control how this taxonomy interacts with URLs and search engines.</p>
+                
+                <div class="space-y-6">
+                    <label class="flex items-start gap-3 cursor-pointer group">
+                        <div class="mt-1">
+                            <input type="checkbox" name="isRouted" value="true" class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background" />
+                        </div>
+                        <div>
+                            <div class="font-semibold text-foreground group-hover:text-primary transition-colors">Enable Archive Pages</div>
+                            <div class="text-sm text-muted-foreground mt-1">If checked, this taxonomy will generate dedicated archive pages for each term. (e.g. <code class="bg-muted px-1 py-0.5 rounded text-xs">/taxonomy-slug/term-slug</code>)</div>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-3 cursor-pointer group">
+                        <div class="mt-1">
+                            <input type="checkbox" name="prefixEntryUrl" value="true" class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background" />
+                        </div>
+                        <div>
+                            <div class="font-semibold text-foreground group-hover:text-primary transition-colors">Prefix Entry URLs with Term Slug</div>
+                            <div class="text-sm text-muted-foreground mt-1">If checked, any entry assigned a term from this taxonomy will have the term's slug prefixed to its URL. (e.g. <code class="bg-muted px-1 py-0.5 rounded text-xs">/term-slug/entry-slug</code> instead of <code class="bg-muted px-1 py-0.5 rounded text-xs">/entry-slug</code>)</div>
+                            <div class="text-xs text-amber-500 mt-1 font-medium bg-amber-500/10 px-2 py-1 rounded inline-block">Note: If multiple terms are assigned to an entry, the first attached term is used.</div>
+                        </div>
+                    </label>
+
+                    <label class="flex items-start gap-3 cursor-pointer group">
+                        <div class="mt-1">
+                            <input type="checkbox" name="allowIndexing" value="true" checked class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background" />
+                        </div>
+                        <div>
+                            <div class="font-semibold text-foreground group-hover:text-primary transition-colors">Allow Search Engine Indexing</div>
+                            <div class="text-sm text-muted-foreground mt-1">If unchecked, the taxonomy archive pages will output a <code class="bg-muted px-1 py-0.5 rounded text-xs">&lt;meta name="robots" content="noindex"&gt;</code> tag.</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="bg-card border border-border rounded-xl shadow-sm p-6 space-y-4">
+                <h3 class="font-bold text-lg border-b border-border pb-2">Allowed Collections</h3>
+                <p class="text-sm text-muted-foreground">Select which Content Types (Collections) can use this taxonomy.</p>
+                
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {allCollections.map(col => (
+                        <label class="flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:bg-muted/30 cursor-pointer transition-colors">
+                            <input type="checkbox" name="allowedCollections" value={col.slug} class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background" />
+                            <span class="font-medium text-sm">{col.label}</span>
+                        </label>
+                    ))}
+                    {allCollections.length === 0 && (
+                        <div class="col-span-full text-sm text-amber-500 bg-amber-500/10 p-4 rounded-lg">
+                            No collections found. You must create a Content Collection before assigning taxonomies.
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-4">
+                <button type="submit" class="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-2.5 rounded-full hover:bg-primary/90 font-medium transition-all shadow hover:shadow-md">
+                    <Save size={18} />
+                    Save Taxonomy
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('create-taxonomy-form') as HTMLFormElement;
+        
+        // Auto-generate slug from name
+        const nameInput = form.querySelector('input[name="label"]') as HTMLInputElement;
+        const slugInput = form.querySelector('input[name="slug"]') as HTMLInputElement;
+        
+        let slugManuallyEdited = false;
+        slugInput.addEventListener('input', () => { slugManuallyEdited = true; });
+        
+        nameInput.addEventListener('input', () => {
+            if (!slugManuallyEdited) {
+                slugInput.value = nameInput.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+            btn.disabled = true;
+            btn.innerHTML = 'Saving...';
+
+            const formData = new FormData(form);
+            const data: any = {
+                label: formData.get('label'),
+                slug: formData.get('slug'),
+                description: formData.get('description'),
+                isRouted: formData.get('isRouted') === 'true',
+                prefixEntryUrl: formData.get('prefixEntryUrl') === 'true',
+                allowIndexing: formData.get('allowIndexing') === 'true',
+                allowedCollections: formData.getAll('allowedCollections')
+            };
+
+            try {
+                const res = await fetch('/api/taxonomy-builder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (res.ok) {
+                    window.location.href = '/admin/taxonomy-builder';
+                } else {
+                    const err = await res.json();
+                    alert(`Error creating taxonomy: ${err.error}`);
+                    btn.disabled = false;
+                    btn.innerHTML = 'Save Taxonomy';
+                }
+            } catch (error) {
+                alert('Network error while saving.');
+                btn.disabled = false;
+                btn.innerHTML = 'Save Taxonomy';
+            }
+        });
+    </script>
+</AdminLayout>

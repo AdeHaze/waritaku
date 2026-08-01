@@ -1,0 +1,248 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import GlobalSidebar from '../../components/GlobalSidebar.astro';
+import Pagination from '../../components/Pagination.astro';
+import { users, entries, collections } from '../../db/schema';
+import { eq, and, desc, sql } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../lib/db';
+
+
+let rawSlug = Astro.params.slug;
+if (!rawSlug) return Astro.redirect('/404');
+
+rawSlug = rawSlug.replace(/\/$/, '');
+
+let currentPage = 1;
+const pageMatch = rawSlug.match(/^(.*?)\/page\/(\d+)$/i);
+if (pageMatch) {
+    rawSlug = pageMatch[1];
+    currentPage = Math.max(1, parseInt(pageMatch[2], 10));
+} else {
+    const pageParam = Astro.url.searchParams.get('page');
+    if (pageParam) currentPage = Math.max(1, parseInt(pageParam, 10));
+}
+
+const slug = rawSlug.toLowerCase();
+
+let author: any = null;
+let authorArticles: any[] = [];
+let totalPages = 1;
+const pageSize = 12;
+
+if (env && env.DB) {
+    const db = getDb(env);
+    
+    // First try exact slug match
+    let authorRes = await db.select().from(users).where(eq(users.slug, slug)).limit(1);
+    
+    // Fallback: If not found, fetch all users and match generated slug
+    if (authorRes.length === 0) {
+        const allUsers = await db.select().from(users);
+        const found = allUsers.find(u => {
+            const genSlug = u.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            return genSlug === slug;
+        });
+        if (found) {
+            authorRes = [found];
+        }
+    }
+    
+    if (authorRes.length > 0) {
+        author = authorRes[0];
+        const genSlug = author.name ? author.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : 'writer';
+        author.effectiveSlug = author.slug || slug || genSlug;
+
+        if (author.socialLinks) {
+            try {
+                author.socialLinksParsed = JSON.parse(author.socialLinks);
+            } catch (e) {
+                author.socialLinksParsed = {};
+            }
+        } else {
+            author.socialLinksParsed = {};
+        }
+
+        const articlesCol = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
+        const articlesColId = articlesCol.length > 0 ? articlesCol[0].id : null;
+
+        if (articlesColId) {
+            // Pagination Count
+            const countRes = await db.select({ count: sql<number>`count(*)` })
+                .from(entries)
+                .where(
+                    and(
+                        eq(entries.authorId, author.id),
+                        eq(entries.collectionId, articlesColId),
+                        eq(entries.status, 'published')
+                    )
+                );
+                
+            const totalItems = countRes[0]?.count || 0;
+            totalPages = Math.ceil(totalItems / pageSize);
+
+            // Fetch Entries
+            const articlesResult = await db.select({
+                entry: entries
+            })
+            .from(entries)
+            .where(
+                and(
+                    eq(entries.authorId, author.id),
+                    eq(entries.collectionId, articlesColId),
+                    eq(entries.status, 'published')
+                )
+            )
+            .orderBy(desc(entries.publishedAt))
+            .limit(pageSize)
+            .offset((currentPage - 1) * pageSize);
+
+            authorArticles = articlesResult.map((r: any) => {
+                const data = JSON.parse(r.entry.data || '{}');
+                const rawContent = data.content || '';
+                const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+                const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
+                
+                // Thumbnail extraction
+                let thumb = '/placeholder.webp';
+                if (data.featuredImageUrl) {
+                    thumb = data.featuredImageUrl;
+                } else if (data.content) {
+                    const match = data.content.match(/<img[^>]+src="([^">]+)"/i);
+                    if (match) thumb = match[1];
+                }
+
+                return {
+                    id: r.entry.id,
+                    slug: r.entry.slug,
+                    publishedAt: r.entry.publishedAt,
+                    ...data,
+                    categoryName: 'Article',
+                    excerpt,
+                    thumb
+                };
+            });
+        }
+    }
+}
+
+if (!author) {
+    return Astro.redirect('/404');
+}
+---
+
+<Layout title={`${author.name} - Author Profile`}>
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        
+        {/* Author Header */}
+        <div class="mb-16 bg-muted/30 border border-border rounded-3xl p-8 md:p-12 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start text-center md:text-left">
+            <div class="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-background shadow-xl shrink-0 bg-muted">
+                <img src={author.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.name)}&size=256&background=random`} alt={author.name} class="w-full h-full object-cover" />
+            </div>
+            
+            <div class="flex-1 space-y-4">
+                <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-foreground">{author.name}</h1>
+                <p class="text-primary font-bold uppercase tracking-wider text-sm">{author.role}</p>
+                <div class="text-muted-foreground max-w-2xl text-lg leading-relaxed">
+                    {author.bio || 'This author has not written a bio yet.'}
+                </div>
+                
+                {/* Social Links */}
+                <div class="flex flex-wrap gap-3 justify-center md:justify-start pt-2">
+                    {author.socialLinksParsed.twitter && (
+                        <a href={author.socialLinksParsed.twitter.startsWith('http') ? author.socialLinksParsed.twitter : `https://${author.socialLinksParsed.twitter}`} target="_blank" rel="noopener noreferrer" class="p-2 bg-background border border-border rounded-full hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm" aria-label="Twitter">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>
+                        </a>
+                    )}
+                    {author.socialLinksParsed.facebook && (
+                        <a href={author.socialLinksParsed.facebook.startsWith('http') ? author.socialLinksParsed.facebook : `https://${author.socialLinksParsed.facebook}`} target="_blank" rel="noopener noreferrer" class="p-2 bg-background border border-border rounded-full hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm" aria-label="Facebook">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                        </a>
+                    )}
+                    {author.socialLinksParsed.instagram && (
+                        <a href={author.socialLinksParsed.instagram.startsWith('http') ? author.socialLinksParsed.instagram : `https://${author.socialLinksParsed.instagram}`} target="_blank" rel="noopener noreferrer" class="p-2 bg-background border border-border rounded-full hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm" aria-label="Instagram">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                        </a>
+                    )}
+                    {author.socialLinksParsed.youtube && (
+                        <a href={author.socialLinksParsed.youtube.startsWith('http') ? author.socialLinksParsed.youtube : `https://${author.socialLinksParsed.youtube}`} target="_blank" rel="noopener noreferrer" class="p-2 bg-background border border-border rounded-full hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm" aria-label="YouTube">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
+                        </a>
+                    )}
+                    {author.socialLinksParsed.website1 && (
+                        <a href={author.socialLinksParsed.website1.startsWith('http') ? author.socialLinksParsed.website1 : `https://${author.socialLinksParsed.website1}`} target="_blank" rel="noopener noreferrer" class="p-2 bg-background border border-border rounded-full hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm" aria-label="Website 1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+                        </a>
+                    )}
+                    {author.socialLinksParsed.website2 && (
+                        <a href={author.socialLinksParsed.website2.startsWith('http') ? author.socialLinksParsed.website2 : `https://${author.socialLinksParsed.website2}`} target="_blank" rel="noopener noreferrer" class="p-2 bg-background border border-border rounded-full hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm" aria-label="Website 2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        </a>
+                    )}
+                </div>
+            </div>
+        </div>
+
+        {/* Content & Sidebar Grid */}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-12">
+            
+            {/* Main Content */}
+            <div class="lg:col-span-2">
+                <div class="mb-12 border-b-2 border-border pb-4">
+                    <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight uppercase text-foreground">
+                        Articles by {author.name} {currentPage > 1 ? `(Page ${currentPage})` : ''}
+                    </h2>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+                    {authorArticles.map(article => (
+                        <a href={`/${article.slug}`} class="group flex flex-col gap-3 bg-muted/20 border border-border rounded-xl overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1">
+                            <div class="relative aspect-video w-full overflow-hidden">
+                                <img 
+                                    src={article.thumb} 
+                                    alt={article.title} 
+                                    class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                                    loading="lazy" 
+                                />
+                            </div>
+                            <div class="p-4 flex flex-col flex-1">
+                                <div class="flex items-center space-x-2 text-[10px] uppercase font-bold tracking-wider mb-2 text-primary">
+                                    <span>{article.categoryName}</span>
+                                    <span class="text-muted-foreground">&bull;</span>
+                                    <time class="text-muted-foreground">{new Date(article.publishedAt).toLocaleDateString()}</time>
+                                </div>
+                                <h3 class="text-base md:text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-3 mb-2">
+                                    {article.title}
+                                </h3>
+                                <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
+                                    {article.excerpt}
+                                </p>
+                            </div>
+                        </a>
+                    ))}
+                    
+                    {authorArticles.length === 0 && (
+                        <div class="col-span-full py-12 text-center text-muted-foreground bg-muted/30 rounded-xl border-2 border-dashed border-border">
+                            This author hasn't published any articles yet.
+                        </div>
+                    )}
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <Pagination 
+                        currentPage={currentPage} 
+                        totalPages={totalPages} 
+                        baseUrl={`/author/${author.effectiveSlug}`} 
+                    />
+                )}
+            </div>
+
+            {/* Sidebar */}
+            <aside class="lg:col-span-1 mt-12 lg:mt-0">
+                <GlobalSidebar />
+            </aside>
+
+        </div>
+    </div>
+</Layout>

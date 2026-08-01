@@ -1,0 +1,244 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../lib/db';
+import { redirects, notFoundLogs } from '../../../db/schema';
+import { desc, eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { Link, Trash2, ExternalLink, Activity } from 'lucide-react';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin');
+}
+
+const db = getDb(env);
+if (!db) {
+    throw new Error("Database not available");
+}
+
+// Handle Form Submissions
+let message = '';
+if (Astro.request.method === 'POST') {
+    const data = await Astro.request.formData();
+    const action = data.get('action');
+
+    try {
+        if (action === 'create_redirect') {
+            const sourceUrl = data.get('sourceUrl')?.toString().trim();
+            const targetUrl = data.get('targetUrl')?.toString().trim();
+            const statusCode = parseInt(data.get('statusCode')?.toString() || '301');
+
+            if (sourceUrl && targetUrl) {
+                // Upsert redirect
+                await db.insert(redirects).values({
+                    sourceUrl,
+                    targetUrl,
+                    statusCode
+                }).onConflictDoUpdate({
+                    target: redirects.sourceUrl,
+                    set: { targetUrl, statusCode }
+                });
+                
+                // Remove from 404 logs if it was there
+                await db.delete(notFoundLogs).where(eq(notFoundLogs.url, sourceUrl));
+                message = `Redirect created for ${sourceUrl}`;
+            }
+        } else if (action === 'delete_redirect') {
+            const id = parseInt(data.get('id')?.toString() || '0');
+            if (id) {
+                await db.delete(redirects).where(eq(redirects.id, id));
+                message = "Redirect deleted.";
+            }
+        } else if (action === 'clear_404') {
+            const id = parseInt(data.get('id')?.toString() || '0');
+            if (id) {
+                await db.delete(notFoundLogs).where(eq(notFoundLogs.id, id));
+            } else {
+                await db.delete(notFoundLogs); // Clear all
+                message = "404 Logs cleared.";
+            }
+        }
+    } catch (e: any) {
+        message = `Error: ${e.message}`;
+    }
+}
+
+// Fetch Data
+const activeRedirects = await db.select().from(redirects).orderBy(desc(redirects.hits));
+const brokenLinks = await db.select().from(notFoundLogs).orderBy(desc(notFoundLogs.hits)).limit(50);
+---
+
+<AdminLayout title="Redirections">
+    <div class="max-w-7xl mx-auto space-y-8">
+        
+        <div class="flex items-center justify-between border-b border-border pb-6">
+            <div>
+                <h2 class="text-3xl font-black tracking-tight flex items-center gap-3">
+                    <Link className="w-8 h-8 text-primary" />
+                    Redirections & 404 Tracking
+                </h2>
+                <p class="text-muted-foreground mt-2 font-medium">Map broken links, track missing assets, and protect SEO with 301 redirects.</p>
+            </div>
+        </div>
+
+        {message && (
+            <div class="p-4 bg-primary/10 text-primary border border-primary/20 rounded-lg font-bold">
+                {message}
+            </div>
+        )}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Left Column: Create Form & Active Redirects */}
+            <div class="lg:col-span-2 space-y-8">
+                
+                {/* Create Redirect Form */}
+                <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-5 border-b border-border bg-muted/20">
+                        <h3 class="font-bold text-lg">Create Redirect</h3>
+                    </div>
+                    <form method="POST" class="p-6 space-y-4">
+                        <input type="hidden" name="action" value="create_redirect" />
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-sm font-bold text-muted-foreground">Source URL (Broken Link)</label>
+                                <input type="text" name="sourceUrl" placeholder="/uploads/missing-image.png" required class="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-bold text-muted-foreground">Target URL (Destination)</label>
+                                <input type="text" name="targetUrl" placeholder="/uploads/correct-image.png or https://..." required class="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2">
+                            <div class="flex items-center space-x-3">
+                                <select name="statusCode" class="bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none">
+                                    <option value="301">301 Permanent</option>
+                                    <option value="302">302 Temporary</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="bg-primary text-primary-foreground px-6 py-2 rounded-md font-bold text-sm hover:opacity-90 transition-opacity">
+                                Create Rule
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {/* Active Redirects Table */}
+                <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-5 border-b border-border bg-muted/20 flex justify-between items-center">
+                        <h3 class="font-bold text-lg">Active Rules ({activeRedirects.length})</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
+                                <tr>
+                                    <th class="px-6 py-3 font-bold">Source</th>
+                                    <th class="px-6 py-3 font-bold">Target</th>
+                                    <th class="px-6 py-3 font-bold text-center">Hits</th>
+                                    <th class="px-6 py-3 font-bold text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                {activeRedirects.map((rule) => (
+                                    <tr class="hover:bg-muted/10">
+                                        <td class="px-6 py-4 font-mono text-xs max-w-[200px] truncate" title={rule.sourceUrl}>{rule.sourceUrl}</td>
+                                        <td class="px-6 py-4 font-mono text-xs max-w-[200px] truncate text-primary">
+                                            <a href={rule.targetUrl} target="_blank" class="hover:underline flex items-center gap-1">
+                                                {rule.targetUrl} <ExternalLink className="w-3 h-3" />
+                                            </a>
+                                        </td>
+                                        <td class="px-6 py-4 text-center">
+                                            <span class="inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full bg-emerald-500/10 text-emerald-500">
+                                                {rule.hits}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-right">
+                                            <form method="POST" class="inline">
+                                                <input type="hidden" name="action" value="delete_redirect" />
+                                                <input type="hidden" name="id" value={rule.id} />
+                                                <button type="submit" class="text-destructive hover:text-destructive/80 p-1" title="Delete Rule">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {activeRedirects.length === 0 && (
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-8 text-center text-muted-foreground italic">No redirection rules configured.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Column: 404 Tracker */}
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col h-[calc(100vh-12rem)]">
+                    <div class="p-5 border-b border-border bg-destructive/5 flex justify-between items-center shrink-0">
+                        <h3 class="font-bold text-lg text-destructive flex items-center gap-2">
+                            <Activity className="w-5 h-5" />
+                            404 Live Tracker
+                        </h3>
+                        {brokenLinks.length > 0 && (
+                            <form method="POST" class="inline">
+                                <input type="hidden" name="action" value="clear_404" />
+                                <button type="submit" class="text-xs text-muted-foreground hover:text-destructive underline decoration-dotted">Clear All</button>
+                            </form>
+                        )}
+                    </div>
+                    
+                    <div class="overflow-y-auto flex-1 p-0">
+                        {brokenLinks.length === 0 ? (
+                            <div class="p-8 text-center text-muted-foreground">
+                                <p class="italic mb-2">No 404 errors detected.</p>
+                                <p class="text-xs">The middleware is actively watching edge traffic.</p>
+                            </div>
+                        ) : (
+                            <ul class="divide-y divide-border">
+                                {brokenLinks.map((log) => (
+                                    <li class="p-4 hover:bg-muted/10 transition-colors group">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div class="overflow-hidden">
+                                                <div class="font-mono text-xs text-destructive font-semibold truncate" title={log.url}>
+                                                    {log.url}
+                                                </div>
+                                                <div class="text-[11px] text-muted-foreground mt-1">
+                                                    Last seen: {new Date(log.lastSeen).toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                            <div class="flex flex-col items-end shrink-0">
+                                                <span class="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded bg-destructive/10 text-destructive mb-2">
+                                                    {log.hits} hits
+                                                </span>
+                                                <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <form method="POST" class="inline">
+                                                        <input type="hidden" name="action" value="clear_404" />
+                                                        <input type="hidden" name="id" value={log.id} />
+                                                        <button type="submit" class="text-[10px] uppercase tracking-wider font-bold text-muted-foreground hover:text-foreground">Dismiss</button>
+                                                    </form>
+                                                    <button 
+                                                        type="button" 
+                                                        class="text-[10px] uppercase tracking-wider font-bold text-primary hover:text-primary/80"
+                                                        onclick={`document.querySelector('input[name="sourceUrl"]').value = '${log.url}'; window.scrollTo({top: 0, behavior: 'smooth'});`}
+                                                    >
+                                                        Fix
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</AdminLayout>

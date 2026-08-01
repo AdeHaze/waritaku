@@ -1,0 +1,100 @@
+---
+import '../styles/global.css';
+import DisplaySettings from '../components/DisplaySettings.astro';
+import ThemeInjector from '../components/ThemeInjector.astro';
+import LayoutGlobalHeader from '../components/LayoutGlobalHeader.astro';
+import LayoutGlobalFooter from '../components/LayoutGlobalFooter.astro';
+import { settings } from '../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../lib/db';
+
+
+interface Props {
+  title: string;
+  metaDescription?: string;
+  schema?: string;
+  headerStyle?: string;
+  footerStyle?: string;
+  noindex?: boolean;
+  canonicalUrl?: string;
+}
+
+const { title, metaDescription, schema, headerStyle = 'default', footerStyle = 'default', noindex = false, canonicalUrl } = Astro.props;
+
+let generalConfig = {
+    siteTitle: 'Waritaku',
+    faviconUrl: '/favicon.svg',
+    language: 'id',
+    headerHtml: '',
+    footerHtml: ''
+};
+
+if (env && env.DB) {
+    try {
+        const db = getDb(env);
+        const record = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
+        if (record.length > 0) {
+            generalConfig = { ...generalConfig, ...JSON.parse(record[0].value) };
+        }
+    } catch(e) {}
+}
+
+const displayTitle = title ? `${title} | ${generalConfig.siteTitle}` : generalConfig.siteTitle;
+---
+
+<!doctype html>
+<html lang={generalConfig.language}>
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href={generalConfig.faviconUrl} />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{displayTitle}</title>
+        {metaDescription && <meta name="description" content={metaDescription} />}
+        {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+        {noindex && <meta name="robots" content="noindex, nofollow" />}
+        {schema && <script type="application/ld+json" set:html={schema} />}
+        {generalConfig.headerHtml && <Fragment set:html={generalConfig.headerHtml} />}
+		
+		<script is:inline>
+			// Prevent FOUC (Flash of Unstyled Content) by instantly applying settings
+			(function() {
+				try {
+					var theme = localStorage.getItem('theme') || 'system';
+					var root = document.documentElement;
+					if (theme === 'system') {
+						if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+							root.classList.add('dark');
+						} else {
+							root.classList.add('light');
+						}
+					} else {
+						root.classList.add(theme);
+					}
+					
+					var textSize = localStorage.getItem('textSize');
+					if (textSize) root.dataset.textSize = textSize;
+					
+					var spacing = localStorage.getItem('spacing');
+					if (spacing) root.dataset.spacing = spacing;
+				} catch (e) {}
+			})();
+		</script>
+        <ThemeInjector />
+    </head>
+	<body class="min-h-screen bg-background font-sans antialiased flex flex-col selection:bg-primary selection:text-primary-foreground transition-colors duration-300 overflow-x-hidden">
+		
+		<LayoutGlobalHeader headerStyle={headerStyle} />
+
+		<main class="flex-1">
+			<slot />
+		</main>
+
+		<LayoutGlobalFooter footerStyle={footerStyle} />
+		
+		<DisplaySettings />
+
+        {generalConfig.footerHtml && <Fragment set:html={generalConfig.footerHtml} />}
+	</body>
+</html>

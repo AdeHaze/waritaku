@@ -1,0 +1,77 @@
+---
+interface Props {
+  title: string;
+  categorySlug: string;
+  articles: any[];
+  showExcerpt?: boolean;
+}
+const { title, categorySlug, articles, showExcerpt = false } = Astro.props;
+
+function getThumbnail(content: string) {
+    if (!content) return '/placeholder.webp';
+    const match = content.match(/<img[^>]+src="([^">]+)"/i);
+    return match ? match[1] : '/placeholder.webp';
+}
+
+const featured = articles[0];
+const listArticles = articles.slice(1);
+---
+
+<section class="mb-12">
+    <div class="flex items-center justify-between border-b-2 border-border pb-2 mb-6">
+        <h2 class="text-2xl font-extrabold uppercase tracking-tight border-l-4 border-primary pl-3 text-foreground">{title}</h2>
+    </div>
+
+    {featured && (
+        <a href={featured.canonicalUrl || `/${featured.slug}`} class="group block relative overflow-hidden rounded-xl aspect-[16/9] mb-6">
+            <img 
+                src={featured.featuredImageUrl || getThumbnail(featured.content)} 
+                alt={featured.title}
+                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
+            <div class="absolute bottom-0 left-0 w-full p-4 md:p-6">
+                <span class="inline-block bg-primary text-primary-foreground text-[10px] font-black px-2 py-1 rounded-sm uppercase tracking-wider mb-2">
+                    {featured.categoryName}
+                </span>
+                <h3 class="text-white text-xl md:text-2xl font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                    {featured.title}
+                </h3>
+                <div class="mt-2 text-xs text-gray-300 flex items-center space-x-2">
+                    <span class="font-semibold text-white">{featured.authorName}</span>
+                    <span>&bull;</span>
+                    <time datetime={featured.publishedAt}>{new Date(featured.publishedAt).toLocaleDateString()}</time>
+                </div>
+            </div>
+        </a>
+    )}
+
+    <div class="flex md:grid md:grid-cols-2 gap-4 md:gap-6 mb-6 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-4 md:pb-0 hide-scrollbar">
+        {listArticles.map(article => (
+            <div class="flex flex-col md:flex-row gap-2 md:gap-4 group w-[65vw] sm:w-[200px] md:w-auto md:min-w-0 md:max-w-none snap-start flex-shrink-0">
+                <a href={article.canonicalUrl || `/${article.slug}`} class="block relative w-full aspect-[4/3] md:w-28 md:h-24 md:aspect-auto rounded-lg overflow-hidden flex-shrink-0">
+                    <img src={article.featuredImageUrl || getThumbnail(article.content)} alt={article.title} class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                </a>
+                <div class="flex-1 flex flex-col justify-start md:justify-center mt-1 md:mt-0">
+                    <div class="flex items-center space-x-2 text-[9px] md:text-[10px] uppercase font-bold tracking-wider mb-1">
+                        <span class="text-primary truncate max-w-[120px] md:max-w-none">{article.categoryName}</span>
+                        <span class="text-muted-foreground hidden md:inline">&bull; {article.authorName}</span>
+                    </div>
+                    <h4 class="text-xs md:text-sm font-bold leading-snug group-hover:text-primary transition-colors line-clamp-3 md:line-clamp-2">
+                        <a href={article.canonicalUrl || `/${article.slug}`}>{article.title}</a>
+                    </h4>
+                    {showExcerpt && (
+                        <p class="hidden md:block text-[11px] text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
+                            {article.excerpt}
+                        </p>
+                    )}
+                </div>
+            </div>
+        ))}
+    </div>
+
+    <a href={`/${categorySlug}`} class="block w-full text-center text-sm font-bold text-muted-foreground hover:text-primary transition-colors bg-muted/30 py-2 rounded-lg">
+        Lihat Semua {title} &raquo;
+    </a>
+</section>

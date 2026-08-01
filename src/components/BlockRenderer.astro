@@ -1,0 +1,114 @@
+---
+import CategoryBlock from './CategoryBlock.astro';
+import CategoryBlockType2 from './CategoryBlockType2.astro';
+import NewHero from './NewHero.astro';
+import NewHeroType2 from './NewHeroType2.astro';
+import NewHeroType3 from './NewHeroType3.astro';
+import LandingHero from './LandingHero.astro';
+import FeaturedImageParty from './FeaturedImageParty.astro';
+import GlobalSidebar from './GlobalSidebar.astro';
+
+const { layoutBlocks = [], blockData = {}, showLeftSidebar = false, showRightSidebar = true } = Astro.props;
+
+function getThumbnail(content: string) {
+    if (!content) return '/placeholder.webp';
+    const match = content.match(/<img[^>]+src="([^">]+)"/i);
+    return match ? match[1] : '/placeholder.webp';
+}
+
+const layoutSections: any[] = [];
+let currentMainColumnGroup: any[] = [];
+
+for (const block of layoutBlocks) {
+    const isMainColumn = block.type === 'category_block' || block.type === 'category_block_2';
+    if (isMainColumn) {
+        currentMainColumnGroup.push(block);
+    } else {
+        if (currentMainColumnGroup.length > 0) {
+            layoutSections.push({ type: 'main_column_group', blocks: currentMainColumnGroup });
+            currentMainColumnGroup = [];
+        }
+        layoutSections.push({ type: 'full_width', block: block });
+    }
+}
+if (currentMainColumnGroup.length > 0) {
+    layoutSections.push({ type: 'main_column_group', blocks: currentMainColumnGroup });
+}
+---
+
+<div class="space-y-16">
+    {layoutSections.map((section: any) => {
+        if (section.type === 'main_column_group') {
+            return (
+                <div class={`grid grid-cols-1 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-8 md:gap-12`}>
+                    {showLeftSidebar && (
+                        <div class="lg:col-span-1">
+                            <GlobalSidebar zone="left" context="frontpage" />
+                        </div>
+                    )}
+                    <div class={showLeftSidebar && showRightSidebar ? 'lg:col-span-2 space-y-12' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2 space-y-12' : 'lg:col-span-1 space-y-12'}>
+                        {section.blocks.map((block: any) => (
+                            block.type === 'category_block' ? (
+                                <CategoryBlock title={block.title || 'Category'} categorySlug={block.tagSlug ? `tag/${block.tagSlug}` : (blockData[block.id]?.[0]?.categorySlug || 'category')} articles={blockData[block.id] || []} />
+                            ) : (
+                                <CategoryBlockType2 title={block.title || 'Category'} categorySlug={block.tagSlug ? `tag/${block.tagSlug}` : (blockData[block.id]?.[0]?.categorySlug || 'category')} articles={blockData[block.id] || []} showExcerpt={block.showExcerpt} />
+                            )
+                        ))}
+                    </div>
+                    {showRightSidebar && (
+                        <div class="lg:col-span-1">
+                            <GlobalSidebar zone="right" context="frontpage" />
+                        </div>
+                    )}
+                </div>
+            );
+        } else {
+            const block = section.block;
+            return (
+                <div class="w-full">
+                    {block.type === 'hero' ? (
+                        <NewHero articles={blockData[block.id] || []} />
+                    ) : block.type === 'hero_2' ? (
+                        <NewHeroType2 articles={blockData[block.id] || []} />
+                    ) : block.type === 'hero_3' ? (
+                        <NewHeroType3 articles={blockData[block.id] || []} />
+                    ) : block.type === 'landing_hero' ? (
+                        <LandingHero {...block} />
+                    ) : block.type === 'image_party' ? (
+                        <FeaturedImageParty {...block} />
+                    ) : block.type === 'separator' ? (
+                        <div class="w-full h-[2px] bg-border my-8"></div>
+                    ) : block.type === 'categories_grid' ? (
+                        <div class="border-t-4 border-primary pt-12">
+                            <h2 class="text-2xl font-extrabold uppercase tracking-tight mb-8 text-center text-foreground">{block.title || 'Kategori Pilihan'}</h2>
+                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                                {(blockData[block.id] || []).map((cat: any) => (
+                                    <a href={`/${cat.slug}`} class="flex items-center justify-center p-4 bg-muted hover:bg-primary hover:text-primary-foreground transition-colors rounded-xl text-sm font-bold uppercase text-center h-20 shadow-sm border border-border">
+                                        {cat.name}
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    ) : block.type === 'article_grid' ? (
+                        <div class="border-t-4 border-primary pt-12">
+                            <h2 class="text-2xl font-extrabold uppercase tracking-tight mb-8 text-center text-foreground">{block.title || 'Mungkin Anda Suka'}</h2>
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                {(blockData[block.id] || []).map((article: any) => (
+                                    <a href={article.canonicalUrl || `/${article.slug}`} class="group flex flex-col gap-2">
+                                        <div class="relative aspect-[4/3] rounded-xl overflow-hidden">
+                                            <img src={article.featuredImageUrl || getThumbnail(article.content)} alt={article.title} class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                                        </div>
+                                        <span class="text-primary text-[10px] font-black uppercase tracking-wider mt-2">{article.categoryName}</span>
+                                        <h3 class="text-sm md:text-base font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                                            {article.title}
+                                        </h3>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+            );
+        }
+    })}
+</div>

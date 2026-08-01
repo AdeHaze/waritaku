@@ -1,0 +1,751 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import pkg from '../../../package.json';
+
+const user = Astro.locals.user;
+
+// Role gate: only admin or superadmin may access
+if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return Astro.redirect('/admin', 302);
+}
+
+const lastUpdated = 'July 2026';
+---
+
+<AdminLayout title="System Documentation">
+    <div class="max-w-7xl mx-auto">
+        <div class="mb-10 border-b border-border pb-6">
+            <h2 class="text-4xl font-black tracking-tight text-foreground uppercase">System Documentation</h2>
+            <p class="text-lg text-muted-foreground mt-3 font-medium max-w-3xl">
+                Read this documentation and the source code to understand the system design.
+            </p>
+            <p class="text-xs text-muted-foreground mt-3">WARITAKU CMS v{pkg.version} &mdash; Last updated: {lastUpdated}</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div class="lg:col-span-3 space-y-12">
+                
+                {/* 0. Critical System Rules & Database Environments */}
+                <section id="docs-environments" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-red-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-red-500/80 group-hover:bg-red-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-red-500">Database Environments & Safety</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        
+                        <div class="bg-destructive/10 border-l-4 border-destructive p-4 rounded-r-md">
+                            <h4 class="font-bold text-destructive mb-1">CRITICAL SYSTEM RULE: Database Preservation</h4>
+                            <p class="text-sm text-destructive/90 mb-3">
+                                <strong>Do not delete or recreate the database folder (`.wrangler`).</strong> 
+                                The local database copies the production database. If you delete it, you lose synchronized data. 
+                                AI agents must not run deletion commands or add dummy data unless the user types: "Purge Development Database".
+                            </p>
+                            <h4 class="font-bold text-destructive mb-1">CRITICAL SYSTEM RULE: Database Migrations</h4>
+                            <p class="text-sm text-destructive/90">
+                                <strong>Never run <code>wrangler d1 migrations apply --local</code> blindly.</strong> 
+                                If the <code>d1_migrations</code> table is empty or missing (e.g., if tables were created manually or via <code>drizzle-kit push</code>), Wrangler may forcefully wipe and recreate the local SQLite file from scratch to apply migrations, resulting in total data loss. Always verify the migration state before running apply.
+                            </p>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4">
+                            <h4 class="font-bold text-foreground mb-2">Environments</h4>
+                            <ul class="list-disc pl-5 space-y-2">
+                                <li>
+                                    <strong class="text-foreground">Local Development:</strong> Uses Miniflare. The system stores SQLite files at: 
+                                    <code class="px-1 py-0.5 bg-background rounded border text-xs break-all">.wrangler/state/v3/d1/miniflare-D1DatabaseObject/</code>. 
+                                    This database is isolated. Connect using `npm run dev` or local D1 commands such as <code class="px-1 py-0.5 bg-background rounded text-xs">npx wrangler d1 execute DB --local --command="..."</code>.
+                                </li>
+                                <li>
+                                    <strong class="text-foreground">Local Cloud Development (Preview):</strong> Uses a remote Cloudflare D1 database for testing. Connect using the `--remote` flag: <code class="px-1 py-0.5 bg-background rounded text-xs">npm run dev --remote</code>.
+                                </li>
+                                <li>
+                                    <strong class="text-foreground">Production:</strong> The main database on the Cloudflare edge network. Access it through deployed code or explicit `--remote` D1 commands.
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4">
+                            <h4 class="font-bold text-foreground mb-2">Adapter Pattern</h4>
+                            <p class="mb-3">Waritaku CMS uses modular architecture. The core engine uses Cloudflare D1 Database and R2 Storage for fast performance.</p>
+                            <p class="mb-3">The system uses the Generic Adapter Pattern. To deploy on other infrastructure (such as Vercel, Netlify, or AWS), modify two files:</p>
+                            <ul class="list-disc pl-5 space-y-2">
+                                <li>
+                                    <strong class="text-foreground">Database Adapter (<code>src/lib/db.ts</code>)</strong>: 
+                                    All components and API routes import the database connection from `getDb(env)`. To use PostgreSQL, update the Drizzle logic in this file.
+                                </li>
+                                <li>
+                                    <strong class="text-foreground">Storage Adapter (<code>src/lib/storage.ts</code>)</strong>: 
+                                    Media operations use `StorageAdapter` methods (`uploadFile`, `deleteFile`, `listFiles`). To use AWS S3, update these methods with the AWS SDK.
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4 space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Directory Structure & Uploads</h4>
+                            <p>Project folder structure:</p>
+                            <pre class="bg-card p-4 rounded-lg border border-border text-xs overflow-x-auto text-foreground font-mono">
+waritaku/
+├── public/                 # Static assets served at root URL /
+├── local_uploads/          # Local media storage (development mode only)
+├── src/
+│   ├── assets/             # Raw image and icon assets
+│   ├── components/         # React and Astro UI components
+│   │   └── editor/         # TipTap WYSIWYG editor components
+│   ├── db/                 # Drizzle ORM schema definitions and migrations
+│   ├── i18n/               # Internationalization strings and translation keys
+│   ├── layouts/            # Page layouts (AdminLayout, Layout, etc.)
+│   ├── lib/                # Database (db.ts) and Storage (storage.ts) adapters
+│   ├── middleware.ts       # Authentication, redirect checks, and 404 logging
+│   ├── pages/              # Routing endpoints and public page layouts
+│   │   ├── admin/          # Admin CMS management pages and documentation
+│   │   └── api/            # API endpoints (media, tags, exports, etc.)
+│   ├── styles/             # Global CSS definitions and Tailwind setup
+│   └── utils/              # Helper utilities and text parsing functions
+├── .wrangler/              # Miniflare local D1 database state (do not commit)
+├── astro.config.mjs        # Astro configuration and Vite plugins
+├── drizzle.config.ts       # Drizzle ORM configuration
+└── package.json            # Dependencies and scripts
+                            </pre>
+                            <p>Directory functions:</p>
+                            <ul class="list-disc pl-5 space-y-3">
+                                <li><strong><code>/src</code></strong>: Contains Astro pages, React components, Drizzle DB schema (`src/db`), and layouts.</li>
+                                <li><strong><code>/public</code></strong>: Contains static assets. The server serves these files at the root URL `/`.</li>
+                                <li><strong><code>/.wrangler</code></strong>: Miniflare creates this folder. It contains the local D1 database. Do not commit this folder to Git.</li>
+                                <li class="bg-card/50 p-3 rounded border border-border/50">
+                                    <strong class="text-primary text-[15px]">The <code>/local_uploads</code> Directory</strong>
+                                    <p class="mt-2 text-muted-foreground">Stores uploaded media during local development.</p>
+                                    
+                                    <strong class="block mt-3 text-foreground">Local operation:</strong> 
+                                    <p class="mt-1">When you upload an image during `npm run dev`, the system writes the file to <code>/local_uploads</code>. A custom Vite plugin (`serve-local-uploads` in <code>astro.config.mjs</code>) serves files from this folder for requests to <code>/uploads/*</code>.</p>
+                                    
+                                    <strong class="block mt-3 text-foreground">Production operation:</strong> 
+                                    <p class="mt-1">In production, the server detects the <code>env.UPLOADS</code> R2 binding. The system uploads media to Cloudflare R2 and ignores the local folder. Do not commit <code>/local_uploads</code> to Git.</p>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 1. Dashboard */}
+                <section id="docs-dashboard" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-primary/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-primary/80 group-hover:bg-primary transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-primary">Overview: Dashboard</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Shows real-time summary statistics, interactive publishing calendar, day-of-week productivity analytics, and recent article activity table.</p>
+                        <p><strong class="text-foreground">Database Query:</strong> Executes aggregated queries on `articles`, `categories`, `tags`, and `users` tables via Drizzle ORM.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Astro SSR for server processing, React components for interactive calendar &amp; analytics, Tailwind CSS for layout.</p>
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4">
+                            <h4 class="font-bold text-foreground mb-2">Dashboard Toolkit (Customization)</h4>
+                            <p class="mb-2">Superadmin users can toggle, reorder, and configure individual dashboard widgets under <a href="/admin/layout/dashboard" class="text-primary hover:underline font-semibold">Appearance &rarr; Dashboard Layout</a>.</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-foreground">Summary Cards:</strong> Overview metrics for articles, categories, tags, and users.</li>
+                                <li><strong class="text-foreground">Publishing Calendar:</strong> Monthly view of published articles and publishing productivity breakdown.</li>
+                                <li><strong class="text-foreground">Recent Activity:</strong> Detailed feed of latest published and draft articles.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="docs-articles" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-blue-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500/80 group-hover:bg-blue-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-blue-500">Content: Articles</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Creates, edits, deletes, and tracks revisions of blog posts.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong>
+                            The `articles` table connects to:
+                            - `users` (author) and `categories` (primary category).
+                            - `tags` through the `article_tags` join table.
+                            - `article_revisions` for revision history.
+                        </p>
+                        <p><strong class="text-foreground">Technology:</strong> React TipTap Editor for content editing, Drizzle ORM for database queries, Cloudflare R2 for image storage.</p>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4 space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Editor Features</h4>
+                            <ul class="list-disc pl-5 space-y-2">
+                                <li><strong>Image Control:</strong> The ImageBubbleMenu toolbar sets image alignment, alt text, and captions.</li>
+                                <li><strong>Captions &amp; Alt Text:</strong> Converts `title` attributes and `[caption]` shortcodes into HTML5 &lt;figure&gt; and &lt;figcaption&gt; tags. If an image lacks alt text, the system uses the article title.</li>
+                                <li><strong>FAQ Shortcodes:</strong> Generates `[faq]` shortcodes. The frontend converts these into HTML5 &lt;details&gt; elements.</li>
+                                <li><strong>JSON-LD Schema:</strong> Generates `NewsArticle` schema. Editors can override this schema by pasting custom JSON-LD into the editor field.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-blue-500/10 border-l-4 border-blue-500 p-4 mt-4 rounded-r-md">
+                            <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">Revision History</h4>
+                            <p class="text-blue-700 dark:text-blue-300 mb-2">The system saves a full snapshot of the article before each save. You can view and restore any past revision.</p>
+                            <ul class="list-disc pl-5 space-y-1 text-blue-700 dark:text-blue-300">
+                                <li>Open an article in the editor.</li>
+                                <li>Click the <strong>Revisions</strong> button in the editor toolbar.</li>
+                                <li>Select a past revision from the list to preview it.</li>
+                                <li>Click <strong>Restore</strong> to replace the current content with the selected revision.</li>
+                            </ul>
+                            <p class="mt-2 text-blue-700 dark:text-blue-300">The `article_revisions` table stores each snapshot. The `diff` library compares revisions. This library must stay in Vite `optimizeDeps.exclude` inside `astro.config.mjs` to avoid SSR build crashes.</p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 3. Pages */}
+                <section id="docs-pages" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-emerald-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-500/80 group-hover:bg-emerald-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-emerald-500">Content: Pages</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Creates, edits, and tracks revisions of static pages (such as About Us, Contact, Privacy Policy).</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Uses the `pages` table. Links to the `users` table for authorship. Does not use categories or tags. Links to `page_revisions` for revision history.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Uses the React TipTap editor. The revision system works the same way as Articles.</p>
+                        <p><strong class="text-foreground">Rendering:</strong> Renders via `/src/pages/[slug].astro`. Excludes pages from blog feeds. Generates `WebPage` JSON-LD schema.</p>
+
+                        <div class="bg-emerald-500/10 border-l-4 border-emerald-500 p-4 mt-4 rounded-r-md">
+                            <h4 class="font-bold text-emerald-600 dark:text-emerald-400 mb-2">Revision History</h4>
+                            <p class="text-emerald-700 dark:text-emerald-300 mb-2">The system saves a full snapshot of the page before each save. You can view and restore any past revision.</p>
+                            <ul class="list-disc pl-5 space-y-1 text-emerald-700 dark:text-emerald-300">
+                                <li>Open a page in the editor.</li>
+                                <li>Click the <strong>Revisions</strong> button in the editor toolbar.</li>
+                                <li>Select a past revision from the list to preview it.</li>
+                                <li>Click <strong>Restore</strong> to replace the current content with the selected revision.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 4. My Profile */}
+                <section id="docs-profile" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-purple-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-purple-500/80 group-hover:bg-purple-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-purple-500">Content: My Profile</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Allows users to update profile details, passwords, and social links.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Updates the `users` table. The `socialLinks` column stores JSON string data.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Uses `bcrypt` to hash passwords before database storage.</p>
+                        <p><strong class="text-foreground">Editable Fields:</strong> Email, password, names, display name, author slug, avatar URL, biography, and social links.</p>
+                    </div>
+                </section>
+
+                {/* 5. Categories */}
+                <section id="docs-categories" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-amber-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-amber-500/80 group-hover:bg-amber-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-amber-500">Content: Categories</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Groups articles into primary topics.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> 
+                            The `categories` table links to `articles` through the `article_categories` join table. 
+                            The `articles.categoryId` column also links directly to categories.
+                        </p>
+                        <p><strong class="text-foreground">Technology:</strong> Uses Astro form actions for CRUD operations. Generates `CollectionPage` JSON-LD schema.</p>
+                        <p><strong class="text-foreground">Routing:</strong> Generates `/[slug]` routes. Used by Frontpage Builder to pull articles by category ID.</p>
+                        <div class="bg-amber-500/10 border-l-4 border-amber-500 p-4 mt-4 rounded-r-md">
+                            <h4 class="font-bold text-amber-600 dark:text-amber-400 mb-1">Architecture Rule: Tag Naming Conflict</h4>
+                            <p class="text-amber-700 dark:text-amber-300">
+                                Categories take naming priority. You cannot create a tag with the same name as an existing category.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 6. Tags */}
+                <section id="docs-tags" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-rose-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-rose-500/80 group-hover:bg-rose-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-rose-500">Content: Tags</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Groups articles by specific keywords or topics.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> The `tags` table connects to `articles` through the `article_tags` join table using `ON DELETE CASCADE` rules.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Uses Drizzle ORM `innerJoin` queries to filter articles by tag slug.</p>
+                        <p><strong class="text-foreground">Routing & UI:</strong> Generates `/tag/[slug]` routes. The editor includes a tag creation API (`/api/tags/create`). The admin UI uses JavaScript search for tag selection.</p>
+                        <div class="bg-rose-500/10 border-l-4 border-rose-500 p-4 mt-4 rounded-r-md">
+                            <h4 class="font-bold text-rose-600 dark:text-rose-400 mb-1">Architecture Rule: Tag Creation</h4>
+                            <p class="text-rose-700 dark:text-rose-300">
+                                The `POST /api/tags/create` endpoint checks for existing category names. If a tag name matches a category name, the API returns a 409 status code. All tag slugs use lowercase alphanumeric characters.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 7. Media Library */}
+                <section id="docs-media" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-cyan-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-cyan-500/80 group-hover:bg-cyan-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-cyan-500">Content: Media Library</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Uploads and manages media files.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Files exist in object storage. Articles store file URL strings.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Cloudflare R2 bucket (`waritaku-uploads`). Vite middleware handles local requests.</p>
+                        <p><strong class="text-foreground">UI Display:</strong> Calls `env.UPLOADS.list()` to display files in a grid.</p>
+                    </div>
+                </section>
+
+                {/* 8. Users & Roles */}
+                <section id="docs-users" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-orange-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-orange-500/80 group-hover:bg-orange-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-orange-500">System: Users & Roles</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Manages user access and permission levels.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Updates the `users` table. The `articles` and `pages` tables reference `users.id` as `authorId`.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Astro middleware (`src/middleware.ts`) verifies session tokens against the `users` table for each request.</p>
+                        <p><strong class="text-foreground">Permissions:</strong> Supports `admin` and `superadmin` roles. The UI hides administrative tools from users who lack the `superadmin` role.</p>
+                    </div>
+                </section>
+
+                {/* 9. General Settings */}
+                <section id="docs-general-settings" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-zinc-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-zinc-500/80 group-hover:bg-zinc-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-zinc-500">System: General Settings</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Configures site title, tagline, logo, favicon, and custom HTML scripts. Only `superadmin` users can access this section.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Stores settings as a JSON object in the `settings` table under `general_settings`.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Uses React Hook Form to manage state before sending JSON to Astro endpoints.</p>
+                        
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4 space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Custom Script Locations</h4>
+                            <p>You can add HTML or JavaScript to three layout zones:</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li>`headerHtml`: Injects content before <code>&lt;/head&gt;</code>.</li>
+                                <li>`footerHtml`: Injects content before <code>&lt;/body&gt;</code>.</li>
+                                <li>`articleBottomHtml`: Injects content after article text in `[slug].astro`.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 10. System Advanced */}
+                <section id="docs-system-advanced" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-red-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-red-500/80 group-hover:bg-red-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-red-500">System: Advanced System</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Handles system exports, API key storage, and environment labels.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Reads and writes to the `settings` table (`system_secrets` and `database_environment`).</p>
+                        <p><strong class="text-foreground">Technology:</strong> `/api/export-db.ts` generates JSON database backups. Checks `env.UPLOADS` to report CDN status.</p>
+                        <p><strong class="text-foreground">Security:</strong> Restricted to `superadmin` users. API keys remain on the server and do not enter client bundles.</p>
+                    </div>
+                </section>
+
+                {/* 11. Redirections & 404 Engine */}
+                <section id="docs-system-redirects" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-orange-500/50 transition-colors scroll-mt-24 mt-8">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-orange-500/80 group-hover:bg-orange-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-orange-500">System: Redirections & 404 Engine</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Logs 404 errors and processes 301 redirect rules.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Uses `redirects` (stores redirect rules) and `not_found_logs` (stores 404 URL logs).</p>
+                        <p><strong class="text-foreground">Technology:</strong> Astro Middleware (`src/middleware.ts`) checks URL paths on Cloudflare Workers.</p>
+                        <p><strong class="text-foreground">Log Cleanup:</strong> When you add a redirect rule for a logged URL, the system deletes that URL from the 404 log.</p>
+                        <p><strong class="text-foreground">Control:</strong> Disable redirects and 404 tracking in **General Settings -&gt; SEO & Edge Routing**.</p>
+                    </div>
+                </section>
+
+                {/* 12. Navigation & Footer */}
+                <section id="docs-navigation" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-indigo-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-indigo-500/80 group-hover:bg-indigo-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-indigo-500">Appearance: Navigation & Footer</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Configures menu links for the header and footer.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Stores links as a JSON array of `&#123;label, url, target&#125;` objects in the `settings` table.</p>
+                        <p><strong class="text-foreground">Technology:</strong> React manages the admin menu editor interface.</p>
+                        <p><strong class="text-foreground">Rendering:</strong> `src/layouts/LayoutGlobalHeader.astro` and `LayoutGlobalFooter.astro` render the menu links.</p>
+                    </div>
+                </section>
+
+                {/* 13. Front Page Builder */}
+                <section id="docs-frontpage" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-lime-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-lime-500/80 group-hover:bg-lime-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-lime-500">Appearance: Front Page Builder</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Configures section blocks on the front page.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Saves block configurations to `settings` under `frontpage_layout`.</p>
+                        <p><strong class="text-foreground">Technology:</strong> `index.astro` reads block configurations and fetches article data with `Promise.all()` queries.</p>
+                        <p><strong class="text-foreground">Rendering:</strong> Renders Astro components (such as `NewHeroType3.astro` and `CategoryBlock.astro`) based on configured block types.</p>
+                    </div>
+                </section>
+
+                {/* 13. Global Sidebar */}
+                <section id="docs-sidebar" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-fuchsia-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-fuchsia-500/80 group-hover:bg-fuchsia-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-fuchsia-500">Appearance: Global Sidebar</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Configures widgets in the sidebar of article and category pages.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Stores widget configurations as a JSON array in `settings` under `sidebar_widgets`.</p>
+                        <p><strong class="text-foreground">Technology:</strong> React manages admin settings (`SidebarSettings.tsx`). Astro renders the sidebar (`sidebar.astro`).</p>
+                        <p><strong class="text-foreground">Widgets:</strong> Supports search, recent posts, and custom HTML widgets.</p>
+                    </div>
+                </section>
+
+                {/* 14. Theme Colors */}
+                <section id="docs-theme-colors" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-pink-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-pink-500/80 group-hover:bg-pink-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-pink-500">Appearance: Theme Colors</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Configures HSL color values for light mode and dark mode.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Stores HSL color values in `settings` under `theme_colors`.</p>
+                        <p><strong class="text-foreground">Technology:</strong> `ThemeInjector.astro` runs in the DOM <code>&lt;head&gt;</code> element.</p>
+                        <p><strong class="text-foreground">Rendering:</strong> Sets Tailwind CSS color variables. An inline script reads `localStorage` before page render to prevent color flicker.</p>
+                    </div>
+                </section>
+
+                {/* 15. SEO & Sitemaps */}
+                <section id="docs-seo" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-yellow-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-yellow-500/80 group-hover:bg-yellow-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-yellow-500">Automation: SEO & Sitemaps</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Function:</strong> Generates XML sitemaps and Schema.org markup.</p>
+                        <p><strong class="text-foreground">XML Sitemap:</strong> `/sitemap.xml` queries D1 database tables to build sitemap URLs for articles, pages, categories, and tags.</p>
+                        <p><strong class="text-foreground">Schema:</strong> Generates `WebSite` schema with `SearchAction` data for the front page.</p>
+                    </div>
+                </section>
+
+                {/* 16. AI & API Discoverability */}
+                <section id="docs-ai-api" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-teal-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-teal-500/80 group-hover:bg-teal-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-teal-500">Automation: AI & API Discoverability</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <p><strong class="text-foreground">Markdown for Agents:</strong> `src/pages/[slug].astro` checks request headers. If the header contains <code>Accept: text/markdown</code>, the server uses `turndown` to convert HTML to Markdown. The server adds YAML frontmatter and returns Markdown content.</p>
+                        <p><strong class="text-foreground">RFC 9727 API Catalog:</strong> The CMS serves an API catalog at <code>/.well-known/api-catalog</code>. The endpoint returns `application/linkset+json` data with `service-desc`, `service-doc`, and `status` links.</p>
+                    </div>
+                </section>
+
+                {/* WordPress Migration Guide */}
+                <section id="docs-wp-migration" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-emerald-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-500/80 group-hover:bg-emerald-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-emerald-600 dark:text-emerald-400">WordPress Migration</h3>
+                    <div class="space-y-6 text-muted-foreground leading-relaxed text-sm">
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border">
+                            <h4 class="font-bold text-foreground mb-2">What the pipeline does</h4>
+                            <p>Two scripts handle a full WordPress → Waritaku CMS migration:</p>
+                            <ul class="list-disc pl-5 mt-2 space-y-1">
+                                <li><code class="px-1 py-0.5 bg-background rounded border text-xs">scripts/wp-import.mjs</code> — Parses the WordPress MySQL dump (.sql). Extracts users, categories, tags, articles, pages, SEO meta. Rewrites <code class="px-1 py-0.5 bg-background rounded border text-xs">wp-content/uploads</code> URLs to <code class="px-1 py-0.5 bg-background rounded border text-xs">/uploads/</code>. Converts shortcodes. Outputs <code class="px-1 py-0.5 bg-background rounded border text-xs">import_payload.json</code> and <code class="px-1 py-0.5 bg-background rounded border text-xs">migration_report.json</code>.</li>
+                                <li><code class="px-1 py-0.5 bg-background rounded border text-xs">scripts/wp-import-images.mjs</code> — Copies original images from the WordPress uploads directory to <code class="px-1 py-0.5 bg-background rounded border text-xs">local_uploads/</code>, skipping all WordPress-generated derived files.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border">
+                            <h4 class="font-bold text-foreground mb-3">Step-by-step workflow (Live or Dead/Archived Site)</h4>
+                            <ol class="list-decimal pl-5 space-y-3">
+                                <li>
+                                    <strong class="text-foreground">Prepare your folder structure</strong><br/>
+                                    Place your project and the old WordPress export (MySQL .sql dump + uploads) in sibling directories:
+                                    <pre class="mt-1 text-xs bg-background border border-border rounded p-2 overflow-x-auto">antigravity/
+  waritaku/                 ← this CMS
+  waritaku.old/
+    public_html/
+      wp-content/
+        uploads/            ← images
+    dump.sql                ← MySQL dump</pre>
+                                </li>
+                                <li>
+                                    <strong class="text-foreground">Run the SQL parser (handles Live or Dead sites)</strong>
+                                    <pre class="mt-1 text-xs bg-background border border-border rounded p-2"># Standard auto-detection (reads siteurl from wp_options &amp; auto-scans all upload domains)
+node scripts/wp-import.mjs dump.sql
+
+# For dead/archived sites with custom old domains:
+node scripts/wp-import.mjs dump.sql --old-domain oldsite.com,fuyukaiblog.files.wordpress.com</pre>
+                                    Auto-scans the dump for ALL domain names used in upload URLs and rewrites them into local <code class="px-1 py-0.5 bg-background rounded border text-xs">/uploads/</code> paths.
+                                </li>
+                                <li>
+                                    <strong class="text-foreground">Copy images</strong>
+                                    <pre class="mt-1 text-xs bg-background border border-border rounded p-2"># Copy originals as-is (fast, ~80s for 65k images)
+node scripts/wp-import-images.mjs
+
+# OR convert to WebP for 50% smaller storage (~30min)
+node scripts/wp-import-images.mjs --clean --webp</pre>
+                                    Always use <code class="px-1 py-0.5 bg-background rounded border text-xs">--clean</code> when switching modes to avoid duplicate .jpg + .webp files.
+                                </li>
+                                <li>
+                                    <strong class="text-foreground">Upload the payload</strong><br/>
+                                    Go to <a href="/admin/system" class="text-primary hover:underline">System Advanced</a> → WordPress Import card → upload <code class="px-1 py-0.5 bg-background rounded border text-xs">scripts/import_payload.json</code>.
+                                </li>
+                                <li>
+                                    <strong class="text-foreground">Review the health report</strong><br/>
+                                    Visit <a href="/admin/migration-report" class="text-primary hover:underline">Migration Report</a> to see any issues.
+                                </li>
+                            </ol>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border">
+                            <h4 class="font-bold text-foreground mb-2">Image script flags reference</h4>
+                            <table class="w-full text-xs mt-1">
+                                <thead>
+                                    <tr class="border-b border-border">
+                                        <th class="text-left py-1 font-semibold text-foreground pr-4">Flag</th>
+                                        <th class="text-left py-1 font-semibold text-foreground">Effect</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border/40">
+                                    <tr><td class="py-1 pr-4 font-mono text-foreground">--dry-run</td><td class="py-1">Count files only. Nothing is copied. Safe to run first to preview.</td></tr>
+                                    <tr><td class="py-1 pr-4 font-mono text-foreground">--webp</td><td class="py-1">Convert JPEG/PNG to WebP (~54% smaller). Without this, originals are copied as-is.</td></tr>
+                                    <tr><td class="py-1 pr-4 font-mono text-foreground">--clean</td><td class="py-1">Delete <code class="px-1 bg-background rounded border">local_uploads/</code> before starting. Use when re-running after a failed or incomplete run.</td></tr>
+                                    <tr><td class="py-1 pr-4 font-mono text-foreground">--force</td><td class="py-1">Skip the safety check that blocks running on a non-empty destination.</td></tr>
+                                    <tr><td class="py-1 pr-4 font-mono text-foreground">--help</td><td class="py-1">Show full help and examples.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border">
+                            <h4 class="font-bold text-foreground mb-2">Understanding the Migration Report</h4>
+                            <ul class="list-disc pl-5 space-y-2">
+                                <li><strong class="text-destructive">Import URL Failures</strong> — Articles where wp-content paths survived without a protocol prefix. Should be zero after a v2+ import. Re-run the import to fix.</li>
+                                <li><strong class="text-blue-600 dark:text-blue-400">External Image Hotlinks</strong> — Articles embedding images from <em>other</em> websites (e.g. another WordPress site). This is a pre-existing content problem from the original WordPress site, not an import failure. The images may already be broken on the live site.</li>
+                                <li><strong class="text-amber-600 dark:text-amber-400">Missing Featured Images</strong> — Articles that had no <code class="px-1 py-0.5 bg-background rounded border text-xs">_thumbnail_id</code> in WordPress. Edit each article to set one manually.</li>
+                                <li><strong class="text-purple-600 dark:text-purple-400">Unresolved Shortcodes</strong> — Plugin-specific shortcodes (e.g. Visual Composer, Shortcodes Ultimate). wp-import.mjs handles the standard WP shortcodes ([caption], [gallery], [embed], [video], [audio]). Others need manual cleanup or custom transformers.</li>
+                                <li><strong class="text-amber-600 dark:text-amber-400">phpass Users</strong> — Users with old $P$ password hashes. Cannot log in until an admin resets their password via Users &amp; Roles.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-md border border-amber-500/30">
+                            <h4 class="font-bold text-amber-800 dark:text-amber-400 mb-1">Known limitations (~15% gap)</h4>
+                            <p class="text-xs">No automated migration is 100%. The remaining gap after running the pipeline:</p>
+                            <ul class="list-disc pl-5 mt-2 space-y-1 text-xs">
+                                <li>External image hotlinks require manual article edits</li>
+                                <li>Plugin-specific shortcodes (Visual Composer, Divi, etc.) need custom transformers</li>
+                                <li>Articles where WordPress had broken/missing featured images</li>
+                            </ul>
+                        </div>
+
+                    </div>
+                </section>
+
+                {/* 16. WordPress Migration Guide */}
+                <section id="docs-migration-guide" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-primary/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-primary/20 group-hover:bg-primary transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-primary">WordPress Migration Guide (From Scratch)</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        
+                        <p class="mb-3">
+                            If you are starting fresh from a Git clone and need to import data from a legacy WordPress site, follow these exact steps to set up your database and migrate your content safely.
+                        </p>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border">
+                            <h4 class="font-bold text-foreground mb-2">Step 1: Database Setup</h4>
+                            <p class="mb-3">First, install dependencies and apply the migrations to the local Cloudflare D1 environment.</p>
+                            <pre class="bg-background p-3 rounded text-xs border border-border"><code>npm install
+npx wrangler d1 migrations apply DB --local</code></pre>
+                            <p class="mt-2 text-xs">
+                                <em>Note: If you plan to migrate to a remote production database, you must run <code class="px-1 py-0.5 bg-background rounded text-xs">npx wrangler d1 migrations apply DB --remote</code> instead.</em>
+                            </p>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4">
+                            <h4 class="font-bold text-foreground mb-2">Step 2: Generate the Import Payload</h4>
+                            <p class="mb-3">
+                                You need a full MySQL database dump (<code>.sql</code>) from your WordPress site. 
+                                The CMS includes a Node script to parse this dump into a clean JSON payload.
+                            </p>
+                            <ul class="list-decimal pl-5 space-y-2 mb-3">
+                                <li>Place your <code>.sql</code> dump file anywhere (e.g., one folder up).</li>
+                                <li>Run the parser script: <pre class="bg-background p-3 rounded text-xs border border-border mt-1"><code>node scripts/wp-import.mjs ../path-to-your-dump.sql</code></pre></li>
+                                <li>This generates <code>scripts/import_payload.json</code> and <code>scripts/migration_report.json</code>.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4">
+                            <h4 class="font-bold text-foreground mb-2">Step 3: Run the CMS Import</h4>
+                            <ul class="list-decimal pl-5 space-y-2">
+                                <li>Start the local development server: <pre class="bg-background p-3 rounded text-xs border border-border mt-1"><code>npm run dev</code></pre></li>
+                                <li>Log into the CMS at <code>http://localhost:4321/admin</code> (if this is a fresh database, use the default admin credentials you create on the first run, or migrate users first).</li>
+                                <li>Navigate to <strong>System Settings -> WordPress Import</strong>.</li>
+                                <li>Click "Select JSON File", choose <code>scripts/import_payload.json</code>, and click <strong>Start Import</strong>.</li>
+                                <li>Wait for the confirmation message. Do not close the browser tab.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-4">
+                            <h4 class="font-bold text-foreground mb-2">Step 4: Migrate Images (Optional)</h4>
+                            <p class="mb-3">To migrate your `wp-content/uploads` folder locally and filter out all the WordPress-generated resized variants:</p>
+                            <pre class="bg-background p-3 rounded text-xs border border-border"><code>node scripts/wp-import-images.mjs ../path-to-wp-content/uploads ./local_uploads</code></pre>
+                            <p class="mt-2 text-xs">
+                                <em>Add <code>--webp</code> to convert all originals to WebP automatically.</em>
+                            </p>
+                        </div>
+
+                        <div class="bg-primary/5 p-4 rounded-md border border-primary/20 mt-6">
+                            <h4 class="font-bold text-primary mb-2">Step 5: Pushing to Production 🚀</h4>
+                            <p class="mb-3">Once you have successfully migrated your database and images locally, it's time to push them to your Cloudflare production environment.</p>
+                            
+                            <h5 class="font-semibold text-sm mb-1 mt-4">1. Push the Database (Cloudflare D1)</h5>
+                            <p class="text-sm mb-2 text-muted-foreground">Export your local database and execute it on your remote production database:</p>
+                            <pre class="bg-background p-3 rounded text-xs border border-border"><code>npx wrangler d1 export DB --local --output=local-dump.sql
+npx wrangler d1 execute DB --remote --file=local-dump.sql</code></pre>
+                            
+                            <h5 class="font-semibold text-sm mb-1 mt-4">2. Push the Images (Cloudflare R2)</h5>
+                            <p class="text-sm mb-2 text-muted-foreground">Sync your `local_uploads` directory directly to your Cloudflare R2 bucket:</p>
+                            <pre class="bg-background p-3 rounded text-xs border border-border"><code>npm run push:media</code></pre>
+                            <p class="text-xs text-muted-foreground mt-2">The interactive script will prompt you for your R2 Access Key, Secret Key, and Bucket Name.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="docs-new-info" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-fuchsia-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-fuchsia-500/80 group-hover:bg-fuchsia-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-fuchsia-500">New Information (Unconfirmed)</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+                        <div class="bg-fuchsia-500/10 border-l-4 border-fuchsia-500 p-4 mt-4 rounded-r-md">
+                            <h4 class="font-bold text-fuchsia-600 dark:text-fuchsia-400 mb-2">Massive Overhaul: Dynamic Content Type Builder</h4>
+                            <p class="text-fuchsia-700 dark:text-fuchsia-300 mb-2">
+                                Please be aware that large portions of this documentation are currently <strong>obsolete</strong> due to a recent architectural overhaul.
+                            </p>
+                            <p class="text-fuchsia-700 dark:text-fuchsia-300 mb-2">
+                                The CMS has shifted from using hardcoded database tables (`articles`, `pages`, `categories`, `tags`) to a fully dynamic architecture using a generic <code>collections</code> and <code>entries</code> model.
+                            </p>
+                            <ul class="list-disc pl-5 space-y-1 text-fuchsia-700 dark:text-fuchsia-300">
+                                <li><strong>Collections Table:</strong> Defines schemas (fields, taxonomy requirements, and block builder settings) as JSON.</li>
+                                <li><strong>Entries Table:</strong> Stores all content entries (both articles and pages) with custom field data stored in a JSON `data` column.</li>
+                                <li><strong>Dynamic Entry Editor:</strong> A unified React component (`DynamicEntryEditor.tsx`) now reads the schema and renders fields (including the BlockBuilder and TipTap Editor) dynamically.</li>
+                            </ul>
+                            <p class="mt-2 text-fuchsia-700 dark:text-fuchsia-300">
+                                This section will be updated and integrated into the main documentation once the feature is fully stabilized and verified.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+
+            {/* Sidebar: ToC + metadata */}
+            <div class="space-y-6 lg:sticky lg:top-6 self-start">
+
+                {/* Scroll-spy Table of Contents */}
+                <nav id="docs-toc" class="bg-card border border-border rounded-2xl p-5 shadow-sm max-h-[calc(100vh-8rem)] overflow-y-auto">
+                    <h4 class="font-black mb-3 uppercase tracking-widest text-xs text-muted-foreground sticky top-0 bg-card py-1">On This Page</h4>
+                    <ul class="space-y-1 text-xs">
+                        {[
+                            { id: 'docs-environments', label: 'DB Environments & Safety' },
+                            { id: 'docs-dashboard',    label: 'Dashboard' },
+                            { id: 'docs-articles',     label: 'Articles' },
+                            { id: 'docs-pages',        label: 'Pages' },
+                            { id: 'docs-profile',      label: 'My Profile' },
+                            { id: 'docs-categories',   label: 'Categories' },
+                            { id: 'docs-tags',         label: 'Tags' },
+                            { id: 'docs-media',        label: 'Media Library' },
+                            { id: 'docs-users',        label: 'Users & Roles' },
+                            { id: 'docs-general-settings', label: 'General Settings' },
+                            { id: 'docs-system-advanced',  label: 'Advanced System' },
+                            { id: 'docs-system-redirects', label: 'Redirections & 404' },
+                            { id: 'docs-navigation',   label: 'Navigation & Footer' },
+                            { id: 'docs-frontpage',    label: 'Front Page Builder' },
+                            { id: 'docs-sidebar',      label: 'Global Sidebar' },
+                            { id: 'docs-theme-colors', label: 'Theme Colors' },
+                            { id: 'docs-seo',          label: 'SEO & Sitemaps' },
+                            { id: 'docs-ai-api',       label: 'AI & API Discoverability' },
+                            { id: 'docs-migration-guide',  label: 'WordPress Migration' },
+                            { id: 'docs-new-info',     label: 'New Info (Unconfirmed)' },
+                        ].map(({ id, label }) => (
+                            <li>
+                                <a
+                                    href={`#${id}`}
+                                    class="toc-link block px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                                    data-target={id}
+                                >{label}</a>
+                            </li>
+                        ))}
+                    </ul>
+                </nav>
+
+                <div class="bg-primary/5 border border-primary/20 rounded-2xl p-6 shadow-sm">
+                    <h4 class="font-black text-primary mb-2 uppercase tracking-widest text-sm">CMS Identity</h4>
+                    <p class="text-sm text-muted-foreground mb-4">Google Antigravity built this WARITAKU CMS for Waritaku.</p>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between border-b border-border/50 pb-2">
+                            <span class="text-muted-foreground">Version</span>
+                            <span class="font-bold">{pkg.version}</span>
+                        </div>
+                        <div class="flex justify-between border-b border-border/50 pb-2">
+                            <span class="text-muted-foreground">Framework</span>
+                            <span class="font-bold">Astro</span>
+                        </div>
+                        <div class="flex justify-between border-b border-border/50 pb-2">
+                            <span class="text-muted-foreground">Database</span>
+                            <span class="font-bold">Cloudflare D1</span>
+                        </div>
+
+                        <div class="flex justify-between">
+                            <span class="text-muted-foreground">Storage</span>
+                            <span class="font-bold">Cloudflare R2</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                    <h4 class="font-black mb-3 uppercase tracking-widest text-sm">Security & Roles</h4>
+                    <p class="text-sm text-muted-foreground mb-4 leading-relaxed">
+                        The system uses two user roles (`admin` and `superadmin`). 
+                        Only `superadmin` users can access database export tools and global settings.
+                    </p>
+                    <p class="text-sm text-muted-foreground leading-relaxed">
+                        Articles support password protection. A lock icon identifies password-protected articles in the dashboard.
+                    </p>
+                </div>
+
+                <div class="bg-card border border-border rounded-2xl p-6 shadow-sm">
+                    <h4 class="font-black mb-4 border-b border-border pb-3 uppercase tracking-widest text-sm text-primary">Credits & Technology Stack</h4>
+                    <p class="text-xs text-muted-foreground mb-4 leading-relaxed font-medium italic">
+                        This system uses open-source technologies.
+                    </p>
+                    <ul class="space-y-4 text-sm">
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">Astro & Vite</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">Static site generation and development server.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">Cloudflare (D1, R2, Workers)</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">Database and object storage infrastructure.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">TipTap & ProseMirror</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">WYSIWYG content editor framework.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">React & Tailwind CSS</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">UI components and styling.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">Drizzle ORM</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">Database schema and query management.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">Lucide, Base UI & shadcn/ui</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">Icons, unstyled primitives, and components.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">Sharp & Turndown</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">Image conversion and HTML-to-Markdown parsing.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">Jose & bcryptjs</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">Authentication, JWT validation, and password hashing.</span>
+                        </li>
+                        <li class="flex flex-col">
+                            <span class="font-bold text-foreground">Clack & AWS SDK</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">Interactive CLI setup wizard and R2 media syncing.</span>
+                        </li>
+                        <li class="flex flex-col border-t border-border/50 pt-3 mt-3">
+                            <span class="font-black text-primary uppercase tracking-wider">Google Antigravity</span>
+                            <span class="text-xs text-muted-foreground mt-0.5">System design and code generation.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script is:inline>
+        // Scroll-spy: highlight the active ToC link
+        (function () {
+            const links = document.querySelectorAll('.toc-link');
+            const sections = Array.from(links).map(l => document.getElementById(l.dataset.target));
+
+            function setActive(id) {
+                links.forEach(l => {
+                    const isActive = l.dataset.target === id;
+                    l.classList.toggle('text-primary', isActive);
+                    l.classList.toggle('bg-primary/10', isActive);
+                    l.classList.toggle('font-semibold', isActive);
+                    l.classList.toggle('text-muted-foreground', !isActive);
+                });
+            }
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        setActive(entry.target.id);
+                    }
+                });
+            }, { rootMargin: '-10% 0px -80% 0px', threshold: 0 });
+
+            sections.forEach(s => s && observer.observe(s));
+
+            // Set initial active on load
+            if (sections[0]) setActive(sections[0].id);
+        })();
+    </script>
+</AdminLayout>

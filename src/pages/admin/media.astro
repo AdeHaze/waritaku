@@ -1,0 +1,99 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { env } from "cloudflare:workers";
+import { StorageAdapter } from '../../lib/storage';
+
+
+const user = Astro.locals.user;
+if (!user || (user.role !== 'superadmin' && user.role !== 'admin' && user.role !== 'editor')) {
+    return Astro.redirect('/admin');
+}
+
+let objects: any[] = [];
+let error = '';
+let success = '';
+
+if (env && env.UPLOADS) {
+    if (Astro.request.method === 'POST') {
+        try {
+            const data = await Astro.request.formData();
+            const action = data.get('action');
+            const key = data.get('key') as string;
+            
+            if (action === 'delete' && key) {
+                await StorageAdapter.deleteFile(env, key);
+                success = 'File deleted successfully.';
+            }
+        } catch (e: any) {
+            error = e.message;
+        }
+    }
+
+    try {
+        const listed = await StorageAdapter.listFiles(env, );
+        objects = listed.objects.sort((a, b) => (b.uploaded?.getTime() || 0) - (a.uploaded?.getTime() || 0));
+    } catch (e: any) {
+        error = e.message;
+    }
+}
+---
+
+<AdminLayout title="Media Gallery">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight text-foreground">Media Gallery</h1>
+      <p class="text-muted-foreground mt-2">Browse and manage images uploaded to Cloudflare R2.</p>
+    </div>
+    <a href="/admin/docs#docs-media" class="inline-flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full transition-colors border border-primary/20 shadow-sm shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        Read Documentation
+    </a>
+  </div>
+
+  {error && <div class="mb-6 p-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-md font-medium">{error}</div>}
+  {success && <div class="mb-6 p-4 bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 rounded-md font-medium">{success}</div>}
+
+  <Card className="bg-card shadow-sm border-border">
+    <CardHeader>
+      <CardTitle>Uploaded Files</CardTitle>
+      <CardDescription>{objects.length} files stored in R2 bucket</CardDescription>
+    </CardHeader>
+    <CardContent>
+        {objects.length === 0 ? (
+            <div class="text-center py-12 text-muted-foreground">
+                <p>No media files found. Upload images via the Article Editor.</p>
+            </div>
+        ) : (
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {objects.map((obj) => {
+                    const url = `/api/images/${obj.key}`;
+                    return (
+                        <div class="group relative rounded-md border border-border bg-muted/30 overflow-hidden aspect-square flex flex-col">
+                            <div class="flex-1 flex items-center justify-center overflow-hidden bg-background">
+                                <img src={url} alt={obj.key} class="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                            </div>
+                            
+                            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-4">
+                                <button type="button" onclick={`navigator.clipboard.writeText(window.location.origin + '${url}'); alert('URL copied to clipboard!')`} class="bg-primary text-primary-foreground text-xs font-medium px-3 py-1.5 rounded w-full hover:bg-primary/90 transition-colors">
+                                    Copy URL
+                                </button>
+                                <form method="POST" class="w-full" onsubmit="return confirm('Are you sure you want to permanently delete this file? This will break any articles referencing it.')">
+                                    <input type="hidden" name="action" value="delete" />
+                                    <input type="hidden" name="key" value={obj.key} />
+                                    <button type="submit" class="bg-destructive text-destructive-foreground text-xs font-medium px-3 py-1.5 rounded w-full hover:bg-destructive/90 transition-colors">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="p-2 text-xs truncate bg-background border-t border-border" title={obj.key}>
+                                {obj.key}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+        )}
+    </CardContent>
+  </Card>
+</AdminLayout>

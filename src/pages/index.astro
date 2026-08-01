@@ -1,0 +1,180 @@
+---
+import LayoutFrontPage from '../layouts/LayoutFrontPage.astro';
+import BlockRenderer from '../components/BlockRenderer.astro';
+import { entries, collections, users, taxonomies, terms, entryTerms, settings } from '../db/schema';
+import { desc, eq, and, sql, inArray } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../lib/db';
+import { getCanonicalUrl } from '../lib/queries';
+
+let layoutBlocks: any[] = [];
+let blockData: Record<string, any> = {};
+
+let showLeftSidebar = false;
+let showRightSidebar = true;
+let headerStyle = 'default';
+let footerStyle = 'default';
+let metaTitle = 'Waritaku CMS';
+let metaDescription = 'Default Homepage';
+
+if (env && env.DB) {
+    const db = getDb(env);
+    
+    // 1. Find the Homepage ID
+    const settingRes = await db.select().from(settings).where(eq(settings.key, 'homepage_page_id')).limit(1);
+    let homepageId = settingRes.length > 0 ? parseInt(settingRes[0].value, 10) : null;
+    
+    // 2. Fetch the Page
+    if (homepageId && !isNaN(homepageId)) {
+        const pageCol = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
+        if (pageCol.length > 0) {
+            const pageRes = await db.select().from(entries).where(and(eq(entries.id, homepageId), eq(entries.collectionId, pageCol[0].id))).limit(1);
+            if (pageRes.length > 0) {
+                const page = pageRes[0];
+                const data = JSON.parse(page.data || '{}');
+                metaTitle = data.metaTitle || data.title;
+                metaDescription = data.metaDescription || '';
+                headerStyle = data.headerStyle || 'default';
+                footerStyle = data.footerStyle || 'default';
+                
+                if (data.is_block_builder && data.layout_blocks) {
+                    try {
+                        layoutBlocks = Array.isArray(data.layout_blocks) ? data.layout_blocks : JSON.parse(data.layout_blocks);
+                    } catch(e) {
+                        console.error("Failed to parse layoutBlocks", e);
+                    }
+                }
+                
+                // Sidebar Config
+                if (data.layout_config) {
+                    try {
+                        const lconf = typeof data.layout_config === 'string' ? JSON.parse(data.layout_config) : data.layout_config;
+                        if (lconf.override) {
+                            showLeftSidebar = lconf.showLeft;
+                            showRightSidebar = lconf.showRight;
+                        }
+                    } catch(e) {}
+                } else {
+                    // Fetch Global Sidebar Config if no page override
+                    const sidebarConfigRes = await db.select().from(settings).where(eq(settings.key, 'sidebar_layout_config')).limit(1);
+                    if (sidebarConfigRes.length > 0) {
+                        try {
+                            const layoutConfig = JSON.parse(sidebarConfigRes[0].value);
+                            showLeftSidebar = layoutConfig.left?.showOnFrontpage ?? false;
+                            showRightSidebar = layoutConfig.right?.showOnFrontpage ?? true;
+                        } catch(e) {}
+                    }
+                }
+            }
+        }
+    }
+
+    const articlesColResult = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
+    const articlesColId = articlesColResult[0]?.id;
+
+    const fetchArticles = async (categoryId?: string | number, limit = 5, offset = 0, isRandom = false, tagSlug?: string) => {
+        if (!articlesColId) return [];
+        
+        let query = db.selectDistinct({
+            entry: entries,
+            author: users
+        })
+        .from(entries)
+        .leftJoin(users, eq(entries.authorId, users.id));
+
+        let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesColId));
+
+        if (categoryId && categoryId !== 'all' || tagSlug) {
+            query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
+            query = query.innerJoin(terms, eq(entryTerms.termId, terms.id));
+            
+            const termConditions = [];
+            if (categoryId && categoryId !== 'all') {
+                termConditions.push(eq(terms.id, parseInt(categoryId as string)));
+            }
+            if (tagSlug) {
+                termConditions.push(eq(terms.slug, tagSlug));
+            }
+            if (termConditions.length > 0) {
+                conditions = and(conditions, ...termConditions);
+            }
+        }
+
+        query = query.where(conditions) as any;
+
+        if (isRandom) {
+            query = query.orderBy(sql`RANDOM()`) as any;
+        } else {
+            query = query.orderBy(desc(entries.publishedAt)) as any;
+        }
+
+        const result = await query.limit(limit).offset(offset);
+        
+        return await Promise.all(result.map(async r => {
+            const data = JSON.parse(r.entry.data || '{}');
+            const rawContent = data.content || '';
+            const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+            const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
+            
+            const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
+
+            return {
+                id: r.entry.id,
+                slug: r.entry.slug,
+                canonicalUrl: `/${canonicalUrl}`,
+                publishedAt: r.entry.publishedAt,
+                ...data,
+                categoryName: 'Article', // Can be populated via extra term query if needed
+                categorySlug: 'all',
+                authorName: r.author?.name || 'Admin',
+                authorId: r.author?.id || 1,
+                excerpt: excerpt
+            };
+        }));
+    };
+
+    const promises = layoutBlocks.map(async (block) => {
+        if (block.type === 'hero' || block.type === 'hero_2' || block.type === 'hero_3') {
+            blockData[block.id] = await fetchArticles('all', block.limit || 5, 0);
+        } else if (block.type === 'category_block') {
+            blockData[block.id] = await fetchArticles(block.categoryId, block.limit || 5, 0, false, block.tagSlug);
+        } else if (block.type === 'category_block_2') {
+            blockData[block.id] = await fetchArticles(block.categoryId, block.limit || 11, 0, false, block.tagSlug);
+        } else if (block.type === 'article_grid') {
+            blockData[block.id] = await fetchArticles('all', block.limit || 12, 0, true);
+        } else if (block.type === 'categories_grid') {
+            const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+            if (catTax.length > 0) {
+                blockData[block.id] = await db.select().from(terms).where(eq(terms.taxonomyId, catTax[0].id)).limit(block.limit || 12).offset(5);
+            } else {
+                blockData[block.id] = [];
+            }
+        }
+    });
+
+    await Promise.all(promises);
+}
+
+const siteUrl = Astro.url.origin;
+const schemaObj = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Waritaku",
+    "url": siteUrl,
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": `${siteUrl}/search?q={search_term_string}`,
+      "query-input": "required name=search_term_string"
+    }
+};
+const schemaString = JSON.stringify(schemaObj);
+---
+
+<LayoutFrontPage title={metaTitle} description={metaDescription} schema={schemaString} headerStyle={headerStyle} footerStyle={footerStyle}>
+    <BlockRenderer 
+        layoutBlocks={layoutBlocks} 
+        blockData={blockData} 
+        showLeftSidebar={showLeftSidebar} 
+        showRightSidebar={showRightSidebar} 
+    />
+</LayoutFrontPage>

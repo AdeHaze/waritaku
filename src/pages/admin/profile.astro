@@ -1,0 +1,268 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { users } from '../../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../lib/db';
+
+import { hashPassword } from '../../lib/auth';
+
+const sessionUser = Astro.locals.user;
+if (!sessionUser) return Astro.redirect('/admin');
+
+let db = null;
+if (env && env.DB) {
+    db = getDb(env);
+}
+
+let error = '';
+let success = '';
+let currentUser: any = null;
+
+let targetUserId = sessionUser.userId;
+const targetIdParam = Astro.url.searchParams.get('id');
+if (targetIdParam && (sessionUser.role === 'admin' || sessionUser.role === 'superadmin')) {
+    targetUserId = parseInt(targetIdParam, 10) || sessionUser.userId;
+}
+
+if (db) {
+    // Handle POST Update
+    if (Astro.request.method === 'POST') {
+        try {
+            const data = await Astro.request.formData();
+            const name = data.get('name') as string;
+            const firstName = data.get('firstName') as string;
+            const lastName = data.get('lastName') as string;
+            const slug = (data.get('slug') as string)?.toLowerCase();
+            const bio = data.get('bio') as string;
+            const avatarUrl = data.get('avatarUrl') as string;
+            
+            // Reconstruct socialLinks from individual inputs
+            const socialTwitter = data.get('social_twitter') as string;
+            const socialFacebook = data.get('social_facebook') as string;
+            const socialInstagram = data.get('social_instagram') as string;
+            const socialYoutube = data.get('social_youtube') as string;
+            const socialWebsite1 = data.get('social_website1') as string;
+            const socialWebsite2 = data.get('social_website2') as string;
+            
+            const socialLinks = JSON.stringify({
+                twitter: socialTwitter || '',
+                facebook: socialFacebook || '',
+                instagram: socialInstagram || '',
+                youtube: socialYoutube || '',
+                website1: socialWebsite1 || '',
+                website2: socialWebsite2 || ''
+            });
+            
+            const email = data.get('email') as string;
+            const password = data.get('password') as string;
+            
+            if (name && slug && email) {
+                const updateData: any = { 
+                    name, 
+                    firstName,
+                    lastName,
+                    slug,
+                    email,
+                    bio,
+                    avatarUrl,
+                    socialLinks
+                };
+                
+                if (password) {
+                    updateData.passwordHash = await hashPassword(password);
+                }
+                
+                await db.update(users).set(updateData).where(eq(users.id, targetUserId));
+                success = 'Profile updated successfully!';
+            } else {
+                error = 'Name, slug, and email are required.';
+            }
+        } catch (e: any) {
+            error = e.message;
+        }
+    }
+    
+    // Fetch Current Profile
+    const res = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+    if (res.length > 0) {
+        currentUser = res[0];
+        if (currentUser.socialLinks) {
+            try {
+                currentUser.socialLinksParsed = JSON.parse(currentUser.socialLinks);
+            } catch (e) {
+                currentUser.socialLinksParsed = {};
+            }
+        } else {
+            currentUser.socialLinksParsed = {};
+        }
+    }
+}
+---
+
+<AdminLayout title="My Profile">
+    <div class="max-w-4xl">
+        <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-foreground">{targetUserId === sessionUser.userId ? 'My Profile' : 'Edit User Profile'}</h1>
+                <p class="text-muted-foreground mt-2">Manage public author page details.</p>
+            </div>
+            <a href="/admin/docs#docs-profile" class="inline-flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full transition-colors border border-primary/20 shadow-sm shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Read Documentation
+            </a>
+        </div>
+
+        {error && <div class="mb-6 p-4 rounded-md bg-destructive/10 text-destructive text-sm font-medium">{error}</div>}
+        {success && <div class="mb-6 p-4 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 text-sm font-medium">{success}</div>}
+
+        {currentUser && (
+            <Card className="bg-card border-border shadow-sm">
+                <CardHeader>
+                    <CardTitle>Profile Details</CardTitle>
+                    <CardDescription>This information will be displayed on your public Author page.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form method="POST" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold">First Name</label>
+                                <input type="text" name="firstName" value={currentUser.firstName || ''} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold">Last Name</label>
+                                <input type="text" name="lastName" value={currentUser.lastName || ''} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold">Display Name</label>
+                                <input type="text" name="name" value={currentUser.name || ''} required class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold">Author URL Slug</label>
+                                <div class="flex items-center">
+                                    <span class="bg-muted px-3 h-10 border border-r-0 border-input rounded-l-md text-sm text-muted-foreground flex items-center">/author/</span>
+                                    <input type="text" name="slug" value={currentUser.slug || currentUser.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')} required class="flex h-10 w-full rounded-r-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold">Email Address</label>
+                            <input type="email" name="email" value={currentUser.email} required class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold">New Password (Optional)</label>
+                            <input type="password" name="password" placeholder="Leave blank to keep current password" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold">Avatar Image URL</label>
+                            <input type="hidden" name="avatarUrl" id="avatarUrl" value={currentUser.avatarUrl || ''} />
+                            
+                            <div id="avatar-preview" class={`mb-2 w-32 h-32 rounded-full overflow-hidden border-2 border-border bg-muted flex items-center justify-center ${currentUser.avatarUrl ? '' : 'hidden'}`}>
+                                <img src={currentUser.avatarUrl || ''} alt="Avatar" class="object-cover w-full h-full" id="preview-img" />
+                            </div>
+
+                            <div class="flex gap-2">
+                                <input type="file" id="avatar-upload" accept="image/*" class="hidden" />
+                                <button type="button" onclick="document.getElementById('avatar-upload').click()" class="border-2 border-dashed border-border rounded-md px-4 py-2 text-sm font-medium hover:bg-muted/50 transition-colors">
+                                  Upload Image
+                                </button>
+                                <button type="button" onclick="const url = prompt('Enter Avatar URL:', document.getElementById('avatarUrl').value); if(url !== null) { document.getElementById('avatarUrl').value = url; document.getElementById('preview-img').src = url; document.getElementById('avatar-preview').classList.remove('hidden'); }" class="px-4 border border-border rounded-md text-sm hover:bg-muted/50">
+                                  Use URL
+                                </button>
+                            </div>
+                            <p class="text-xs text-muted-foreground mt-1">Recommended size: 256x256. Image uploads will connect to Cloudflare R2.</p>
+                            
+                            <script>
+                                document.getElementById('avatar-upload')?.addEventListener('change', async (e) => {
+                                    const target = e.target as HTMLInputElement;
+                                    const file = target.files?.[0];
+                                    if (!file) return;
+                                    
+                                    const btn = target.nextElementSibling as HTMLButtonElement | null;
+                                    if (!btn) return;
+                                    
+                                    const originalText = btn.textContent;
+                                    btn.textContent = 'Uploading...';
+                                    
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    
+                                    try {
+                                        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                                        const data = await res.json();
+                                        if (data.url) {
+                                            const urlInput = document.getElementById('avatarUrl') as HTMLInputElement | null;
+                                            if (urlInput) urlInput.value = data.url;
+                                            
+                                            const previewImg = document.getElementById('preview-img') as HTMLImageElement | null;
+                                            if (previewImg) previewImg.src = data.url;
+                                            
+                                            document.getElementById('avatar-preview')?.classList.remove('hidden');
+                                        } else {
+                                            alert('Upload failed: ' + data.error);
+                                        }
+                                    } catch (err) {
+                                        alert('Upload failed.');
+                                    } finally {
+                                        btn.textContent = originalText;
+                                    }
+                                });
+                            </script>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold">Biography</label>
+                            <textarea name="bio" rows="4" class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{currentUser.bio || ''}</textarea>
+                            <p class="text-xs text-muted-foreground">A short description about yourself.</p>
+                        </div>
+                        
+                        <hr class="border-border" />
+                        
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Social Links</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-semibold">X (Twitter)</label>
+                                    <input type="text" name="social_twitter" value={currentUser.socialLinksParsed.twitter || ''} placeholder="https://x.com/username" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-semibold">Facebook</label>
+                                    <input type="text" name="social_facebook" value={currentUser.socialLinksParsed.facebook || ''} placeholder="https://facebook.com/username" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-semibold">Instagram</label>
+                                    <input type="text" name="social_instagram" value={currentUser.socialLinksParsed.instagram || ''} placeholder="https://instagram.com/username" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-semibold">YouTube</label>
+                                    <input type="text" name="social_youtube" value={currentUser.socialLinksParsed.youtube || ''} placeholder="https://youtube.com/@username" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-semibold">Website 1</label>
+                                    <input type="text" name="social_website1" value={currentUser.socialLinksParsed.website1 || ''} placeholder="https://yourwebsite.com" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-semibold">Website 2</label>
+                                    <input type="text" name="social_website2" value={currentUser.socialLinksParsed.website2 || ''} placeholder="https://anotherwebsite.com" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 flex justify-end">
+                            <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-8 py-2">
+                                Save Profile
+                            </button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
+        )}
+    </div>
+</AdminLayout>

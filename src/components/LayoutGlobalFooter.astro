@@ -1,0 +1,73 @@
+---
+import { settings } from '../db/schema';
+import { inArray } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../lib/db';
+
+const { footerStyle = 'default' } = Astro.props;
+
+let footerLinks = [
+    { label: 'Latest', url: '/all' },
+    { label: 'Tentang', url: '/tentang-planet-wibu' },
+    { label: 'Kebijakan Privasi', url: '/kebijakan-privasi' },
+    { label: 'Sitemap', url: '/sitemap-index.xml' },
+    { label: 'Login', url: '/admin' }
+];
+
+let footerConfig = {
+    siteTitle: 'WARITAKU',
+    tagline: 'Membahas Tentang Pop Kultur Jepang',
+    copyright: 'Waritaku - Formerly Known As Wibumesta. All rights reserved.'
+};
+
+if (env && env.DB) {
+    try {
+        const db = getDb(env);
+        const records = await db.select().from(settings).where(inArray(settings.key, ['footer_links', 'general_settings', 'footer_config']));
+        
+        let hasGeneralSettings = false;
+        
+        records.forEach(record => {
+            try {
+                if (record.key === 'footer_links') footerLinks = JSON.parse(record.value);
+                if (record.key === 'general_settings') {
+                    footerConfig = { ...footerConfig, ...JSON.parse(record.value) };
+                    hasGeneralSettings = true;
+                }
+                if (record.key === 'footer_config' && !hasGeneralSettings) {
+                    const oldParsed = JSON.parse(record.value);
+                    footerConfig.tagline = oldParsed.tagline || footerConfig.tagline;
+                    footerConfig.copyright = oldParsed.copyright || footerConfig.copyright;
+                }
+            } catch (e) {}
+        });
+    } catch(e) {}
+}
+---
+
+<footer class="border-t bg-muted/40 mt-auto">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        {footerStyle !== 'minimal' && (
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0 text-center md:text-left">
+                    <span class="font-bold text-xl text-primary uppercase">{footerConfig.siteTitle}</span>
+                    {footerConfig.tagline && (
+                        <p class="text-sm text-muted-foreground mt-2">{footerConfig.tagline}</p>
+                    )}
+                </div>
+                
+                <div class="flex flex-wrap justify-center gap-4 md:space-x-6 text-sm font-medium mt-4 md:mt-0">
+                    {footerLinks.map(link => (
+                        <a href={link.url} class="text-muted-foreground hover:text-primary transition-colors">
+                            {link.label}
+                        </a>
+                    ))}
+                </div>
+            </div>
+        )}
+        
+        <div class={`mt-8 ${footerStyle !== 'minimal' ? 'pt-8 border-t' : ''} text-center text-sm text-muted-foreground`}>
+            &copy; {new Date().getFullYear()} {footerConfig.copyright}
+        </div>
+    </div>
+</footer>

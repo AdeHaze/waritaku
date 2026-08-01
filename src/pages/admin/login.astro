@@ -1,0 +1,182 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { users as usersTable, settings } from '../../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../lib/db';
+
+import { createSessionCookie, hashPassword, verifyPassword } from '../../lib/auth';
+
+let error = '';
+let systemLoginHtml = '';
+
+if (env && env.DB) {
+    const db = getDb(env);
+    try {
+        const configRow = await db.select().from(settings).where(eq(settings.key, 'general_settings')).limit(1);
+        if (configRow.length > 0) {
+            const config = JSON.parse(configRow[0].value);
+            systemLoginHtml = config.systemLoginHtml || '';
+        }
+    } catch(e) {}
+}
+
+if (Astro.request.method === 'POST') {
+  try {
+    const data = await Astro.request.formData();
+    const email = data.get('email') as string;
+    const password = data.get('password') as string;
+
+    if (!email || !password) {
+      error = 'Email and password are required.';
+    } else if (env && env.DB) {
+      const db = getDb(env);
+      
+      const userResult = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+      const user = userResult[0];
+
+      // Dev backdoor: Seed SuperAdmin for the first login
+      const allUsers = await db.select().from(usersTable).limit(1);
+      const isFirstRun = allUsers.length === 0;
+      const isMigratedAdmin = user && !user.passwordHash && email === 'admin@waritaku.com';
+
+      if (!user || isFirstRun || isMigratedAdmin) {
+        if (isFirstRun || isMigratedAdmin || email === 'admin@waritaku.com') {
+            const hash = await hashPassword(password);
+            
+            let insertedUser;
+            if (user) {
+                await db.update(usersTable).set({ passwordHash: hash, role: 'superadmin' }).where(eq(usersTable.email, email));
+                insertedUser = { ...user, role: 'superadmin' };
+            } else {
+                const newRes = await db.insert(usersTable).values({
+                    name: 'SuperAdmin',
+                    email: email,
+                    passwordHash: hash,
+                    role: 'superadmin'
+                }).returning();
+                insertedUser = newRes[0];
+            }
+
+            const token = await createSessionCookie({
+                userId: insertedUser.id,
+                role: insertedUser.role,
+                name: insertedUser.name,
+                email: insertedUser.email
+            });
+            Astro.cookies.set('session', token, { path: '/', httpOnly: true, secure: true, sameSite: 'lax', maxAge: 60 * 60 * 24 });
+            return Astro.redirect('/admin');
+        } else {
+            error = 'Invalid email or password.';
+        }
+      } else {
+        if (!user.passwordHash) {
+             error = 'Please reset your password first.';
+        } else {
+            const isValid = await verifyPassword(password, user.passwordHash);
+            if (isValid) {
+                const token = await createSessionCookie({
+                    userId: user.id,
+                    role: user.role,
+                    name: user.name,
+                    email: user.email
+                });
+                Astro.cookies.set('session', token, { path: '/', httpOnly: true, secure: true, sameSite: 'lax', maxAge: 60 * 60 * 24 });
+                return Astro.redirect('/admin');
+            } else {
+                error = 'Invalid email or password.';
+            }
+        }
+      }
+    }
+  } catch (e: any) {
+    error = e.message;
+  }
+}
+---
+
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waritaku - Admin Login</title>
+</head>
+<body class="bg-background text-foreground flex min-h-screen">
+
+<!-- Left Side: Login Box -->
+<div class="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-12 bg-background relative z-10">
+    <div class="w-full max-w-md space-y-8">
+        <div class="text-center space-y-2 mb-10">
+            <div class="flex justify-center mb-6">
+                <div class="w-16 h-16 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3 hover:rotate-0 transition-transform cursor-pointer">
+                    <span class="font-black text-4xl tracking-tighter">W</span>
+                </div>
+            </div>
+            <h1 class="text-3xl font-bold tracking-tight">Welcome Back</h1>
+            <p class="text-muted-foreground text-sm">Enter your credentials to access the Waritaku CMS</p>
+        </div>
+
+        {error && (
+            <div class="bg-destructive/15 text-destructive text-sm font-medium p-4 rounded-xl mb-6 text-center border border-destructive/20 shadow-sm">
+                {error}
+            </div>
+        )}
+
+        <form method="POST" class="space-y-5">
+            <div class="space-y-2">
+                <label for="email" class="text-sm font-bold tracking-wide uppercase text-muted-foreground">Email</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    required 
+                    class="flex h-12 w-full rounded-xl border-2 border-input bg-background/50 px-4 py-2 text-base ring-offset-background placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 transition-all"
+                    placeholder="admin@waritaku.com"
+                />
+            </div>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <label for="password" class="text-sm font-bold tracking-wide uppercase text-muted-foreground">Password</label>
+                </div>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    required 
+                    class="flex h-12 w-full rounded-xl border-2 border-input bg-background/50 px-4 py-2 text-base ring-offset-background placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 transition-all"
+                    placeholder="••••••••"
+                />
+            </div>
+            
+            <button type="submit" class="w-full h-12 mt-8 bg-primary text-primary-foreground font-bold tracking-widest uppercase rounded-xl shadow-md hover:bg-primary/90 hover:shadow-lg hover:-translate-y-0.5 transition-all active:translate-y-0">
+                Sign In
+            </button>
+            
+            <p class="text-xs text-center text-muted-foreground mt-8 leading-relaxed">
+                Need help? <br/> Contact your SuperAdmin to reset your password.
+            </p>
+        </form>
+    </div>
+</div>
+
+<!-- Right Side: Configurable Display -->
+<div class="hidden lg:flex lg:w-1/2 bg-muted relative overflow-hidden items-center justify-center">
+    {systemLoginHtml ? (
+        <div set:html={systemLoginHtml} class="w-full h-full [&>img]:w-full [&>img]:h-full [&>img]:object-cover" />
+    ) : (
+        <div class="w-full h-full relative">
+            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop" class="w-full h-full object-cover opacity-90" alt="Waritaku Default Login Background" />
+            <div class="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent"></div>
+            <div class="absolute bottom-12 left-12 right-12">
+                <h2 class="text-4xl font-black text-white mb-2 drop-shadow-md">Create Without Limits</h2>
+                <p class="text-white/80 text-lg font-medium drop-shadow-md">You can customize this image in Settings &gt; System Login HTML.</p>
+            </div>
+        </div>
+    )}
+</div>
+
+</body>
+</html>

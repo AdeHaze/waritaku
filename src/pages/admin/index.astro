@@ -1,0 +1,219 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { entries, terms, collections, taxonomies, users as usersTable, settings } from '../../db/schema';
+import { desc, sql, eq, and } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+import { getDb } from '../../lib/db';
+import DashboardCalendarAnalytics from '../../components/admin/DashboardCalendarAnalytics';
+
+
+const user = Astro.locals.user;
+if (!user) {
+    return Astro.redirect('/admin/login');
+}
+
+let totalArticles = 0;
+let totalCategories = 0;
+let totalTags = 0;
+let totalWriters = 0;
+let recentArticles: any[] = [];
+let allPublishedDates: string[] = [];
+
+let dashboardLayout = [
+  { id: 'summary', enabled: true, title: 'Summary Cards' },
+  { id: 'calendar', enabled: true, title: 'Publishing Calendar & Analytics' },
+  { id: 'activity', enabled: true, title: 'Recent Activity Table' }
+];
+
+if (env && env.DB) {
+  const db = getDb(env);
+  
+  // We need the collections/taxonomies to count specific entries/terms
+  const articlesCollection = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
+  const pagesCollection = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
+  const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+  const tagTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'tags')).limit(1);
+  
+  if (articlesCollection.length > 0) {
+    const [articlesCount] = await db.select({ count: sql<number>`count(*)` }).from(entries).where(eq(entries.collectionId, articlesCollection[0].id));
+    totalArticles = articlesCount?.count || 0;
+  }
+  
+  if (catTax.length > 0) {
+    const [categoriesCount] = await db.select({ count: sql<number>`count(*)` }).from(terms).where(eq(terms.taxonomyId, catTax[0].id));
+    totalCategories = categoriesCount?.count || 0;
+  }
+  
+  if (tagTax.length > 0) {
+    const [tagsCount] = await db.select({ count: sql<number>`count(*)` }).from(terms).where(eq(terms.taxonomyId, tagTax[0].id));
+    totalTags = tagsCount?.count || 0;
+  }
+
+  const [usersCount] = await db.select({ count: sql<number>`count(*)` }).from(usersTable);
+  totalWriters = usersCount?.count || 0;
+
+  if (articlesCollection.length > 0) {
+      recentArticles = await db.select({
+          id: entries.id,
+          title: entries.slug, // Fallback to slug if title isn't easily extracted from JSON data without SQLite JSON functions
+          slug: entries.slug,
+          status: entries.status,
+          publishedAt: entries.publishedAt,
+          createdAt: entries.createdAt
+      }).from(entries)
+      .where(eq(entries.collectionId, articlesCollection[0].id))
+      .orderBy(desc(entries.createdAt))
+      .limit(5);
+      
+      // Attempt to parse JSON data for better titles
+      const fullEntries = await db.select().from(entries).where(eq(entries.collectionId, articlesCollection[0].id)).orderBy(desc(entries.createdAt)).limit(5);
+      recentArticles = fullEntries.map(e => {
+          let title = e.slug;
+          try {
+              const d = JSON.parse(e.data);
+              if (d.title) title = d.title;
+          } catch {}
+          return { id: e.id, title, slug: e.slug, status: e.status, publishedAt: e.publishedAt, createdAt: e.createdAt };
+      });
+  }
+
+  const allArticles = articlesCollection.length > 0 ? await db.select({ publishedAt: entries.publishedAt }).from(entries).where(and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCollection[0].id))) : [];
+  allPublishedDates = allArticles.filter(a => a.publishedAt).map(a => new Date(a.publishedAt as string).toISOString().split('T')[0]);
+
+  const existingLayout = await db.select().from(settings).where(eq(settings.key, 'dashboard_layout'));
+  if (existingLayout.length > 0) {
+    try {
+      dashboardLayout = JSON.parse(existingLayout[0].value);
+    } catch(e) {}
+  }
+}
+
+const activeWidgets = dashboardLayout.filter(w => w.enabled);
+---
+
+<AdminLayout title="Dashboard Overview">
+  <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+        <h2 class="text-3xl font-bold tracking-tight text-foreground">Dashboard Overview</h2>
+        <p class="text-muted-foreground mt-2">Welcome to the Waritaku CMS.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      {user?.role === 'superadmin' && (
+        <a href="/admin/layout/dashboard" class="inline-flex items-center gap-1.5 text-sm font-bold text-foreground bg-muted hover:bg-muted/80 px-4 py-2 rounded-full transition-colors border border-border shadow-sm shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          Customize Widgets
+        </a>
+      )}
+      <a href="/admin/docs#docs-dashboard" class="inline-flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full transition-colors border border-primary/20 shadow-sm shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Read Documentation
+      </a>
+    </div>
+  </div>
+
+  <div class="space-y-8">
+    {activeWidgets.map(widget => {
+      if (widget.id === 'summary') {
+        return (
+          <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-medium text-muted-foreground">Total Articles</CardTitle>
+                <CardDescription>Published and drafts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p class="text-4xl font-bold tracking-tight text-foreground">{totalArticles.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-medium text-muted-foreground">Total Categories</CardTitle>
+                <CardDescription>Active taxonomy</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p class="text-4xl font-bold tracking-tight text-foreground">{totalCategories.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-medium text-muted-foreground">Total Tags</CardTitle>
+                <CardDescription>Article metadata</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p class="text-4xl font-bold tracking-tight text-foreground">{totalTags.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-medium text-muted-foreground">Writers</CardTitle>
+                <CardDescription>Registered users</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p class="text-4xl font-bold tracking-tight text-foreground">{totalWriters.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      }
+
+      if (widget.id === 'calendar') {
+        return (
+          <div>
+            <DashboardCalendarAnalytics client:load articleDates={allPublishedDates} />
+          </div>
+        );
+      }
+
+      if (widget.id === 'activity') {
+        return (
+          <div>
+            <Card className="bg-card border-border shadow-sm">
+              <CardHeader>
+                <CardTitle>{widget.title || 'Recent Activity'}</CardTitle>
+                <CardDescription>Your latest articles in the database.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {recentArticles.length === 0 ? (
+                  <div class="flex items-center justify-center p-8 border border-dashed rounded-lg border-border bg-muted/20">
+                    <p class="text-sm text-muted-foreground">No recent activity found. Start writing!</p>
+                  </div>
+                ) : (
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                      <thead class="text-xs uppercase bg-muted text-muted-foreground">
+                        <tr>
+                          <th class="px-6 py-3 rounded-tl-lg">Title</th>
+                          <th class="px-6 py-3">Status</th>
+                          <th class="px-6 py-3 rounded-tr-lg">Published Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentArticles.map(article => (
+                          <tr class="border-b border-border hover:bg-muted/50 transition-colors">
+                            <td class="px-6 py-4 font-medium text-foreground"><a href={`/${article.slug}`} target="_blank" class="hover:text-primary">{article.title}</a></td>
+                            <td class="px-6 py-4">
+                              <span class={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${article.status === 'published' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'}`}>
+                                {article.status}
+                              </span>
+                            </td>
+                            <td class="px-6 py-4 text-muted-foreground">{new Date(article.publishedAt).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      }
+
+      return null;
+    })}
+  </div>
+</AdminLayout>

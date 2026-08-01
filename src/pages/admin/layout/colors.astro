@@ -1,0 +1,212 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { settings } from '../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../../lib/db';
+
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin/login');
+}
+
+let db = null;
+if (env && env.DB) {
+    db = getDb(env);
+}
+
+let message = '';
+let isError = false;
+
+// Default Hex fallback (approximate from current oklch)
+let themeColors = {
+  light: {
+    primary: '#d92b2b',
+    background: '#fafafa',
+    foreground: '#1c1c1c',
+    card: '#ffffff',
+    border: '#e6e6e6'
+  },
+  dark: {
+    primary: '#ef4444',
+    background: '#09090b',
+    foreground: '#f8f8f8',
+    card: '#121214',
+    border: '#27272a'
+  }
+};
+
+if (Astro.request.method === 'POST') {
+    try {
+        const formData = await Astro.request.formData();
+        
+        const newThemeColors = {
+            light: {
+                primary: formData.get('light_primary') as string,
+                background: formData.get('light_background') as string,
+                foreground: formData.get('light_foreground') as string,
+                card: formData.get('light_card') as string,
+                border: formData.get('light_border') as string
+            },
+            dark: {
+                primary: formData.get('dark_primary') as string,
+                background: formData.get('dark_background') as string,
+                foreground: formData.get('dark_foreground') as string,
+                card: formData.get('dark_card') as string,
+                border: formData.get('dark_border') as string
+            }
+        };
+        
+        if (db) {
+            const jsonString = JSON.stringify(newThemeColors);
+            const existing = await db.select().from(settings).where(eq(settings.key, 'theme_colors'));
+            
+            if (existing.length > 0) {
+                await db.update(settings).set({ value: jsonString }).where(eq(settings.key, 'theme_colors'));
+            } else {
+                await db.insert(settings).values({ key: 'theme_colors', value: jsonString });
+            }
+            message = 'Theme colors updated successfully.';
+            themeColors = newThemeColors;
+        }
+    } catch (e) {
+        message = 'An error occurred while saving theme colors.';
+        isError = true;
+        console.error(e);
+    }
+} else if (db) {
+    const existing = await db.select().from(settings).where(eq(settings.key, 'theme_colors'));
+    if (existing.length > 0) {
+        try {
+            themeColors = JSON.parse(existing[0].value);
+        } catch(e) {}
+    }
+}
+---
+
+<AdminLayout title="Theme Colors">
+    <div class="max-w-4xl">
+        <div class="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div>
+                <h2 class="text-3xl font-bold tracking-tight">Theme Colors</h2>
+                <p class="text-muted-foreground mt-2">Customize the global color palette for light and dark modes.</p>
+            </div>
+            <div class="flex flex-col items-end gap-3 shrink-0">
+                <a href="/admin/docs#docs-appearance" class="inline-flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full transition-colors border border-primary/20 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    Read Documentation
+                </a>
+                {message && (
+                    <div class={`px-4 py-2 text-sm rounded-md font-medium ${isError ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-green-500/10 text-green-600 border border-green-500/20'}`}>
+                        {message}
+                    </div>
+                )}
+            </div>
+        </div>
+
+        <form method="POST" class="space-y-8">
+            <div class="grid md:grid-cols-2 gap-8">
+                
+                {/* Light Mode Palette */}
+                <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-6 border-b border-border pb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
+                        <h3 class="text-lg font-bold">Light Mode</h3>
+                    </div>
+                    
+                    <div class="space-y-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="light_primary" class="block font-semibold text-sm">Primary Brand</label>
+                                <span class="text-xs text-muted-foreground">Buttons, Links, Borders</span>
+                            </div>
+                            <input type="color" id="light_primary" name="light_primary" value={themeColors.light.primary} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="light_background" class="block font-semibold text-sm">Main Background</label>
+                                <span class="text-xs text-muted-foreground">Page body background</span>
+                            </div>
+                            <input type="color" id="light_background" name="light_background" value={themeColors.light.background} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="light_card" class="block font-semibold text-sm">Card Background</label>
+                                <span class="text-xs text-muted-foreground">Sidebar, content boxes</span>
+                            </div>
+                            <input type="color" id="light_card" name="light_card" value={themeColors.light.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="light_foreground" class="block font-semibold text-sm">Text Color</label>
+                                <span class="text-xs text-muted-foreground">Main body text</span>
+                            </div>
+                            <input type="color" id="light_foreground" name="light_foreground" value={themeColors.light.foreground} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="light_border" class="block font-semibold text-sm">Border Color</label>
+                                <span class="text-xs text-muted-foreground">Dividers and inputs</span>
+                            </div>
+                            <input type="color" id="light_border" name="light_border" value={themeColors.light.border} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Dark Mode Palette */}
+                <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <div class="flex items-center gap-3 mb-6 border-b border-border pb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-400"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+                        <h3 class="text-lg font-bold">Dark Mode</h3>
+                    </div>
+                    
+                    <div class="space-y-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="dark_primary" class="block font-semibold text-sm">Primary Brand</label>
+                                <span class="text-xs text-muted-foreground">Buttons, Links, Borders</span>
+                            </div>
+                            <input type="color" id="dark_primary" name="dark_primary" value={themeColors.dark.primary} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="dark_background" class="block font-semibold text-sm">Main Background</label>
+                                <span class="text-xs text-muted-foreground">Page body background</span>
+                            </div>
+                            <input type="color" id="dark_background" name="dark_background" value={themeColors.dark.background} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="dark_card" class="block font-semibold text-sm">Card Background</label>
+                                <span class="text-xs text-muted-foreground">Sidebar, content boxes</span>
+                            </div>
+                            <input type="color" id="dark_card" name="dark_card" value={themeColors.dark.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="dark_foreground" class="block font-semibold text-sm">Text Color</label>
+                                <span class="text-xs text-muted-foreground">Main body text</span>
+                            </div>
+                            <input type="color" id="dark_foreground" name="dark_foreground" value={themeColors.dark.foreground} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="dark_border" class="block font-semibold text-sm">Border Color</label>
+                                <span class="text-xs text-muted-foreground">Dividers and inputs</span>
+                            </div>
+                            <input type="color" id="dark_border" name="dark_border" value={themeColors.dark.border} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="flex justify-end pt-4 pb-12">
+                <button type="submit" class="px-6 py-2.5 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 transition-colors">
+                    Save Theme Colors
+                </button>
+            </div>
+        </form>
+    </div>
+</AdminLayout>

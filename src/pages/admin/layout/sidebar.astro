@@ -1,0 +1,221 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { settings, terms, taxonomies } from '../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../../lib/db';
+
+import SidebarSettings from '../../../components/admin/SidebarSettings';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin/login');
+}
+
+let db = env && env.DB ? getDb(env) : null;
+let message = '';
+let isError = false;
+
+async function saveSetting(key: string, value: string) {
+    if (!db) return;
+    const existing = await db.select().from(settings).where(eq(settings.key, key));
+    if (existing.length > 0) {
+        await db.update(settings).set({ value }).where(eq(settings.key, key));
+    } else {
+        await db.insert(settings).values({ key, value });
+    }
+}
+
+async function getSetting(key: string, defaultVal: any) {
+    if (!db) return defaultVal;
+    const res = await db.select().from(settings).where(eq(settings.key, key));
+    if (res.length > 0) {
+        try { return JSON.parse(res[0].value); } catch(e) { return res[0].value; }
+    }
+    return defaultVal;
+}
+
+if (Astro.request.method === 'POST') {
+    try {
+        const formData = await Astro.request.formData();
+        
+        const leftWidgets = formData.get('sidebarWidgetsLeft') as string;
+        const rightWidgets = formData.get('sidebarWidgetsRight') as string;
+        
+        const layoutConfig = {
+            left: {
+                showOnFrontpage: formData.get('leftShowOnFrontpage') === 'on',
+                showOnArticles: formData.get('leftShowOnArticles') === 'on',
+                showOnCategories: formData.get('leftShowOnCategories') === 'on',
+                stickyBehavior: formData.get('leftStickyBehavior') || 'sticky-top',
+            },
+            right: {
+                showOnFrontpage: formData.get('rightShowOnFrontpage') === 'on',
+                showOnArticles: formData.get('rightShowOnArticles') === 'on',
+                showOnCategories: formData.get('rightShowOnCategories') === 'on',
+                stickyBehavior: formData.get('rightStickyBehavior') || 'sticky-top',
+            }
+        };
+
+        if (db) {
+            await saveSetting('sidebar_widgets_left', leftWidgets || '[]');
+            await saveSetting('sidebar_widgets_right', rightWidgets || '[]');
+            await saveSetting('sidebar_layout_config', JSON.stringify(layoutConfig));
+            message = 'Sidebar layout and widgets updated successfully.';
+        }
+    } catch (e) {
+        message = 'An error occurred while saving the sidebar.';
+        isError = true;
+        console.error(e);
+    }
+}
+
+let allCategories: any[] = [];
+if (db) {
+    const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+    if (catTax.length > 0) {
+        allCategories = await db.select().from(terms).where(eq(terms.taxonomyId, catTax[0].id));
+    }
+}
+
+const defaultLeft: any[] = [];
+const defaultRight = [
+  { id: 'search-default', type: 'search', title: 'Search', visibility: 'all' },
+  { id: 'recent-default', type: 'recent', title: 'Terbaru', limit: 5, categoryId: 'all', visibility: 'all' },
+  { id: 'social-default', type: 'social', title: 'Stay Connected', links: { facebook: '', twitter: '', youtube: '', instagram: '', pinterest: '' }, visibility: 'all' }
+];
+
+const defaultConfig = {
+    left: { showOnFrontpage: false, showOnArticles: false, showOnCategories: false, stickyBehavior: 'sticky-top' },
+    right: { showOnFrontpage: true, showOnArticles: true, showOnCategories: true, stickyBehavior: 'sticky-top' }
+};
+
+// Fallback logic for old configurations
+let rightWidgetsData = await getSetting('sidebar_widgets_right', null);
+if (!rightWidgetsData) {
+    const oldGlobal = await getSetting('sidebar_widgets', null);
+    if (oldGlobal) {
+        rightWidgetsData = oldGlobal;
+    } else {
+        rightWidgetsData = defaultRight;
+        const oldHtml = await db?.select().from(settings).where(eq(settings.key, 'sidebar_widget_html'));
+        if (oldHtml && oldHtml.length > 0 && oldHtml[0].value.trim() !== '') {
+            rightWidgetsData.splice(1, 0, { id: 'html-default', type: 'html', title: 'Custom Widget', content: oldHtml[0].value, visibility: 'all' });
+        }
+    }
+}
+
+const leftWidgetsData = await getSetting('sidebar_widgets_left', defaultLeft);
+const layoutConfigData = await getSetting('sidebar_layout_config', defaultConfig);
+
+---
+
+<AdminLayout title="Sidebar Settings">
+    <div class="max-w-6xl">
+        <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <h2 class="text-3xl font-bold tracking-tight">Sidebar & Layout</h2>
+                <p class="text-muted-foreground mt-2">Manage your left and right sidebars, and configure where they appear.</p>
+            </div>
+            <a href="/admin/docs#docs-sidebar" class="inline-flex items-center gap-1.5 text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 px-4 py-2 rounded-full transition-colors border border-primary/20 shadow-sm shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                Read Documentation
+            </a>
+        </div>
+
+        {message && (
+            <div class={`p-4 rounded-md mb-8 ${isError ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+                {message}
+            </div>
+        )}
+
+        <form method="POST" class="space-y-8">
+            {/* Global Visibility Config */}
+            <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
+                <h3 class="text-lg font-bold mb-4 border-b border-border pb-2">Global Visibility Configuration</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Left Sidebar Visibility */}
+                    <div class="space-y-4">
+                        <h4 class="font-bold text-primary flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+                            Left Sidebar
+                        </h4>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="leftShowOnFrontpage" checked={layoutConfigData.left?.showOnFrontpage} class="rounded border-input text-primary focus:ring-primary h-4 w-4" />
+                            Show on Frontpage
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="leftShowOnArticles" checked={layoutConfigData.left?.showOnArticles} class="rounded border-input text-primary focus:ring-primary h-4 w-4" />
+                            Show on Articles
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="leftShowOnCategories" checked={layoutConfigData.left?.showOnCategories} class="rounded border-input text-primary focus:ring-primary h-4 w-4" />
+                            Show on Categories & Tags
+                        </label>
+                        <div class="pt-2">
+                            <label class="block text-xs font-semibold uppercase text-muted-foreground mb-1">Sticky Behavior</label>
+                            <select name="leftStickyBehavior" class="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                                <option value="sticky-top" selected={layoutConfigData.left?.stickyBehavior === 'sticky-top'}>True Sticky (Always sticks to top, cuts off if tall)</option>
+                                <option value="sticky-bottom" selected={layoutConfigData.left?.stickyBehavior === 'sticky-bottom'}>True Bidi Sticky (Smart bidirectional scrolling)</option>
+                                <option value="none" selected={layoutConfigData.left?.stickyBehavior === 'none'}>None (No Sticky)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Right Sidebar Visibility */}
+                    <div class="space-y-4">
+                        <h4 class="font-bold text-primary flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
+                            Right Sidebar
+                        </h4>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="rightShowOnFrontpage" checked={layoutConfigData.right?.showOnFrontpage} class="rounded border-input text-primary focus:ring-primary h-4 w-4" />
+                            Show on Frontpage
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="rightShowOnArticles" checked={layoutConfigData.right?.showOnArticles} class="rounded border-input text-primary focus:ring-primary h-4 w-4" />
+                            Show on Articles
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="rightShowOnCategories" checked={layoutConfigData.right?.showOnCategories} class="rounded border-input text-primary focus:ring-primary h-4 w-4" />
+                            Show on Categories & Tags
+                        </label>
+                        <div class="pt-2">
+                            <label class="block text-xs font-semibold uppercase text-muted-foreground mb-1">Sticky Behavior</label>
+                            <select name="rightStickyBehavior" class="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                                <option value="sticky-top" selected={layoutConfigData.right?.stickyBehavior === 'sticky-top' || !layoutConfigData.right?.stickyBehavior}>True Sticky (Always sticks to top, cuts off if tall)</option>
+                                <option value="sticky-bottom" selected={layoutConfigData.right?.stickyBehavior === 'sticky-bottom'}>True Bidi Sticky (Smart bidirectional scrolling)</option>
+                                <option value="none" selected={layoutConfigData.right?.stickyBehavior === 'none'}>None (No Sticky)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Widget Builders */}
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <h3 class="text-lg font-bold mb-4 border-b border-border pb-2 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+                        Left Sidebar Widgets
+                    </h3>
+                    <SidebarSettings client:load initialWidgets={leftWidgetsData} categories={allCategories} inputName="sidebarWidgetsLeft" />
+                </div>
+
+                <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
+                    <h3 class="text-lg font-bold mb-4 border-b border-border pb-2 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
+                        Right Sidebar Widgets
+                    </h3>
+                    <SidebarSettings client:load initialWidgets={rightWidgetsData} categories={allCategories} inputName="sidebarWidgetsRight" />
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-4 pb-12 sticky bottom-0 bg-background/80 backdrop-blur-sm p-4 border-t border-border mt-8 rounded-b-xl z-10">
+                <button type="submit" class="px-8 py-3 bg-primary text-primary-foreground font-bold rounded-md hover:bg-primary/90 transition-colors shadow-lg">
+                    Save Layout & Widgets
+                </button>
+            </div>
+        </form>
+    </div>
+</AdminLayout>

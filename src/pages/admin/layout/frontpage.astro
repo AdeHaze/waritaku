@@ -1,0 +1,113 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { settings, entries, collections } from '../../../db/schema';
+import { eq, and, like } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getDb } from '../../../lib/db';
+
+const user = Astro.locals.user;
+if (!user || user.role !== 'superadmin') {
+    return Astro.redirect('/admin/login');
+}
+
+let db = null;
+if (env && env.DB) {
+    db = getDb(env);
+}
+
+let message = '';
+let isError = false;
+
+if (Astro.request.method === 'POST') {
+    try {
+        const formData = await Astro.request.formData();
+        const homepagePageId = formData.get('homepagePageId') as string;
+        
+        if (db && homepagePageId) {
+            const existingSetting = await db.select().from(settings).where(eq(settings.key, 'homepage_page_id'));
+            if (existingSetting.length > 0) {
+                await db.update(settings).set({ value: homepagePageId }).where(eq(settings.key, 'homepage_page_id'));
+            } else {
+                await db.insert(settings).values({ key: 'homepage_page_id', value: homepagePageId });
+            }
+            message = 'Homepage setting updated successfully.';
+        }
+    } catch (e) {
+        message = 'An error occurred while saving the homepage setting.';
+        isError = true;
+        console.error(e);
+    }
+}
+
+let blockPages: any[] = [];
+let currentHomepageId = null;
+
+if (db) {
+    const pagesCol = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
+    if (pagesCol.length > 0) {
+        const results = await db.select().from(entries).where(
+            and(
+                eq(entries.collectionId, pagesCol[0].id),
+                like(entries.data, '%"is_block_builder":true%')
+            )
+        );
+        blockPages = results.map(r => {
+            const data = JSON.parse(r.data || '{}');
+            return {
+                id: r.id,
+                slug: r.slug,
+                title: data.title || r.slug
+            };
+        });
+    }
+    const existingSetting = await db.select().from(settings).where(eq(settings.key, 'homepage_page_id'));
+    if (existingSetting.length > 0) {
+        currentHomepageId = existingSetting[0].value;
+    }
+}
+---
+
+<AdminLayout title="Front Page Settings">
+    <div class="max-w-4xl mx-auto py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold mb-2">Static Homepage Settings</h1>
+            <p class="text-muted-foreground">Select which Page acts as your root Homepage. Only pages with the Block Builder enabled are shown below.</p>
+        </div>
+
+        {message && (
+            <div class={`p-4 mb-6 rounded-lg font-medium text-sm ${isError ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/20'}`}>
+                {message}
+            </div>
+        )}
+
+        <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+            <form method="POST" class="p-6 space-y-6">
+                <div>
+                    <label class="block text-sm font-semibold uppercase text-muted-foreground mb-3">Homepage Displays</label>
+                    <select name="homepagePageId" class="w-full max-w-md px-4 py-3 bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-primary shadow-sm text-sm">
+                        <option value="">-- Select a Page --</option>
+                        {blockPages.map(page => (
+                            <option value={page.id} selected={currentHomepageId == page.id}>
+                                {page.title} ({page.slug})
+                            </option>
+                        ))}
+                    </select>
+                    <p class="text-xs text-muted-foreground mt-2">
+                        Don't see the page you want? Go to <a href="/admin/pages" class="text-primary hover:underline">Pages</a>, create a new page, and activate the Block Builder mode.
+                    </p>
+                </div>
+
+                <div class="pt-6 border-t border-border flex items-center gap-4">
+                    <button type="submit" class="px-6 py-2.5 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-primary/90 transition-colors">
+                        Save Changes
+                    </button>
+                    {currentHomepageId && (
+                        <a href={`/admin/content/pages/edit/${currentHomepageId}`} class="text-sm font-semibold text-primary hover:underline flex items-center gap-1">
+                            Edit Homepage Layout &rarr;
+                        </a>
+                    )}
+                </div>
+            </form>
+        </div>
+    </div>
+</AdminLayout>

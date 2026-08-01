@@ -1,0 +1,49 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../../lib/db';
+import { collections } from '../../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
+
+const user = Astro.locals.user;
+if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return Astro.redirect('/admin/login');
+}
+
+const { collection_slug } = Astro.params;
+const db = getDb(env);
+
+const colRes = await db.select().from(collections).where(eq(collections.slug, collection_slug as string)).limit(1);
+if (colRes.length === 0) {
+    return Astro.redirect('/404');
+}
+const collection = colRes[0];
+
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const search = Astro.url.searchParams.get('search') || '';
+import EntriesTable from '../../../../components/admin/EntriesTable';
+---
+
+<AdminLayout title={`${collection.label} - Management`}>
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">{collection.label}</h1>
+            <p class="text-muted-foreground mt-1">Manage entries in the {collection.label} collection.</p>
+        </div>
+        <a href={`/admin/content/${collection.slug}/create`} class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Create New
+        </a>
+    </div>
+
+    <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-8">
+        <div class="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
+            <form method="GET" class="relative w-full max-w-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                <input type="text" name="search" value={search} placeholder="Search entries..." class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 pl-9" />
+            </form>
+        </div>
+
+        <EntriesTable client:load collectionSlug={collection.slug} initialPage={page} initialSearch={search} />
+    </div>
+</AdminLayout>

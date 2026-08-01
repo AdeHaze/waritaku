@@ -1,0 +1,134 @@
+---
+import { useTranslation } from '../i18n';
+
+interface Props {
+  currentPage: number;
+  totalPages: number;
+  baseUrl?: string;
+  lang?: string;
+}
+const { currentPage, totalPages, baseUrl: propBaseUrl, lang = 'id' } = Astro.props;
+const t = useTranslation(lang);
+
+// Generate page links based on current URL (WordPress style /page/N/)
+function getPageUrl(page: number) {
+    if (Astro.url.pathname.startsWith('/admin')) {
+        const searchParams = new URLSearchParams(Astro.url.search);
+        if (page === 1) {
+            searchParams.delete('page');
+        } else {
+            searchParams.set('page', page.toString());
+        }
+        const qs = searchParams.toString() ? `?${searchParams.toString()}` : '';
+        return `${Astro.url.pathname}${qs}`;
+    }
+
+    const rawBase = (propBaseUrl || Astro.url.pathname)
+        .replace(/\/page\/\d+\/?$/, '')
+        .replace(/\/$/, '');
+    
+    const searchParams = new URLSearchParams(Astro.url.search);
+    searchParams.delete('page');
+    const queryString = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
+    if (page === 1) {
+        return `${rawBase}/${queryString}`;
+    }
+    return `${rawBase}/page/${page}/${queryString}`;
+}
+
+// Generate the sequence of page numbers
+// e.g. [1, 2, '...', 49, 50, 51, '...', 100]
+function getPageNumbers() {
+    const delta = 2; // Number of pages to show before and after current page
+    const range = [];
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+        range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+        range.unshift('...');
+    }
+    if (currentPage + delta < totalPages - 1) {
+        range.push('...');
+    }
+
+    range.unshift(1);
+    if (totalPages > 1) {
+        range.push(totalPages);
+    }
+
+    return range;
+}
+
+const pages = getPageNumbers();
+---
+
+{totalPages > 1 && (
+    <div class="flex flex-wrap items-center justify-center gap-1 md:gap-2 mt-8 text-sm select-none">
+        {/* Previous Button */}
+        <a 
+            href={currentPage > 1 ? getPageUrl(currentPage - 1) : '#'} 
+            class={`flex items-center justify-center px-3 md:px-4 py-2 rounded-lg border transition-colors ${currentPage > 1 ? 'border-border bg-background hover:bg-muted text-foreground' : 'border-transparent text-muted-foreground opacity-50 cursor-not-allowed pointer-events-none'}`}
+            aria-label="Previous Page"
+        >
+            &laquo; {t('common.previous', 'Prev')}
+        </a>
+
+        {/* Page Numbers */}
+        <div class="hidden sm:flex items-center gap-1">
+            {pages.map((page, index) => {
+                if (page === '...') {
+                    return <span class="px-2 text-muted-foreground">...</span>;
+                }
+                const isCurrent = page === currentPage;
+                return (
+                    <a 
+                        href={getPageUrl(page as number)} 
+                        class={`flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg font-semibold transition-colors ${isCurrent ? 'bg-primary text-primary-foreground pointer-events-none shadow-md' : 'bg-transparent text-foreground hover:bg-muted border border-transparent hover:border-border'}`}
+                        aria-current={isCurrent ? 'page' : undefined}
+                    >
+                        {page}
+                    </a>
+                );
+            })}
+        </div>
+
+        {/* Mobile Page indicator (shown only on small screens) */}
+        <span class="sm:hidden flex items-center font-semibold text-muted-foreground mx-1">
+            <input 
+                type="number" 
+                min="1" 
+                max={totalPages} 
+                value={currentPage}
+                class="w-12 h-8 px-1 text-center bg-background border border-border rounded-md text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mr-1.5"
+                onkeydown={`if(event.key === 'Enter') { const val = parseInt(this.value); if(val >= 1 && val <= ${totalPages}) { const url = new URL(window.location.href); if(val === 1) url.searchParams.delete('page'); else url.searchParams.set('page', val); window.location.href = url.href; } }`}
+                title="Press Enter to jump to page"
+            />
+            / {totalPages}
+        </span>
+
+        {/* Next Button */}
+        <a 
+            href={currentPage < totalPages ? getPageUrl(currentPage + 1) : '#'} 
+            class={`flex items-center justify-center px-3 md:px-4 py-2 rounded-lg border transition-colors ${currentPage < totalPages ? 'border-border bg-background hover:bg-muted text-foreground' : 'border-transparent text-muted-foreground opacity-50 cursor-not-allowed pointer-events-none'}`}
+            aria-label="Next Page"
+        >
+            {t('common.next', 'Next')} &raquo;
+        </a>
+
+        {/* Desktop Jump To Input */}
+        <div class="hidden sm:flex items-center ml-2 border-l border-border pl-4">
+            <span class="text-xs text-muted-foreground mr-2 font-medium">Go to:</span>
+            <input 
+                type="number" 
+                min="1" 
+                max={totalPages} 
+                placeholder={currentPage.toString()}
+                class="w-14 h-9 px-2 text-center bg-background border border-border rounded-md text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                onkeydown={`if(event.key === 'Enter') { const val = parseInt(this.value); if(val >= 1 && val <= ${totalPages}) { const url = new URL(window.location.href); if(val === 1) url.searchParams.delete('page'); else url.searchParams.set('page', val); window.location.href = url.href; } }`}
+                title="Type a page number and press Enter"
+            />
+        </div>
+    </div>
+)}
