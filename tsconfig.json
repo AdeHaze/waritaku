@@ -6,7 +6,10 @@
     "./worker-configuration.d.ts"
   ],
   "exclude": [
-    "dist"
+    "dist",
+    "public_html",
+    "local_uploads",
+    ".wrangler"
   ],
   "compilerOptions": {
     "jsx": "react-jsx",
@@ -14,6 +17,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "types": ["@cloudflare/workers-types"]
   }
 }

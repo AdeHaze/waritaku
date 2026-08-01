@@ -22,3 +22,19 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Cloudflare & Wrangler Local State
+.wrangler/
+
+# Waritaku Image Migration
+local_uploads/
+
+# Waritaku Database Migration Artifacts
+scripts/import_payload.json
+scripts/image_url_map.json
+scripts/migration_report.json
+
+# Old WP Dumps (If user places them in project)
+public_html/
+*.sql
+*.sql.gz

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react';
 
-export default function BlockBuilder({ blocks = [], setBlocks, categories = [] }) {
+export default function BlockBuilder({ blocks = [], setBlocks, categories = [] }: any) {
 
   const updateBlock = (index, updates) => {
     const newBlocks = [...blocks];

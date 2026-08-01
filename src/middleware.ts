@@ -29,13 +29,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
         if (redirect) {
             // Increment hit counter asynchronously without blocking the response
             const updatePromise = db.update(redirects).set({ hits: sql`${redirects.hits} + 1` }).where(eq(redirects.id, redirect.id)).execute();
-            const ctx = (context.locals as any).cfContext || context.locals.runtime?.ctx;
+            const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
             if (ctx && ctx.waitUntil) {
                 ctx.waitUntil(updatePromise);
             } else {
                 updatePromise.catch(console.error);
             }
-            return context.redirect(redirect.targetUrl, redirect.statusCode);
+            return context.redirect(redirect.targetUrl, redirect.statusCode as 301 | 302);
         }
     }
     
@@ -57,14 +57,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
             }
         } else {
             const payload = await verifySessionCookie(sessionCookie);
-            if (!payload) {
-                context.cookies.delete('session', { path: '/' });
-                if (!url.pathname.startsWith('/api')) {
-                    return context.redirect('/admin/login', 302);
-                }
+            if (payload) {
+                context.locals.user = {
+                    userId: payload.userId,
+                    role: payload.role,
+                    name: payload.name,
+                    email: payload.email
+                };
             } else {
-                // Pass session data to the Astro locals so downstream pages and APIs can use it
-                context.locals.user = payload;
+                context.cookies.delete('session', { path: '/' });
+                if (url.pathname.startsWith('/api')) {
+                    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+                }
+                return context.redirect('/admin/login', 302);
             }
         }
     }
@@ -84,7 +89,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
                       set: { hits: sql`${notFoundLogs.hits} + 1`, lastSeen: new Date().toISOString() }
                   }).execute();
                   
-             const ctx = (context.locals as any).cfContext || context.locals.runtime?.ctx;
+             const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
              if (ctx && ctx.waitUntil) {
                  ctx.waitUntil(logPromise);
              } else {

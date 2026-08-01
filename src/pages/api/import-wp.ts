@@ -4,7 +4,12 @@ import { users, taxonomies, terms, collections, entries, entryTerms } from '../.
 import { eq } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
+    const user = locals.user;
+    if (!user || user.role !== 'superadmin') {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
     try {
         const payload = await request.json();
         const db = getDb(env);

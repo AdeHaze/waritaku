@@ -1,4 +1,3 @@
-// @ts-check
 import { defineConfig } from 'astro/config';
 
 import react from '@astrojs/react';
@@ -16,7 +15,7 @@ export default defineConfig({
   },
   vite: {
     optimizeDeps: {
-      exclude: ['lucide-react']
+      exclude: ['lucide-react', 'diff']
     },
     plugins: [
       tailwindcss(),
@@ -61,17 +60,9 @@ export default defineConfig({
       watch: {
         ignored: ['**/.wrangler/**', '**/local_uploads/**']
       }
-    },
-    optimizeDeps: {
-      exclude: ['diff']
     }
   },
   trailingSlash: 'ignore',
   output: 'server',
-  adapter: cloudflare({
-    platformProxy: {
-      enabled: true,
-      configPath: 'wrangler.jsonc'
-    }
-  })
+  adapter: cloudflare()
 });

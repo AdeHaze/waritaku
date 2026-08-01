@@ -162,7 +162,7 @@ function getThumbnail(content: string) {
                         <div class="flex items-center gap-1">
                             <select 
                                 class="text-xs font-bold bg-muted/60 border border-border rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary text-foreground cursor-pointer" 
-                                onchange="if(this.value){ const y = this.dataset.year; window.location.href = `/${y}/${this.value}/`; }"
+                                onchange="if(this.value){ window.location.href = '/' + this.dataset.year + '/' + this.value + '/'; }"
                                 data-year={year}
                             >
                                 {monthNamesFull.map((mName, mIdx) => {
@@ -175,7 +175,7 @@ function getThumbnail(content: string) {
 
                             <select 
                                 class="text-xs font-bold bg-muted/60 border border-border rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary text-foreground cursor-pointer"
-                                onchange="if(this.value){ const m = this.dataset.month; window.location.href = `/${this.value}/${m}/`; }"
+                                onchange="if(this.value){ window.location.href = '/' + this.value + '/' + this.dataset.month + '/'; }"
                                 data-month={monthStr}
                             >
                                 {Array.from({ length: new Date().getFullYear() - 2018 + 1 }).map((_, yIdx) => {
@@ -236,7 +236,7 @@ function getThumbnail(content: string) {
         if (widget.type === 'html') {
             return (
                 <div class="w-full rounded-2xl overflow-hidden">
-                    <Fragment set:html={widget.content || ''} />
+                    <div set:html={widget.content || ''}></div>
                 </div>
             );
         }
@@ -271,7 +271,7 @@ function getThumbnail(content: string) {
                     articleList = await Promise.all(result.map(async (r: any) => {
                         const data = JSON.parse(r.entry.data || '{}');
                         const rawContent = data.content || '';
-                        const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+                        const textOnly = rawContent.replace(new RegExp('<[^>]+>', 'g'), '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
                         const excerpt = textOnly.length > 80 ? textOnly.substring(0, 80) + '...' : textOnly;
                         
                         const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);

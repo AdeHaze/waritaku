@@ -336,6 +336,7 @@ const ImageBubbleMenu = ({ editor }: { editor: any }) => {
     return (
         <BubbleMenu 
             editor={editor} 
+            // @ts-ignore
             tippyOptions={{ duration: 100 }} 
             shouldShow={({ editor }) => editor.isActive('image')}
         >

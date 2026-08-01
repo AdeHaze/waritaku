@@ -1,11 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import GlobalSidebar from '../components/GlobalSidebar.astro';
-import { articles as articlesTable, users } from '../db/schema';
+import { entries as articlesTable, users, collections } from '../db/schema';
 import { eq, and, desc, sql, like } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
 import { getDb } from '../lib/db';
-
+import { getCanonicalUrl } from '../lib/queries';
 
 const query = Astro.url.searchParams.get('q') || '';
 const pageParam = Astro.url.searchParams.get('page');
@@ -19,50 +19,64 @@ let totalItems = 0;
 if (env && env.DB && query.trim() !== '') {
     const db = getDb(env);
     const searchTerm = `%${query}%`;
+    
+    const articlesCol = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
 
-    // Count Total Results
-    const countQuery = db.select({ count: sql<number>`count(*)` })
+    if (articlesCol.length > 0) {
+        const colId = articlesCol[0].id;
+        
+        // Count Total Results
+        const countQuery = db.select({ count: sql<number>`count(*)` })
+            .from(articlesTable)
+            .where(
+                and(
+                    eq(articlesTable.status, 'published'),
+                    eq(articlesTable.collectionId, colId),
+                    like(articlesTable.title, searchTerm)
+                )
+            );
+            
+        const countResult = await countQuery;
+        totalItems = countResult[0]?.count || 0;
+        totalPages = Math.ceil(totalItems / pageSize);
+
+        // Fetch Page Results
+        const articlesQuery = db.select({
+            article: articlesTable,
+            author: users
+        })
         .from(articlesTable)
+        .leftJoin(users, eq(articlesTable.authorId, users.id))
         .where(
             and(
                 eq(articlesTable.status, 'published'),
+                eq(articlesTable.collectionId, colId),
                 like(articlesTable.title, searchTerm)
             )
-        );
-        
-    const countResult = await countQuery;
-    totalItems = countResult[0]?.count || 0;
-    totalPages = Math.ceil(totalItems / pageSize);
-
-    // Fetch Page Results
-    const articlesQuery = db.select({
-        article: articlesTable,
-        author: users
-    })
-    .from(articlesTable)
-    .leftJoin(users, eq(articlesTable.authorId, users.id))
-    .where(
-        and(
-            eq(articlesTable.status, 'published'),
-            like(articlesTable.title, searchTerm)
         )
-    )
-    .orderBy(desc(articlesTable.publishedAt))
-    .limit(pageSize)
-    .offset((currentPage - 1) * pageSize);
+        .orderBy(desc(articlesTable.publishedAt))
+        .limit(pageSize)
+        .offset((currentPage - 1) * pageSize);
 
-    const articlesResult = await articlesQuery;
+        const articlesResult = await articlesQuery;
 
-    searchResults = articlesResult.map(r => {
-        const rawContent = r.article.content || '';
-        const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
-        const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
-        return {
-            ...r.article,
-            authorName: r.author?.name || 'Writer',
-            excerpt
-        };
-    });
+        searchResults = await Promise.all(articlesResult.map(async r => {
+            let data = {};
+            try { data = JSON.parse(r.article.data || '{}'); } catch(e){}
+            const rawContent = data.content || '';
+            const textOnly = rawContent.replace(new RegExp('<[^>]+>', 'g'), '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+            const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
+            const canonicalUrl = await getCanonicalUrl(db, r.article.id, r.article.slug);
+            
+            return {
+                ...r.article,
+                ...data,
+                canonicalUrl: `/${canonicalUrl}`,
+                authorName: r.author?.name || 'Writer',
+                excerpt
+            };
+        }));
+    }
 }
 
 function getThumbnail(content: string) {
