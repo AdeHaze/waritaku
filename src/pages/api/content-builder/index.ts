@@ -3,7 +3,7 @@ import { getDb } from '../../../lib/db';
 import { collections } from '../../../db/schema';
 import { env } from 'cloudflare:workers';
 
-export const GET: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ locals }) => {
     const user = locals.user;
     if (!user || user.role !== 'superadmin') {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
@@ -28,7 +28,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const db = getDb(env);
     
     try {
-        const body = await request.json();
+        const body = await request.json() as any;
         
         if (!body.slug || !body.label || !body.labelSingular) {
              return new Response(JSON.stringify({ error: 'Missing required fields: slug, label, labelSingular' }), { status: 400 });
@@ -44,6 +44,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
             fields: body.fields || '[]',
             supports: body.supports || '{}'
         }).returning({ id: collections.id, slug: collections.slug });
+        
+        // Sync taxonomies.allowedCollections
+        if (body.supports) {
+            try {
+                const supportsObj = JSON.parse(body.supports);
+                const supportedTaxonomies = supportsObj.taxonomies || [];
+                if (supportedTaxonomies.length > 0) {
+                    const { taxonomies } = await import('../../../db/schema');
+                    const { eq } = await import('drizzle-orm');
+                    const allTaxes = await db.select().from(taxonomies);
+                    
+                    for (const tax of allTaxes) {
+                        if (supportedTaxonomies.includes(tax.slug)) {
+                            let allowed = [];
+                            try { allowed = JSON.parse(tax.allowedCollections || '[]'); } catch(e) {}
+                            if (!allowed.includes(body.slug)) {
+                                allowed.push(body.slug);
+                                await db.update(taxonomies).set({ allowedCollections: JSON.stringify(allowed) }).where(eq(taxonomies.id, tax.id));
+                            }
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error("Error syncing taxonomies on create:", e);
+            }
+        }
         
         return new Response(JSON.stringify(inserted[0]), { status: 201, headers: { 'Content-Type': 'application/json' } });
     } catch (e: any) {

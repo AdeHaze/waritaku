@@ -16,6 +16,8 @@
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
+    --color-navbar-foreground: var(--navbar-foreground);
+    --color-navbar: var(--navbar);
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -55,6 +57,8 @@
     --card-foreground: oklch(0.15 0.05 20);
     --popover: oklch(0.98 0.01 20);
     --popover-foreground: oklch(0.15 0.05 20);
+    --navbar: oklch(0.98 0.01 20);
+    --navbar-foreground: oklch(0.15 0.05 20);
     --primary: oklch(0.35 0.12 20);
     --primary-foreground: oklch(0.98 0 0);
     --secondary: oklch(0.9 0.02 20);
@@ -90,6 +94,8 @@
     --card-foreground: oklch(0.95 0.01 20);
     --popover: oklch(0.12 0.02 20);
     --popover-foreground: oklch(0.95 0.01 20);
+    --navbar: oklch(0.12 0.02 20);
+    --navbar-foreground: oklch(0.95 0.01 20);
     --primary: oklch(0.40 0.15 25);
     --primary-foreground: oklch(0.98 0 0);
     --secondary: oklch(0.20 0.03 20);

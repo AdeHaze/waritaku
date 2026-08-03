@@ -18,7 +18,35 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         const updateData: any = {};
         
         if (body.fields) updateData.fields = body.fields;
-        if (body.supports) updateData.supports = body.supports;
+        if (body.supports) {
+            updateData.supports = body.supports;
+            
+            // Sync taxonomies.allowedCollections
+            try {
+                const supportsObj = JSON.parse(body.supports);
+                const supportedTaxonomies = supportsObj.taxonomies || [];
+                const { taxonomies } = await import('../../../db/schema');
+                const allTaxes = await db.select().from(taxonomies);
+                
+                for (const tax of allTaxes) {
+                    let allowed = [];
+                    try { allowed = JSON.parse(tax.allowedCollections || '[]'); } catch(e) {}
+                    
+                    const isSupported = supportedTaxonomies.includes(tax.slug);
+                    const isAllowed = allowed.includes(slug as string);
+                    
+                    if (isSupported && !isAllowed) {
+                        allowed.push(slug as string);
+                        await db.update(taxonomies).set({ allowedCollections: JSON.stringify(allowed) }).where(eq(taxonomies.id, tax.id));
+                    } else if (!isSupported && isAllowed) {
+                        allowed = allowed.filter((c: string) => c !== slug);
+                        await db.update(taxonomies).set({ allowedCollections: JSON.stringify(allowed) }).where(eq(taxonomies.id, tax.id));
+                    }
+                }
+            } catch(e) {
+                console.error("Error syncing taxonomies:", e);
+            }
+        }
         if (body.label) updateData.label = body.label;
         if (body.description) updateData.description = body.description;
 

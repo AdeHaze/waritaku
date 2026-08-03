@@ -17,8 +17,8 @@ let footerStyle = 'default';
 let metaTitle = 'Waritaku CMS';
 let metaDescription = 'Default Homepage';
 
-if (env && env.DB) {
-    const db = getDb(env);
+if (env && (env as any).DB) {
+    const db = getDb(env as any);
     
     // 1. Find the Homepage ID
     const settingRes = await db.select().from(settings).where(eq(settings.key, 'homepage_page_id')).limit(1);
@@ -72,7 +72,16 @@ if (env && env.DB) {
     const articlesColResult = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
     const articlesColId = articlesColResult[0]?.id;
 
-    const fetchArticles = async (categoryId?: string | number, limit = 5, offset = 0, isRandom = false, tagSlug?: string) => {
+    const fetchArticles = async (options: { 
+        categoryId?: string | number, 
+        filterTaxonomyId?: string | number,
+        filterTermId?: string | number,
+        limit?: number, 
+        offset?: number, 
+        isRandom?: boolean, 
+        tagSlug?: string 
+    } = {}) => {
+        const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, isRandom = false, tagSlug } = options;
         if (!articlesColId) return [];
         
         let query = db.selectDistinct({
@@ -84,17 +93,33 @@ if (env && env.DB) {
 
         let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesColId));
 
-        if (categoryId && categoryId !== 'all' || tagSlug) {
+        const hasLegacyFilter = (categoryId && categoryId !== 'all') || tagSlug;
+        const hasTaxonomyFilter = filterTaxonomyId && filterTaxonomyId !== 'all';
+        const hasTermFilter = filterTermId && filterTermId !== 'all';
+
+        if (hasLegacyFilter || hasTaxonomyFilter || hasTermFilter) {
             query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
             query = query.innerJoin(terms, eq(entryTerms.termId, terms.id));
             
             const termConditions = [];
-            if (categoryId && categoryId !== 'all') {
-                termConditions.push(eq(terms.id, parseInt(categoryId as string)));
+            
+            // New Filter System
+            if (hasTermFilter) {
+                termConditions.push(eq(terms.id, parseInt(filterTermId as string)));
+            } else if (hasTaxonomyFilter) {
+                termConditions.push(eq(terms.taxonomyId, parseInt(filterTaxonomyId as string)));
             }
-            if (tagSlug) {
-                termConditions.push(eq(terms.slug, tagSlug));
+            
+            // Legacy Backwards Compatibility
+            if (!hasTermFilter && !hasTaxonomyFilter) {
+                if (categoryId && categoryId !== 'all') {
+                    termConditions.push(eq(terms.id, parseInt(categoryId as string)));
+                }
+                if (tagSlug) {
+                    termConditions.push(eq(terms.slug, tagSlug));
+                }
             }
+
             if (termConditions.length > 0) {
                 conditions = and(conditions, ...termConditions);
             }
@@ -135,13 +160,25 @@ if (env && env.DB) {
 
     const promises = layoutBlocks.map(async (block) => {
         if (block.type === 'hero' || block.type === 'hero_2' || block.type === 'hero_3') {
-            blockData[block.id] = await fetchArticles('all', block.limit || 5, 0);
+            blockData[block.id] = await fetchArticles({ limit: block.limit || 5 });
         } else if (block.type === 'category_block') {
-            blockData[block.id] = await fetchArticles(block.categoryId, block.limit || 5, 0, false, block.tagSlug);
+            blockData[block.id] = await fetchArticles({ 
+                categoryId: block.categoryId, 
+                filterTaxonomyId: block.filterTaxonomyId,
+                filterTermId: block.filterTermId,
+                limit: block.limit || 5, 
+                tagSlug: block.tagSlug 
+            });
         } else if (block.type === 'category_block_2') {
-            blockData[block.id] = await fetchArticles(block.categoryId, block.limit || 11, 0, false, block.tagSlug);
+            blockData[block.id] = await fetchArticles({ 
+                categoryId: block.categoryId, 
+                filterTaxonomyId: block.filterTaxonomyId,
+                filterTermId: block.filterTermId,
+                limit: block.limit || 11, 
+                tagSlug: block.tagSlug 
+            });
         } else if (block.type === 'article_grid') {
-            blockData[block.id] = await fetchArticles('all', block.limit || 12, 0, true);
+            blockData[block.id] = await fetchArticles({ limit: block.limit || 12, isRandom: true });
         } else if (block.type === 'categories_grid') {
             const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
             if (catTax.length > 0) {
@@ -170,7 +207,7 @@ const schemaObj = {
 const schemaString = JSON.stringify(schemaObj);
 ---
 
-<LayoutFrontPage title={metaTitle} description={metaDescription} schema={schemaString} headerStyle={headerStyle} footerStyle={footerStyle}>
+<LayoutFrontPage title={metaTitle} metaDescription={metaDescription} schema={schemaString} headerStyle={headerStyle} footerStyle={footerStyle}>
     <BlockRenderer 
         layoutBlocks={layoutBlocks} 
         blockData={blockData} 

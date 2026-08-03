@@ -40,11 +40,22 @@ let footerLinksData = [
     { label: 'Login', url: '/admin' }
 ];
 
+let globalLayoutData = {
+    headerStyle: 'default',
+    footerStyle: 'default'
+};
+
 if (Astro.request.method === 'POST') {
     try {
         const formData = await Astro.request.formData();
         const navbarLinksStr = formData.get('navbarLinks') as string;
         const footerLinksStr = formData.get('footerLinks') as string;
+        
+        const newGlobalLayout = {
+            headerStyle: formData.get('headerStyle') as string || 'default',
+            footerStyle: formData.get('footerStyle') as string || 'default'
+        };
+        const globalLayoutStr = JSON.stringify(newGlobalLayout);
         
         if (db) {
             // Update or Insert navbar_links
@@ -57,11 +68,17 @@ if (Astro.request.method === 'POST') {
                 .values({ key: 'footer_links', value: footerLinksStr })
                 .onConflictDoUpdate({ target: settings.key, set: { value: footerLinksStr } });
 
+            // Update or Insert global_navigation_layout
+            await db.insert(settings)
+                .values({ key: 'global_navigation_layout', value: globalLayoutStr })
+                .onConflictDoUpdate({ target: settings.key, set: { value: globalLayoutStr } });
+
             message = 'Navigation settings updated successfully.';
             
             // Update local state for immediate render
             navbarLinksData = JSON.parse(navbarLinksStr);
             footerLinksData = JSON.parse(footerLinksStr);
+            globalLayoutData = newGlobalLayout;
         }
     } catch (e) {
         message = 'An error occurred while saving navigation settings.';
@@ -69,12 +86,13 @@ if (Astro.request.method === 'POST') {
         console.error(e);
     }
 } else if (db) {
-    const records = await db.select().from(settings).where(inArray(settings.key, ['navbar_links', 'footer_links']));
+    const records = await db.select().from(settings).where(inArray(settings.key, ['navbar_links', 'footer_links', 'global_navigation_layout']));
     
     records.forEach(record => {
         try {
             if (record.key === 'navbar_links') navbarLinksData = JSON.parse(record.value);
             if (record.key === 'footer_links') footerLinksData = JSON.parse(record.value);
+            if (record.key === 'global_navigation_layout') globalLayoutData = JSON.parse(record.value);
         } catch (e) {}
     });
 }
@@ -101,6 +119,36 @@ if (Astro.request.method === 'POST') {
         </div>
 
         <form method="POST" class="space-y-8">
+            
+            <!-- Global Layout Settings -->
+            <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
+                <div class="flex items-center gap-3 mb-6 border-b border-border pb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+                    <h3 class="text-lg font-bold">Global Layout Style</h3>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="headerStyle" class="block font-semibold text-sm mb-2">Header Style</label>
+                        <select name="headerStyle" id="headerStyle" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                            <option value="default" selected={globalLayoutData.headerStyle === 'default'}>Default (Logo Left, Links Right)</option>
+                            <option value="centered" selected={globalLayoutData.headerStyle === 'centered'}>Centered (Logo Center)</option>
+                        </select>
+                        <p class="text-xs text-muted-foreground mt-2">Sets the default navigation bar style across the entire site.</p>
+                    </div>
+                    
+                    <div>
+                        <label for="footerStyle" class="block font-semibold text-sm mb-2">Footer Style</label>
+                        <select name="footerStyle" id="footerStyle" class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                            <option value="default" selected={globalLayoutData.footerStyle === 'default'}>Default (Full Width, Links & Tagline)</option>
+                            <option value="minimal" selected={globalLayoutData.footerStyle === 'minimal'}>Minimal (Copyright Only)</option>
+                        </select>
+                        <p class="text-xs text-muted-foreground mt-2">Sets the default footer style across the entire site.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Links Settings -->
             
             <NavigationSettings 
                 client:load 

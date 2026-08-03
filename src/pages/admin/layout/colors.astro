@@ -26,6 +26,8 @@ let themeColors = {
     background: '#fafafa',
     foreground: '#1c1c1c',
     card: '#ffffff',
+    navbar: '#ffffff',
+    sidebar: '#ffffff',
     border: '#e6e6e6'
   },
   dark: {
@@ -33,6 +35,8 @@ let themeColors = {
     background: '#09090b',
     foreground: '#f8f8f8',
     card: '#121214',
+    navbar: '#121214',
+    sidebar: '#121214',
     border: '#27272a'
   }
 };
@@ -47,6 +51,8 @@ if (Astro.request.method === 'POST') {
                 background: formData.get('light_background') as string,
                 foreground: formData.get('light_foreground') as string,
                 card: formData.get('light_card') as string,
+                navbar: formData.get('light_navbar') as string,
+                sidebar: formData.get('light_sidebar') as string,
                 border: formData.get('light_border') as string
             },
             dark: {
@@ -54,6 +60,8 @@ if (Astro.request.method === 'POST') {
                 background: formData.get('dark_background') as string,
                 foreground: formData.get('dark_foreground') as string,
                 card: formData.get('dark_card') as string,
+                navbar: formData.get('dark_navbar') as string,
+                sidebar: formData.get('dark_sidebar') as string,
                 border: formData.get('dark_border') as string
             }
         };
@@ -129,9 +137,23 @@ if (Astro.request.method === 'POST') {
                         <div class="flex items-center justify-between">
                             <div>
                                 <label for="light_card" class="block font-semibold text-sm">Card Background</label>
-                                <span class="text-xs text-muted-foreground">Sidebar, content boxes</span>
+                                <span class="text-xs text-muted-foreground">General content boxes</span>
                             </div>
                             <input type="color" id="light_card" name="light_card" value={themeColors.light.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="light_navbar" class="block font-semibold text-sm">Navbar Background</label>
+                                <span class="text-xs text-muted-foreground">Top navigation bar</span>
+                            </div>
+                            <input type="color" id="light_navbar" name="light_navbar" value={themeColors.light.navbar || themeColors.light.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="light_sidebar" class="block font-semibold text-sm">Sidebar Background</label>
+                                <span class="text-xs text-muted-foreground">Left navigation menu</span>
+                            </div>
+                            <input type="color" id="light_sidebar" name="light_sidebar" value={themeColors.light.sidebar || themeColors.light.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
                         </div>
                         <div class="flex items-center justify-between">
                             <div>
@@ -175,9 +197,23 @@ if (Astro.request.method === 'POST') {
                         <div class="flex items-center justify-between">
                             <div>
                                 <label for="dark_card" class="block font-semibold text-sm">Card Background</label>
-                                <span class="text-xs text-muted-foreground">Sidebar, content boxes</span>
+                                <span class="text-xs text-muted-foreground">General content boxes</span>
                             </div>
                             <input type="color" id="dark_card" name="dark_card" value={themeColors.dark.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="dark_navbar" class="block font-semibold text-sm">Navbar Background</label>
+                                <span class="text-xs text-muted-foreground">Top navigation bar</span>
+                            </div>
+                            <input type="color" id="dark_navbar" name="dark_navbar" value={themeColors.dark.navbar || themeColors.dark.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <label for="dark_sidebar" class="block font-semibold text-sm">Sidebar Background</label>
+                                <span class="text-xs text-muted-foreground">Left navigation menu</span>
+                            </div>
+                            <input type="color" id="dark_sidebar" name="dark_sidebar" value={themeColors.dark.sidebar || themeColors.dark.card} class="w-12 h-12 rounded cursor-pointer border-0 p-0" />
                         </div>
                         <div class="flex items-center justify-between">
                             <div>

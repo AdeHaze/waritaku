@@ -29,9 +29,9 @@ let generalConfig = {
     footerHtml: ''
 };
 
-if (env && env.DB) {
+if (env && (env as any).DB) {
     try {
-        const db = getDb(env);
+        const db = getDb(env as any);
         const record = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
         if (record.length > 0) {
             generalConfig = { ...generalConfig, ...JSON.parse(record[0].value) };

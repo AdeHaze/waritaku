@@ -26,8 +26,8 @@ let dashboardLayout = [
   { id: 'activity', enabled: true, title: 'Recent Activity Table' }
 ];
 
-if (env && env.DB) {
-  const db = getDb(env);
+if (env && (env as any).DB) {
+  const db = getDb(env as any);
   
   // We need the collections/taxonomies to count specific entries/terms
   const articlesCollection = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);

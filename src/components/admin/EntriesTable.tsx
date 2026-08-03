@@ -196,20 +196,27 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
                                     {new Date(entry.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                                 </td>
                                 <td className="px-6 py-4">
-                                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                    <div className="flex flex-col gap-2 max-w-[250px]">
                                         {entry.terms && entry.terms.length > 0 ? (
-                                            <>
-                                                {entry.terms.slice(0, 3).map(t => (
-                                                    <span key={t.id} className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-bold tracking-wider">
-                                                        {t.name}
-                                                    </span>
-                                                ))}
-                                                {entry.terms.length > 3 && (
-                                                    <span className="px-1.5 py-0.5 bg-muted text-muted-foreground rounded text-[10px] uppercase font-bold tracking-wider">
-                                                        +{entry.terms.length - 3} more
-                                                    </span>
-                                                )}
-                                            </>
+                                            Object.entries(
+                                                entry.terms.reduce((acc, term) => {
+                                                    const label = (term as any).taxonomyLabel || 'Term';
+                                                    if (!acc[label]) acc[label] = [];
+                                                    acc[label].push(term);
+                                                    return acc;
+                                                }, {} as Record<string, typeof entry.terms>)
+                                            ).map(([taxLabel, terms]) => (
+                                                <div key={taxLabel} className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{taxLabel}:</span>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {terms.map(t => (
+                                                            <span key={t.id} className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px] uppercase font-bold tracking-wider">
+                                                                {t.name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))
                                         ) : (
                                             <span className="text-muted-foreground text-xs italic">None</span>
                                         )}

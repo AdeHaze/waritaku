@@ -25,15 +25,19 @@ if (env && env.DB) {
         :root {
             ${themeColors.light.primary ? `--primary: ${themeColors.light.primary};` : ''}
             ${themeColors.light.background ? `--background: ${themeColors.light.background};` : ''}
-            ${themeColors.light.card ? `--card: ${themeColors.light.card}; --sidebar: ${themeColors.light.card};` : ''}
-            ${themeColors.light.foreground ? `--foreground: ${themeColors.light.foreground}; --card-foreground: ${themeColors.light.foreground};` : ''}
+            ${themeColors.light.card ? `--card: ${themeColors.light.card};` : ''}
+            ${themeColors.light.navbar ? `--navbar: ${themeColors.light.navbar};` : (themeColors.light.card ? `--navbar: ${themeColors.light.card};` : '')}
+            ${themeColors.light.sidebar ? `--sidebar: ${themeColors.light.sidebar};` : (themeColors.light.card ? `--sidebar: ${themeColors.light.card};` : '')}
+            ${themeColors.light.foreground ? `--foreground: ${themeColors.light.foreground}; --card-foreground: ${themeColors.light.foreground}; --navbar-foreground: ${themeColors.light.foreground}; --sidebar-foreground: ${themeColors.light.foreground};` : ''}
             ${themeColors.light.border ? `--border: ${themeColors.light.border}; --input: ${themeColors.light.border};` : ''}
         }
         .dark {
             ${themeColors.dark.primary ? `--primary: ${themeColors.dark.primary};` : ''}
             ${themeColors.dark.background ? `--background: ${themeColors.dark.background};` : ''}
-            ${themeColors.dark.card ? `--card: ${themeColors.dark.card}; --sidebar: ${themeColors.dark.card};` : ''}
-            ${themeColors.dark.foreground ? `--foreground: ${themeColors.dark.foreground}; --card-foreground: ${themeColors.dark.foreground};` : ''}
+            ${themeColors.dark.card ? `--card: ${themeColors.dark.card};` : ''}
+            ${themeColors.dark.navbar ? `--navbar: ${themeColors.dark.navbar};` : (themeColors.dark.card ? `--navbar: ${themeColors.dark.card};` : '')}
+            ${themeColors.dark.sidebar ? `--sidebar: ${themeColors.dark.sidebar};` : (themeColors.dark.card ? `--sidebar: ${themeColors.dark.card};` : '')}
+            ${themeColors.dark.foreground ? `--foreground: ${themeColors.dark.foreground}; --card-foreground: ${themeColors.dark.foreground}; --navbar-foreground: ${themeColors.dark.foreground}; --sidebar-foreground: ${themeColors.dark.foreground};` : ''}
             ${themeColors.dark.border ? `--border: ${themeColors.dark.border}; --input: ${themeColors.dark.border};` : ''}
         }
     `} />

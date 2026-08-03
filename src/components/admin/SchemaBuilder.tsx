@@ -200,25 +200,127 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                         </div>
 
                         <div className="pt-4 border-t border-border">
-                            <h4 className="text-xs font-bold text-muted-foreground mb-2">Features</h4>
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-muted-foreground mb-1 uppercase tracking-wider">Breadcrumb Navigation</label>
-                                    <select
-                                        value={supports.breadcrumbs === false ? 'disabled' : supports.breadcrumbs === 'hidden' ? 'hidden' : 'visible'}
-                                        onChange={(e) => {
-                                            let val: boolean | string = e.target.value;
-                                            if (val === 'disabled') val = false;
-                                            if (val === 'visible') val = true;
-                                            setSupports({ ...supports, breadcrumbs: val });
-                                        }}
-                                        className="w-full text-sm px-3 py-1.5 bg-background border border-input rounded focus:ring-1 focus:ring-primary"
-                                    >
-                                        <option value="visible">Visible (Shown to Users & Search Engines)</option>
-                                        <option value="hidden">Hidden / SEO Only (Invisible to Users, visible to Google)</option>
-                                        <option value="disabled">Disabled (Completely Removed)</option>
-                                    </select>
-                                </div>
+                            <h4 className="text-xs font-bold text-muted-foreground mb-2">Frontend View Template</h4>
+                            <p className="text-[10px] text-muted-foreground mb-3">
+                                Construct the frontend layout for this content type by stacking modular blocks. If empty, the system will try to use a smart default.
+                            </p>
+                            
+                            <div className="space-y-2 mb-3">
+                                {(supports.layoutBlocks || []).map((block: any, idx: number) => (
+                                    <div key={block.id} className="flex flex-col gap-2 p-2 bg-muted/30 border border-border rounded-lg text-sm">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex items-center gap-2">
+                                                <button 
+                                                    onClick={() => {
+                                                        if (idx === 0) return;
+                                                        const newBlocks = [...supports.layoutBlocks];
+                                                        const temp = newBlocks[idx-1];
+                                                        newBlocks[idx-1] = newBlocks[idx];
+                                                        newBlocks[idx] = temp;
+                                                        setSupports({ ...supports, layoutBlocks: newBlocks });
+                                                    }}
+                                                    className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                                                    disabled={idx === 0}
+                                                    title="Move Up"
+                                                >
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                                                </button>
+                                                <button 
+                                                    onClick={() => {
+                                                        if (idx === (supports.layoutBlocks.length - 1)) return;
+                                                        const newBlocks = [...supports.layoutBlocks];
+                                                        const temp = newBlocks[idx+1];
+                                                        newBlocks[idx+1] = newBlocks[idx];
+                                                        newBlocks[idx] = temp;
+                                                        setSupports({ ...supports, layoutBlocks: newBlocks });
+                                                    }}
+                                                    className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                                                    disabled={idx === (supports.layoutBlocks.length - 1)}
+                                                    title="Move Down"
+                                                >
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                                </button>
+                                                <span className="font-bold text-xs uppercase tracking-wider">{block.type.replace('_', ' ')}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    const newBlocks = [...supports.layoutBlocks];
+                                                    newBlocks.splice(idx, 1);
+                                                    setSupports({ ...supports, layoutBlocks: newBlocks });
+                                                }}
+                                                className="text-red-500 hover:bg-red-500/10 p-1 rounded"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                            </button>
+                                        </div>
+
+                                        {/* Block-specific Configuration */}
+                                        {block.type === 'breadcrumbs' && (
+                                            <div className="mt-2 pl-8 pr-2">
+                                                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                                    Visibility:
+                                                    <select 
+                                                        value={block.config?.visibility || 'visible'}
+                                                        onChange={(e) => {
+                                                            const newBlocks = [...supports.layoutBlocks];
+                                                            newBlocks[idx].config = { ...newBlocks[idx].config, visibility: e.target.value };
+                                                            setSupports({ ...supports, layoutBlocks: newBlocks });
+                                                        }}
+                                                        className="ml-auto flex-1 text-xs bg-background border border-border rounded px-2 py-1"
+                                                    >
+                                                        <option value="visible">Visible</option>
+                                                        <option value="hidden">Hidden (SEO Only)</option>
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        )}
+
+                                        {block.type === 'related_items' && (
+                                            <div className="mt-2 pl-8 pr-2">
+                                                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                                    Relate to Taxonomy:
+                                                    <select 
+                                                        value={block.config?.targetTaxonomy || ''}
+                                                        onChange={(e) => {
+                                                            const newBlocks = [...supports.layoutBlocks];
+                                                            newBlocks[idx].config = { ...newBlocks[idx].config, targetTaxonomy: e.target.value };
+                                                            setSupports({ ...supports, layoutBlocks: newBlocks });
+                                                        }}
+                                                        className="ml-auto flex-1 text-xs bg-background border border-border rounded px-2 py-1"
+                                                    >
+                                                        <option value="">-- Dynamic (Current Context) --</option>
+                                                        {availableTaxonomies.map(tax => (
+                                                            <option key={tax.slug} value={tax.slug}>{tax.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-2">
+                                <select id="addBlockSelect" className="flex-1 text-sm bg-background border border-input rounded px-2 py-1.5 focus:ring-1 focus:ring-primary">
+                                    <option value="breadcrumbs">Breadcrumbs Navigation</option>
+                                    <option value="hero">Hero Header (Article Style)</option>
+                                    <option value="product_split">Product Split Header (Image Left, Info Right)</option>
+                                    <option value="body_content">Body Content (Rich Text + Accordions)</option>
+                                    <option value="related_items">Related Items Grid</option>
+                                </select>
+                                <button 
+                                    onClick={() => {
+                                        const type = (document.getElementById('addBlockSelect') as HTMLSelectElement).value;
+                                        const currentBlocks = supports.layoutBlocks || [];
+                                        setSupports({ 
+                                            ...supports, 
+                                            layoutBlocks: [...currentBlocks, { id: `block_${Date.now()}`, type, config: {} }] 
+                                        });
+                                    }}
+                                    className="bg-primary/20 text-primary px-3 py-1.5 rounded text-sm font-medium hover:bg-primary/30 transition-colors whitespace-nowrap"
+                                >
+                                    + Add
+                                </button>
                             </div>
                         </div>
                     </div>

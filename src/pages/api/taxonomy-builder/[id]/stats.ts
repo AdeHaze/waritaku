@@ -1,9 +1,10 @@
+import { env } from 'cloudflare:workers';
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../../lib/db';
 import { taxonomies, terms, entryTerms } from '../../../../db/schema';
 import { eq, sql } from 'drizzle-orm';
 
-export const GET: APIRoute = async ({ params, locals, env }) => {
+export const GET: APIRoute = async ({ params, locals }) => {
     const user = locals.user;
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });

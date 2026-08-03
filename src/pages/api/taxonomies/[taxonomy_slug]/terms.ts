@@ -48,7 +48,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
             return new Response(JSON.stringify({ error: 'Taxonomy not found' }), { status: 404 });
         }
         
-        const body = await request.json();
+        const body = await request.json() as any;
         
         let slug = body.slug;
         if (!slug && body.name) {

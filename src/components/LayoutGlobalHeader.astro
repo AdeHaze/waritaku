@@ -1,11 +1,11 @@
 ---
 import LayoutGlobalNavbar from './LayoutGlobalNavbar.astro';
 import { settings } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
 import { getDb } from '../lib/db';
 
-const { headerStyle = 'default' } = Astro.props;
+let { headerStyle = 'default' } = Astro.props;
 
 let generalConfig = {
     siteTitle: 'Waritaku',
@@ -15,18 +15,25 @@ let generalConfig = {
 if (env && env.DB) {
     try {
         const db = getDb(env);
-        const record = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
-        if (record.length > 0) {
-            const dbSettings = JSON.parse(record[0].value);
-            if (!dbSettings.logoUrl || dbSettings.logoUrl.trim() === '') {
-                delete dbSettings.logoUrl;
+        const records = await db.select().from(settings).where(inArray(settings.key, ['general_settings', 'global_navigation_layout']));
+        
+        records.forEach(record => {
+            if (record.key === 'general_settings') {
+                const dbSettings = JSON.parse(record.value);
+                if (!dbSettings.logoUrl || dbSettings.logoUrl.trim() === '') {
+                    delete dbSettings.logoUrl;
+                }
+                generalConfig = { ...generalConfig, ...dbSettings };
             }
-            generalConfig = { ...generalConfig, ...dbSettings };
-        }
+            if (record.key === 'global_navigation_layout' && headerStyle === 'default') {
+                const layoutData = JSON.parse(record.value);
+                if (layoutData.headerStyle) headerStyle = layoutData.headerStyle;
+            }
+        });
     } catch(e) {}
 }
 ---
-<header class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
+<header class="sticky top-0 z-50 w-full border-b bg-navbar/95 text-navbar-foreground backdrop-blur supports-[backdrop-filter]:bg-navbar/60 shadow-sm">
     <div class="container mx-auto px-4 sm:px-6 lg:px-8">
         {headerStyle === 'centered' ? (
             <>

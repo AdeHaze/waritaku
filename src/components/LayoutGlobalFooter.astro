@@ -4,7 +4,7 @@ import { inArray } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
 import { getDb } from '../lib/db';
 
-const { footerStyle = 'default' } = Astro.props;
+let { footerStyle = 'default' } = Astro.props;
 
 let footerLinks = [
     { label: 'Latest', url: '/all' },
@@ -23,7 +23,7 @@ let footerConfig = {
 if (env && env.DB) {
     try {
         const db = getDb(env);
-        const records = await db.select().from(settings).where(inArray(settings.key, ['footer_links', 'general_settings', 'footer_config']));
+        const records = await db.select().from(settings).where(inArray(settings.key, ['footer_links', 'general_settings', 'footer_config', 'global_navigation_layout']));
         
         let hasGeneralSettings = false;
         
@@ -38,6 +38,10 @@ if (env && env.DB) {
                     const oldParsed = JSON.parse(record.value);
                     footerConfig.tagline = oldParsed.tagline || footerConfig.tagline;
                     footerConfig.copyright = oldParsed.copyright || footerConfig.copyright;
+                }
+                if (record.key === 'global_navigation_layout' && footerStyle === 'default') {
+                    const layoutData = JSON.parse(record.value);
+                    if (layoutData.footerStyle) footerStyle = layoutData.footerStyle;
                 }
             } catch (e) {}
         });

@@ -14,7 +14,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
         const id = parseInt(params.id || '0', 10);
         if (!id) return new Response('Invalid ID', { status: 400 });
 
-        const body = await request.json();
+        const body = await request.json() as any;
         const db = getDb(env);
 
         let allowedStr = '[]';
@@ -33,6 +33,38 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
             prefixEntryUrl: body.prefixEntryUrl === true || body.prefixEntryUrl === 'true',
             allowIndexing: body.allowIndexing !== false && body.allowIndexing !== 'false',
         }).where(eq(taxonomies.id, id)).returning();
+
+        // Sync collections.supports.taxonomies
+        try {
+            const allowed = JSON.parse(allowedStr || '[]');
+            const { collections } = await import('../../../db/schema');
+            const allCollections = await db.select().from(collections);
+            
+            for (const col of allCollections) {
+                let supportsObj: any = {};
+                try { supportsObj = JSON.parse(col.supports || '{}'); } catch(e) {}
+                let supportedTaxonomies = supportsObj.taxonomies || [];
+                
+                const isAllowed = allowed.includes(col.slug);
+                const isSupported = supportedTaxonomies.includes(body.slug);
+                
+                let modified = false;
+                if (isAllowed && !isSupported) {
+                    supportedTaxonomies.push(body.slug);
+                    modified = true;
+                } else if (!isAllowed && isSupported) {
+                    supportedTaxonomies = supportedTaxonomies.filter((t: string) => t !== body.slug);
+                    modified = true;
+                }
+                
+                if (modified) {
+                    supportsObj.taxonomies = supportedTaxonomies;
+                    await db.update(collections).set({ supports: JSON.stringify(supportsObj) }).where(eq(collections.id, col.id));
+                }
+            }
+        } catch(e) {
+            console.error("Error reverse syncing collections:", e);
+        }
 
         if (updated.length === 0) {
             return new Response('Not found', { status: 404 });

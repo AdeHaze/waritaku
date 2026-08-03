@@ -12,8 +12,8 @@ import { createSessionCookie, hashPassword, verifyPassword } from '../../lib/aut
 let error = '';
 let systemLoginHtml = '';
 
-if (env && env.DB) {
-    const db = getDb(env);
+if (env && (env as any).DB) {
+    const db = getDb(env as any);
     try {
         const configRow = await db.select().from(settings).where(eq(settings.key, 'general_settings')).limit(1);
         if (configRow.length > 0) {
@@ -31,8 +31,8 @@ if (Astro.request.method === 'POST') {
 
     if (!email || !password) {
       error = 'Email and password are required.';
-    } else if (env && env.DB) {
-      const db = getDb(env);
+    } else if (env && (env as any).DB) {
+      const db = getDb(env as any);
       
       const userResult = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
       const user = userResult[0];

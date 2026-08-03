@@ -74,19 +74,32 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
 
         // Fetch terms for all returned entries
         const entryIds = results.map(r => r.entry.id);
-        const allTerms = entryIds.length > 0 ? await db.select({
-            entryId: entryTerms.entryId,
-            term: terms
-        })
-        .from(entryTerms)
-        .innerJoin(terms, eq(entryTerms.termId, terms.id))
-        .where((await import('drizzle-orm')).inArray(entryTerms.entryId, entryIds)) : [];
+        
+        let allTerms: any[] = [];
+        if (entryIds.length > 0) {
+            const { inArray } = await import('drizzle-orm');
+            const { taxonomies } = await import('../../../../db/schema');
+            allTerms = await db.select({
+                entryId: entryTerms.entryId,
+                term: terms,
+                taxonomy: taxonomies
+            })
+            .from(entryTerms)
+            .innerJoin(terms, eq(entryTerms.termId, terms.id))
+            .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+            .where(inArray(entryTerms.entryId, entryIds));
+        }
 
         // Group terms by entryId
         const termsByEntry: Record<number, any[]> = {};
         allTerms.forEach(t => {
             if (!termsByEntry[t.entryId]) termsByEntry[t.entryId] = [];
-            termsByEntry[t.entryId].push({ id: t.term.id, name: t.term.name, slug: t.term.slug });
+            termsByEntry[t.entryId].push({ 
+                id: t.term.id, 
+                name: t.term.name, 
+                slug: t.term.slug,
+                taxonomyLabel: t.taxonomy.label
+            });
         });
 
         const items = results.map(r => ({

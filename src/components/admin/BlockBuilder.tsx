@@ -1,7 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react';
 
-export default function BlockBuilder({ blocks = [], setBlocks, categories = [] }: any) {
+export default function BlockBuilder({ blocks = [], setBlocks }: any) {
+  const [taxonomies, setTaxonomies] = useState<any[]>([]);
+  const [terms, setTerms] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/taxonomies/all')
+      .then(res => res.json())
+      .then(data => {
+        setTaxonomies(data.taxonomies || []);
+        setTerms(data.terms || []);
+      })
+      .catch(err => console.error("Error fetching taxonomies:", err));
+  }, []);
 
   const updateBlock = (index, updates) => {
     const newBlocks = [...blocks];
@@ -42,9 +54,9 @@ export default function BlockBuilder({ blocks = [], setBlocks, categories = [] }
     if (type === 'hero' || type === 'hero_2' || type === 'hero_3') {
       newBlock = { ...newBlock, limit: 5 };
     } else if (type === 'category_block') {
-      newBlock = { ...newBlock, title: 'New Category List (Vertical)', categoryId: 'all', limit: 5 };
+      newBlock = { ...newBlock, title: 'New Content List (Vertical)', filterTaxonomyId: 'all', filterTermId: 'all', limit: 5 };
     } else if (type === 'category_block_2') {
-      newBlock = { ...newBlock, title: 'New Category Grid (2-Col)', categoryId: 'all', tagSlug: '', limit: 11, showExcerpt: false };
+      newBlock = { ...newBlock, title: 'New Content Grid (2-Col)', filterTaxonomyId: 'all', filterTermId: 'all', limit: 11, showExcerpt: false };
     } else if (type === 'categories_grid') {
       newBlock = { ...newBlock, title: 'Kategori Pilihan', limit: 12 };
     } else if (type === 'article_grid') {
@@ -98,18 +110,36 @@ export default function BlockBuilder({ blocks = [], setBlocks, categories = [] }
               )}
 
               {['category_block', 'category_block_2'].includes(block.type) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Category Filter</label>
+                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Taxonomy Filter</label>
                     <select 
-                      value={block.categoryId || 'all'} 
-                      onChange={(e) => updateBlock(index, { categoryId: e.target.value })}
+                      value={block.filterTaxonomyId || 'all'} 
+                      onChange={(e) => updateBlock(index, { filterTaxonomyId: e.target.value, filterTermId: 'all' })}
                       className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      <option value="all">Latest (All Categories)</option>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                      <option value="all">All Content (No Taxonomy)</option>
+                      {taxonomies.map(t => (
+                        <option key={t.id} value={t.id}>{t.label}</option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Term Filter</label>
+                    <select 
+                      value={block.filterTermId || block.categoryId || 'all'} 
+                      onChange={(e) => updateBlock(index, { filterTermId: e.target.value })}
+                      disabled={!block.filterTaxonomyId || block.filterTaxonomyId === 'all'}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                    >
+                      <option value="all">All Terms in Taxonomy</option>
+                      {terms.filter(t => t.taxonomyId.toString() === (block.filterTaxonomyId || '').toString()).map(term => (
+                        <option key={term.id} value={term.id}>{term.name}</option>
+                      ))}
+                      {/* Backward compatibility for categoryId if taxonomy isn't set properly yet */}
+                      {block.categoryId && block.categoryId !== 'all' && (!block.filterTaxonomyId || block.filterTaxonomyId === 'all') && (
+                          <option value={block.categoryId}>Legacy Category ID: {block.categoryId}</option>
+                      )}
                     </select>
                   </div>
                   <div>
@@ -124,9 +154,9 @@ export default function BlockBuilder({ blocks = [], setBlocks, categories = [] }
                   </div>
                   
                   {block.type === 'category_block_2' && (
-                      <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
+                      <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
                           <div>
-                            <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Override By Tag (Optional)</label>
+                            <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Legacy Tag Override</label>
                             <input 
                               type="text" 
                               placeholder="e.g. genshin-impact"
@@ -134,7 +164,7 @@ export default function BlockBuilder({ blocks = [], setBlocks, categories = [] }
                               onChange={(e) => updateBlock(index, { tagSlug: e.target.value })}
                               className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                             />
-                            <p className="text-[10px] text-muted-foreground mt-1">If provided, this ignores the category dropdown and fetches articles by tag slug.</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">For backwards compatibility. Use Taxonomy Filter instead.</p>
                           </div>
                           <div className="flex items-center gap-3">
                               <label className="flex items-center gap-2 cursor-pointer">

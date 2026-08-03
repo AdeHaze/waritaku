@@ -1,0 +1,203 @@
+---
+import GlobalSidebar from './GlobalSidebar.astro';
+import { parseEmbeds } from '../utils/embedParser';
+
+export interface Props {
+    data: any;
+    parsedContent: string;
+    showLeftSidebar: boolean;
+    showRightSidebar: boolean;
+    articleUpperHtml?: string;
+    articleBottomHtml?: string;
+    headerImage: string;
+}
+
+const { data, parsedContent, showLeftSidebar, showRightSidebar, articleUpperHtml, articleBottomHtml, headerImage } = Astro.props;
+
+const layoutBlocks = data.supports?.layoutBlocks || [];
+
+// Custom Fields Extractor (excludes built-in fields like content)
+const customFields = Object.keys(data).filter(k => 
+    !['id', 'slug', 'canonicalUrl', 'status', 'publishedAt', 'updatedAt', 'authorName', 'authorSlug', 'tags', 'supports', 'categoryName', 'categorySlug', 'content', 'title', 'name', 'metaTitle', 'metaDescription', 'featuredImageUrl', 'layout_config', 'is_block_builder', 'layout_blocks', 'customSchema', 'visibility', 'password'].includes(k)
+).map(k => ({ key: k, value: data[k] })).filter(f => f.value !== null && f.value !== undefined && f.value !== '');
+
+---
+<div class={`w-full ${!showLeftSidebar && !showRightSidebar ? 'max-w-7xl mx-auto' : ''}`}>
+    {layoutBlocks.map((block: any, index: number) => {
+        
+        // 1. BREADCRUMBS
+        if (block.type === 'breadcrumbs') {
+            return (
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <nav class={`flex text-sm text-muted-foreground/80 font-medium ${block.config?.visibility === 'hidden' ? 'sr-only' : ''}`} aria-label="Breadcrumb">
+                        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                            <li class="inline-flex items-center">
+                                <a href="/" class="inline-flex items-center hover:text-foreground transition-colors">
+                                    <svg class="w-3 h-3 mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/></svg>
+                                    Home
+                                </a>
+                            </li>
+                            {data.categorySlug && data.categorySlug !== 'all' && (
+                                <li>
+                                    <div class="flex items-center">
+                                        <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                        </svg>
+                                        <a href={`/${data.categorySlug}`} class="ml-1 hover:text-primary md:ml-2 transition-colors">{data.categoryName}</a>
+                                    </div>
+                                </li>
+                            )}
+                            <li aria-current="page">
+                                <div class="flex items-center">
+                                    <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
+                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
+                                    </svg>
+                                    <span class="ml-1 text-foreground md:ml-2 truncate max-w-[200px] sm:max-w-[300px] inline-block">{data.title || data.name}</span>
+                                </div>
+                            </li>
+                        </ol>
+                    </nav>
+                </div>
+            );
+        }
+
+        // 2. HERO HEADER (Article Style)
+        if (block.type === 'hero') {
+            return (
+                <div class="w-full h-[45vh] md:h-[65vh] relative overflow-hidden bg-muted mb-12">
+                    <img 
+                        src={headerImage} 
+                        alt={data.title || data.name}
+                        class="w-full h-full object-cover"
+                        onError="this.src='https://placehold.co/1920x1080/333/FFF?text=Waritaku'"
+                    />
+                    <div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 w-full">
+                        <div class="container mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+                            <div class="max-w-4xl space-y-4">
+                                {data.categoryName && (
+                                    <a href={`/${data.categorySlug}`} class="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-semibold tracking-wide uppercase backdrop-blur-sm hover:bg-primary hover:text-primary-foreground transition-colors">
+                                        {data.categoryName}
+                                    </a>
+                                )}
+                                <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-tight drop-shadow-sm">
+                                    {data.title || data.name}
+                                </h1>
+                                <div class="flex items-center text-muted-foreground pt-4 font-medium">
+                                    <span>By <a href={`/author/${data.authorSlug}`} class="hover:text-primary transition-colors">{data.authorName}</a></span>
+                                    <span class="mx-3">•</span>
+                                    <time datetime={data.publishedAt}>{new Date(data.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 3. PRODUCT SPLIT HEADER (Image Left, Info Right)
+        if (block.type === 'product_split') {
+            return (
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
+                        <div class="relative rounded-2xl overflow-hidden shadow-xl border border-border bg-card">
+                            <img 
+                                src={headerImage} 
+                                alt={data.title || data.name}
+                                class="w-full h-auto object-cover"
+                                onError="this.src='https://placehold.co/800x800/333/FFF?text=Image'"
+                            />
+                        </div>
+                        <div class="flex flex-col space-y-6">
+                            {data.categoryName && (
+                                <div class="text-sm font-bold text-primary uppercase tracking-widest">
+                                    <a href={`/${data.categorySlug}`} class="hover:underline">{data.categoryName}</a>
+                                </div>
+                            )}
+                            <h1 class="text-3xl md:text-5xl font-extrabold text-foreground leading-tight">
+                                {data.title || data.name}
+                            </h1>
+                            
+                            {/* Render custom fields quickly in the split header */}
+                            {customFields.length > 0 && (
+                                <div class="bg-muted/30 border border-border rounded-xl p-6 space-y-4">
+                                    {customFields.map(field => {
+                                        // Skip if it looks like rich text/html or a large array
+                                        if (typeof field.value === 'string' && field.value.length > 200) return null;
+                                        if (typeof field.value === 'object') return null;
+                                        return (
+                                            <div class="flex justify-between border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                                                <span class="font-semibold text-muted-foreground capitalize">{field.key.replace(/_/g, ' ')}</span>
+                                                <span class="font-bold text-foreground text-right">{field.value.toString()}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // 4. BODY CONTENT (with Sidebars)
+        if (block.type === 'body_content') {
+            return (
+                <div class={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 ${!showLeftSidebar && !showRightSidebar ? 'max-w-4xl' : ''}`}>
+                    <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
+                        
+                        {showLeftSidebar && (
+                            <aside class="lg:col-span-1 mt-12 lg:mt-0 order-last lg:order-first">
+                                <GlobalSidebar zone="left" context="article" />
+                            </aside>
+                        )}
+
+                        <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'} overflow-hidden prose prose-neutral dark:prose-invert prose-lg md:prose-xl prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-xl prose-img:shadow-lg max-w-none`}>
+                            {articleUpperHtml && <div class="mb-8" set:html={articleUpperHtml} />}
+                            
+                            <div set:html={parsedContent} />
+                            
+                            {data.tags && data.tags.length > 0 && (
+                                <div class="mt-12 flex flex-wrap gap-2">
+                                    {data.tags.map((tag: any) => (
+                                        <a href={`/tag/${tag.slug}`} class="inline-flex items-center justify-center px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors">
+                                            {tag.name}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+
+                            {articleBottomHtml && (
+                                <div class="mt-16 pt-12 border-t border-border">
+                                    <div class="bg-card border border-border p-6 rounded-xl shadow-sm" set:html={articleBottomHtml} />
+                                </div>
+                            )}
+                        </div>
+
+                        {showRightSidebar && (
+                            <aside class="lg:col-span-1 mt-12 lg:mt-0">
+                                <GlobalSidebar zone="right" context="article" />
+                            </aside>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // 5. RELATED ITEMS
+        if (block.type === 'related_items') {
+            return (
+                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-border mt-12 bg-muted/10">
+                    <h3 class="text-2xl font-bold mb-8 uppercase tracking-widest text-center">Related Items</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                        <div class="text-center text-sm text-muted-foreground col-span-full italic">
+                            Related items will appear here based on the {block.config?.targetTaxonomy ? block.config.targetTaxonomy + ' taxonomy' : (data.categoryName || 'current category')}.
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return null;
+    })}
+</div>
