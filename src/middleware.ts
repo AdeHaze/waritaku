@@ -45,8 +45,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return context.redirect(url.toString(), 301);
     }
 
-    // 2. Protect /admin and /api routes (except /admin/login and public APIs if needed)
-    if ((url.pathname.startsWith('/admin') && url.pathname !== '/admin/login') || url.pathname.startsWith('/api')) {
+    // 2. Protect /admin and /api routes (except public auth routes)
+    const publicAdminRoutes = ['/admin/login', '/admin/forgot-password', '/admin/reset-password'];
+    if ((url.pathname.startsWith('/admin') && !publicAdminRoutes.includes(url.pathname)) || url.pathname.startsWith('/api')) {
         const sessionCookie = context.cookies.get('session')?.value;
         
         if (!sessionCookie) {

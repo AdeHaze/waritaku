@@ -129,76 +129,48 @@ waritaku/
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-primary/80 group-hover:bg-primary transition-colors"></div>
                     <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-primary">Overview: Dashboard</h3>
                     <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
-                        <p><strong class="text-foreground">Function:</strong> Shows real-time summary statistics, interactive publishing calendar, day-of-week productivity analytics, and recent article activity table.</p>
-                        <p><strong class="text-foreground">Database Query:</strong> Executes aggregated queries on `articles`, `categories`, `tags`, and `users` tables via Drizzle ORM.</p>
+                        <p><strong class="text-foreground">Function:</strong> Shows real-time summary statistics, interactive publishing calendar, day-of-week productivity analytics, and recent content activity table.</p>
+                        <p><strong class="text-foreground">Database Query:</strong> Executes aggregated queries dynamically based on `collections`, querying the `entries` and `users` tables via Drizzle ORM.</p>
                         <p><strong class="text-foreground">Technology:</strong> Astro SSR for server processing, React components for interactive calendar &amp; analytics, Tailwind CSS for layout.</p>
                         <div class="bg-muted/30 p-4 rounded-md border border-border mt-4">
                             <h4 class="font-bold text-foreground mb-2">Dashboard Toolkit (Customization)</h4>
                             <p class="mb-2">Superadmin users can toggle, reorder, and configure individual dashboard widgets under <a href="/admin/layout/dashboard" class="text-primary hover:underline font-semibold">Appearance &rarr; Dashboard Layout</a>.</p>
                             <ul class="list-disc pl-5 space-y-1">
-                                <li><strong class="text-foreground">Summary Cards:</strong> Overview metrics for articles, categories, tags, and users.</li>
-                                <li><strong class="text-foreground">Publishing Calendar:</strong> Monthly view of published articles and publishing productivity breakdown.</li>
-                                <li><strong class="text-foreground">Recent Activity:</strong> Detailed feed of latest published and draft articles.</li>
+                                <li><strong class="text-foreground">Summary Cards:</strong> Overview metrics dynamically loaded for configured Collections (like Articles and Pages), Taxonomies, and Users.</li>
+                                <li><strong class="text-foreground">Publishing Calendar:</strong> Monthly view of published entries and publishing productivity breakdown.</li>
+                                <li><strong class="text-foreground">Recent Activity:</strong> Detailed feed of latest published and draft entries across all collections.</li>
                             </ul>
                         </div>
                     </div>
                 </section>
 
-                <section id="docs-articles" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-blue-500/50 transition-colors scroll-mt-24">
+                <section id="docs-collections-entries" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-blue-500/50 transition-colors scroll-mt-24">
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500/80 group-hover:bg-blue-500 transition-colors"></div>
-                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-blue-500">Content: Articles</h3>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-blue-500">Content Types: Collections &amp; Entries</h3>
                     <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
-                        <p><strong class="text-foreground">Function:</strong> Creates, edits, deletes, and tracks revisions of blog posts.</p>
+                        <p><strong class="text-foreground">Function:</strong> Defines content architecture dynamically and manages content items.</p>
                         <p><strong class="text-foreground">Database Structure:</strong>
-                            The `articles` table connects to:
-                            - `users` (author) and `categories` (primary category).
-                            - `tags` through the `article_tags` join table.
-                            - `article_revisions` for revision history.
+                            - <strong>`collections`</strong>: Stores JSON schemas defining custom fields, taxonomy requirements, and block builder configurations.
+                            - <strong>`entries`</strong>: Stores the actual content. Specific fields are stored in a flexible JSON `data` column, linking back to `collections.id`.
+                            - <strong>`entry_revisions`</strong>: Stores version snapshots of entries for rollback capabilities.
                         </p>
-                        <p><strong class="text-foreground">Technology:</strong> React TipTap Editor for content editing, Drizzle ORM for database queries, Cloudflare R2 for image storage.</p>
+                        
+                        <div class="bg-blue-500/10 border-l-4 border-blue-500 p-4 mt-4 rounded-r-md">
+                            <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">Baked-in Examples: Articles &amp; Pages</h4>
+                            <p class="text-blue-700 dark:text-blue-300 mb-2">While the system is fully dynamic, it comes pre-baked with two primary collections as examples:</p>
+                            <ul class="list-disc pl-5 space-y-1 text-blue-700 dark:text-blue-300">
+                                <li><strong>Articles:</strong> Represents blog posts or news items. Built to utilize Taxonomies (like Categories and Tags) and heavily focuses on TipTap rich-text content for the main body.</li>
+                                <li><strong>Pages:</strong> Represents static or modular routes (like About Us, Contact, or Custom 404 Pages). Pages extensively utilize the <strong>Block Builder</strong> to drag-and-drop structural components (Hero sections, grids, lists) rather than just linear text.</li>
+                            </ul>
+                        </div>
 
                         <div class="bg-muted/30 p-4 rounded-md border border-border mt-4 space-y-3">
-                            <h4 class="font-bold text-foreground mb-2">Editor Features</h4>
+                            <h4 class="font-bold text-foreground mb-2">Dynamic Entry Editor</h4>
+                            <p>The `DynamicEntryEditor.tsx` component reads the collection schema and automatically renders the appropriate editing experience:</p>
                             <ul class="list-disc pl-5 space-y-2">
-                                <li><strong>Image Control:</strong> The ImageBubbleMenu toolbar sets image alignment, alt text, and captions.</li>
-                                <li><strong>Captions &amp; Alt Text:</strong> Converts `title` attributes and `[caption]` shortcodes into HTML5 &lt;figure&gt; and &lt;figcaption&gt; tags. If an image lacks alt text, the system uses the article title.</li>
-                                <li><strong>FAQ Shortcodes:</strong> Generates `[faq]` shortcodes. The frontend converts these into HTML5 &lt;details&gt; elements.</li>
-                                <li><strong>JSON-LD Schema:</strong> Generates `NewsArticle` schema. Editors can override this schema by pasting custom JSON-LD into the editor field.</li>
-                            </ul>
-                        </div>
-
-                        <div class="bg-blue-500/10 border-l-4 border-blue-500 p-4 mt-4 rounded-r-md">
-                            <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">Revision History</h4>
-                            <p class="text-blue-700 dark:text-blue-300 mb-2">The system saves a full snapshot of the article before each save. You can view and restore any past revision.</p>
-                            <ul class="list-disc pl-5 space-y-1 text-blue-700 dark:text-blue-300">
-                                <li>Open an article in the editor.</li>
-                                <li>Click the <strong>Revisions</strong> button in the editor toolbar.</li>
-                                <li>Select a past revision from the list to preview it.</li>
-                                <li>Click <strong>Restore</strong> to replace the current content with the selected revision.</li>
-                            </ul>
-                            <p class="mt-2 text-blue-700 dark:text-blue-300">The `article_revisions` table stores each snapshot. The `diff` library compares revisions. This library must stay in Vite `optimizeDeps.exclude` inside `astro.config.mjs` to avoid SSR build crashes.</p>
-                        </div>
-                    </div>
-                </section>
-
-                {/* 3. Pages */}
-                <section id="docs-pages" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-emerald-500/50 transition-colors scroll-mt-24">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-500/80 group-hover:bg-emerald-500 transition-colors"></div>
-                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-emerald-500">Content: Pages</h3>
-                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
-                        <p><strong class="text-foreground">Function:</strong> Creates, edits, and tracks revisions of static pages (such as About Us, Contact, Privacy Policy).</p>
-                        <p><strong class="text-foreground">Database Structure:</strong> Uses the `pages` table. Links to the `users` table for authorship. Does not use categories or tags. Links to `page_revisions` for revision history.</p>
-                        <p><strong class="text-foreground">Technology:</strong> Uses the React TipTap editor. The revision system works the same way as Articles.</p>
-                        <p><strong class="text-foreground">Rendering:</strong> Renders via `/src/pages/[slug].astro`. Excludes pages from blog feeds. Generates `WebPage` JSON-LD schema.</p>
-
-                        <div class="bg-emerald-500/10 border-l-4 border-emerald-500 p-4 mt-4 rounded-r-md">
-                            <h4 class="font-bold text-emerald-600 dark:text-emerald-400 mb-2">Revision History</h4>
-                            <p class="text-emerald-700 dark:text-emerald-300 mb-2">The system saves a full snapshot of the page before each save. You can view and restore any past revision.</p>
-                            <ul class="list-disc pl-5 space-y-1 text-emerald-700 dark:text-emerald-300">
-                                <li>Open a page in the editor.</li>
-                                <li>Click the <strong>Revisions</strong> button in the editor toolbar.</li>
-                                <li>Select a past revision from the list to preview it.</li>
-                                <li>Click <strong>Restore</strong> to replace the current content with the selected revision.</li>
+                                <li><strong>TipTap Editor:</strong> Rich text editing with Image controls (alignment, captions), FAQ shortcodes, and JSON-LD overrides.</li>
+                                <li><strong>Block Builder:</strong> Modular design system for assembling pages using dynamic components (e.g., Article Grids filtered by Taxonomies).</li>
+                                <li><strong>Revision Control:</strong> Full snapshot history is preserved for every entry across all collections, allowing seamless restoration via the <em>Revisions</em> toolbar button.</li>
                             </ul>
                         </div>
                     </div>
@@ -216,40 +188,23 @@ waritaku/
                     </div>
                 </section>
 
-                {/* 5. Categories */}
-                <section id="docs-categories" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-amber-500/50 transition-colors scroll-mt-24">
+                {/* 5. Taxonomies & Terms */}
+                <section id="docs-taxonomies-terms" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-amber-500/50 transition-colors scroll-mt-24">
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-amber-500/80 group-hover:bg-amber-500 transition-colors"></div>
-                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-amber-500">Content: Categories</h3>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-amber-500">Content: Taxonomies &amp; Terms</h3>
                     <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
-                        <p><strong class="text-foreground">Function:</strong> Groups articles into primary topics.</p>
+                        <p><strong class="text-foreground">Function:</strong> A generic classification system for grouping entries.</p>
                         <p><strong class="text-foreground">Database Structure:</strong> 
-                            The `categories` table links to `articles` through the `article_categories` join table. 
-                            The `articles.categoryId` column also links directly to categories.
+                            - <strong>`taxonomies`</strong>: Defines the classification group (e.g., 'Categories' or 'Tags'). It dictates if terms are hierarchical or flat.
+                            - <strong>`terms`</strong>: The actual classification items (e.g., 'Technology', 'News').
+                            - <strong>`entry_terms`</strong>: Join table linking `entries` to `terms`.
                         </p>
-                        <p><strong class="text-foreground">Technology:</strong> Uses Astro form actions for CRUD operations. Generates `CollectionPage` JSON-LD schema.</p>
-                        <p><strong class="text-foreground">Routing:</strong> Generates `/[slug]` routes. Used by Frontpage Builder to pull articles by category ID.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Uses Astro form actions for CRUD operations. Drizzle ORM queries fetch filtered entries based on term slugs.</p>
+                        
                         <div class="bg-amber-500/10 border-l-4 border-amber-500 p-4 mt-4 rounded-r-md">
-                            <h4 class="font-bold text-amber-600 dark:text-amber-400 mb-1">Architecture Rule: Tag Naming Conflict</h4>
+                            <h4 class="font-bold text-amber-600 dark:text-amber-400 mb-1">Baked-in Examples: Categories &amp; Tags</h4>
                             <p class="text-amber-700 dark:text-amber-300">
-                                Categories take naming priority. You cannot create a tag with the same name as an existing category.
-                            </p>
-                        </div>
-                    </div>
-                </section>
-
-                {/* 6. Tags */}
-                <section id="docs-tags" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-rose-500/50 transition-colors scroll-mt-24">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-rose-500/80 group-hover:bg-rose-500 transition-colors"></div>
-                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-rose-500">Content: Tags</h3>
-                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
-                        <p><strong class="text-foreground">Function:</strong> Groups articles by specific keywords or topics.</p>
-                        <p><strong class="text-foreground">Database Structure:</strong> The `tags` table connects to `articles` through the `article_tags` join table using `ON DELETE CASCADE` rules.</p>
-                        <p><strong class="text-foreground">Technology:</strong> Uses Drizzle ORM `innerJoin` queries to filter articles by tag slug.</p>
-                        <p><strong class="text-foreground">Routing & UI:</strong> Generates `/tag/[slug]` routes. The editor includes a tag creation API (`/api/tags/create`). The admin UI uses JavaScript search for tag selection.</p>
-                        <div class="bg-rose-500/10 border-l-4 border-rose-500 p-4 mt-4 rounded-r-md">
-                            <h4 class="font-bold text-rose-600 dark:text-rose-400 mb-1">Architecture Rule: Tag Creation</h4>
-                            <p class="text-rose-700 dark:text-rose-300">
-                                The `POST /api/tags/create` endpoint checks for existing category names. If a tag name matches a category name, the API returns a 409 status code. All tag slugs use lowercase alphanumeric characters.
+                                Similar to Articles/Pages, the system comes with <strong>Categories</strong> (hierarchical, primary routing) and <strong>Tags</strong> (flat keywords) pre-baked into the `taxonomies` table to demonstrate how to structure entry groupings.
                             </p>
                         </div>
                     </div>
@@ -565,29 +520,7 @@ npx wrangler d1 execute DB --remote --file=local-dump.sql</code></pre>
                     </div>
                 </section>
 
-                <section id="docs-new-info" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-fuchsia-500/50 transition-colors scroll-mt-24">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-fuchsia-500/80 group-hover:bg-fuchsia-500 transition-colors"></div>
-                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-fuchsia-500">New Information (Unconfirmed)</h3>
-                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
-                        <div class="bg-fuchsia-500/10 border-l-4 border-fuchsia-500 p-4 mt-4 rounded-r-md">
-                            <h4 class="font-bold text-fuchsia-600 dark:text-fuchsia-400 mb-2">Massive Overhaul: Dynamic Content Type Builder</h4>
-                            <p class="text-fuchsia-700 dark:text-fuchsia-300 mb-2">
-                                Please be aware that large portions of this documentation are currently <strong>obsolete</strong> due to a recent architectural overhaul.
-                            </p>
-                            <p class="text-fuchsia-700 dark:text-fuchsia-300 mb-2">
-                                The CMS has shifted from using hardcoded database tables (`articles`, `pages`, `categories`, `tags`) to a fully dynamic architecture using a generic <code>collections</code> and <code>entries</code> model.
-                            </p>
-                            <ul class="list-disc pl-5 space-y-1 text-fuchsia-700 dark:text-fuchsia-300">
-                                <li><strong>Collections Table:</strong> Defines schemas (fields, taxonomy requirements, and block builder settings) as JSON.</li>
-                                <li><strong>Entries Table:</strong> Stores all content entries (both articles and pages) with custom field data stored in a JSON `data` column.</li>
-                                <li><strong>Dynamic Entry Editor:</strong> A unified React component (`DynamicEntryEditor.tsx`) now reads the schema and renders fields (including the BlockBuilder and TipTap Editor) dynamically.</li>
-                            </ul>
-                            <p class="mt-2 text-fuchsia-700 dark:text-fuchsia-300">
-                                This section will be updated and integrated into the main documentation once the feature is fully stabilized and verified.
-                            </p>
-                        </div>
-                    </div>
-                </section>
+                
 
             </div>
 
@@ -601,11 +534,9 @@ npx wrangler d1 execute DB --remote --file=local-dump.sql</code></pre>
                         {[
                             { id: 'docs-environments', label: 'DB Environments & Safety' },
                             { id: 'docs-dashboard',    label: 'Dashboard' },
-                            { id: 'docs-articles',     label: 'Articles' },
-                            { id: 'docs-pages',        label: 'Pages' },
+                            { id: 'docs-collections-entries', label: 'Collections & Entries' },
                             { id: 'docs-profile',      label: 'My Profile' },
-                            { id: 'docs-categories',   label: 'Categories' },
-                            { id: 'docs-tags',         label: 'Tags' },
+                            { id: 'docs-taxonomies-terms', label: 'Taxonomies & Terms' },
                             { id: 'docs-media',        label: 'Media Library' },
                             { id: 'docs-users',        label: 'Users & Roles' },
                             { id: 'docs-general-settings', label: 'General Settings' },
@@ -618,7 +549,6 @@ npx wrangler d1 execute DB --remote --file=local-dump.sql</code></pre>
                             { id: 'docs-seo',          label: 'SEO & Sitemaps' },
                             { id: 'docs-ai-api',       label: 'AI & API Discoverability' },
                             { id: 'docs-migration-guide',  label: 'WordPress Migration' },
-                            { id: 'docs-new-info',     label: 'New Info (Unconfirmed)' },
                         ].map(({ id, label }) => (
                             <li>
                                 <a

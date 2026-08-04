@@ -1,10 +1,11 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
-import { users } from '../../../db/schema';
+import { users, passwordResets } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
 import { getDb } from '../../../lib/db';
+import crypto from 'node:crypto';
 
 import { hashPassword } from '../../../lib/auth';
 
@@ -54,6 +55,21 @@ if (env && env.DB) {
               if (id && id !== sessionUser.userId) {
                   await db.update(users).set({ role }).where(eq(users.id, id));
                   success = 'Role updated successfully!';
+              }
+          } else if (action === 'generate_reset_link') {
+              const id = parseInt(data.get('id') as string, 10);
+              if (id) {
+                  const token = crypto.randomBytes(32).toString('hex');
+                  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+                  
+                  await db.insert(passwordResets).values({
+                      userId: id,
+                      token: token,
+                      expiresAt: expiresAt
+                  });
+                  
+                  const resetLink = `${Astro.url.origin}/admin/reset-password?token=${token}`;
+                  success = `Reset Link generated successfully. Copy this and send it to the user: ${resetLink}`;
               }
           }
       } catch (e: any) {
@@ -161,11 +177,18 @@ if (env && env.DB) {
                         <td class="px-6 py-4 text-right flex justify-end gap-3">
                             <a href={`/admin/profile?id=${item.id}`} class="text-primary hover:underline text-xs font-semibold">Edit Profile</a>
                             {item.id !== sessionUser.userId && sessionUser.role === 'superadmin' && (
-                                <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this user?');">
-                                    <input type="hidden" name="action" value="delete" />
-                                    <input type="hidden" name="id" value={item.id} />
-                                    <button type="submit" class="text-destructive hover:underline text-xs font-semibold">Delete</button>
-                                </form>
+                                <>
+                                    <form method="POST" class="inline">
+                                        <input type="hidden" name="action" value="generate_reset_link" />
+                                        <input type="hidden" name="id" value={item.id} />
+                                        <button type="submit" class="text-orange-500 hover:underline text-xs font-semibold" title="Generate a one-time password reset link for this user">Reset Link</button>
+                                    </form>
+                                    <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                        <input type="hidden" name="action" value="delete" />
+                                        <input type="hidden" name="id" value={item.id} />
+                                        <button type="submit" class="text-destructive hover:underline text-xs font-semibold">Delete</button>
+                                    </form>
+                                </>
                             )}
                         </td>
                       </tr>

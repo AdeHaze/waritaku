@@ -108,6 +108,7 @@ if (Astro.request.method === 'POST') {
             <div class="space-y-2">
                 <div class="flex items-center justify-between">
                     <label for="password" class="text-sm font-bold tracking-wide uppercase text-muted-foreground">Password</label>
+                    <a href="/admin/forgot-password" class="text-sm font-bold text-primary hover:underline">Forgot?</a>
                 </div>
                 <input 
                     type="password" 
@@ -124,7 +125,7 @@ if (Astro.request.method === 'POST') {
             </button>
             
             <p class="text-xs text-center text-muted-foreground mt-8 leading-relaxed">
-                Need help? <br/> Contact your SuperAdmin to reset your password.
+                Need help? <br/> Contact your SuperAdmin or <a href="/admin/forgot-password" class="underline hover:text-foreground">reset your password</a>.
             </p>
         </form>
     </div>

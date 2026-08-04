@@ -21,9 +21,15 @@ let isError = false;
 let secrets = {
     telegramBotToken: '',
     openaiApiKey: '',
-    mailgunApiKey: '',
+    senderEmail: 'noreply@resend.waritaku.com',
     customSecretsJson: '{}'
 };
+let resendStatus = 'missing';
+if (env && (env as any).RESEND_API_KEY) {
+    const key = (env as any).RESEND_API_KEY as string;
+    if (key.startsWith('re_')) resendStatus = 'connected';
+    else resendStatus = 'invalid';
+}
 let dbEnvironment = 'Local Development';
 let imageEnv = 'Local Disk';
 if (env && (env as any).UPLOADS) {
@@ -61,7 +67,7 @@ if (Astro.request.method === 'POST') {
             const newSecrets = {
                 telegramBotToken: formData.get('telegramBotToken') as string || '',
                 openaiApiKey: formData.get('openaiApiKey') as string || '',
-                mailgunApiKey: formData.get('mailgunApiKey') as string || '',
+                senderEmail: formData.get('senderEmail') as string || 'noreply@resend.waritaku.com',
                 customSecretsJson: formData.get('customSecretsJson') as string || '{}'
             };
 
@@ -301,9 +307,18 @@ if (Astro.request.method === 'POST') {
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-sm font-semibold">Mailgun API Key</label>
-                            <input type="password" name="mailgunApiKey" value={secrets.mailgunApiKey} placeholder="key-..." class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono" />
-                            <p class="text-[11px] text-muted-foreground">Used for transactional emails.</p>
+                            <label class="text-sm font-semibold">Resend Connection Status</label>
+                            <div class={`flex items-center gap-2 h-10 px-3 py-2 rounded-md border text-sm font-medium ${resendStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' : resendStatus === 'invalid' ? 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
+                                <span class="text-lg">{resendStatus === 'connected' ? '🟢' : resendStatus === 'invalid' ? '🟡' : '🔴'}</span>
+                                {resendStatus === 'connected' ? 'Secured & Connected (.dev.vars)' : resendStatus === 'invalid' ? 'Invalid Key Format' : 'Missing from Environment'}
+                            </div>
+                            <p class="text-[11px] text-muted-foreground">API key securely loaded from Cloudflare Worker.</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold">Sender Email Address</label>
+                            <input type="email" name="senderEmail" value={secrets.senderEmail} placeholder="noreply@resend.waritaku.com" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+                            <p class="text-[11px] text-muted-foreground">Used as the "From" address for all outbound emails.</p>
                         </div>
 
                         <div class="space-y-2 md:col-span-2 mt-4 pt-4 border-t border-border">

@@ -112,3 +112,10 @@ export const entryTerms = sqliteTable('entry_terms', {
   termIdx: index('entry_terms_term_idx').on(t.termId),
 }));
 
+export const passwordResets = sqliteTable('password_resets', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  token: text('token').notNull().unique(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+});
+

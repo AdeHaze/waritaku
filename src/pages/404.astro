@@ -1,0 +1,225 @@
+---
+import LayoutFrontPage from '../layouts/LayoutFrontPage.astro';
+import BlockRenderer from '../components/BlockRenderer.astro';
+import { getDb } from '../lib/db';
+import { collections, entries, settings, entryTerms, terms, users, taxonomies } from '../db/schema';
+import { eq, desc, and, sql } from 'drizzle-orm';
+import { env } from "cloudflare:workers";
+import { getCanonicalUrl } from '../lib/urlBuilder';
+
+export const prerender = false;
+
+Astro.response.status = 404;
+
+const db = getDb(env);
+
+let layoutBlocks: any[] = [];
+let blockData: Record<string, any[]> = {};
+let showLeftSidebar = false;
+let showRightSidebar = true;
+let metaTitle = '404 - Page Not Found';
+let metaDescription = 'The page you are looking for does not exist.';
+let headerStyle = 'default';
+let footerStyle = 'default';
+let isConfigured = false;
+
+// 1. Fetch General Settings to get the configured 404 page ID
+const generalSettingsRes = await db.select().from(settings).where(eq(settings.key, 'general_settings')).limit(1);
+if (generalSettingsRes.length > 0) {
+    try {
+        const config = JSON.parse(generalSettingsRes[0].value);
+        if (config.page404Id) {
+            // 2. Fetch the specific page
+            const pageRes = await db.select().from(entries).where(and(eq(entries.id, parseInt(config.page404Id)), eq(entries.status, 'published'))).limit(1);
+            if (pageRes.length > 0) {
+                const page = pageRes[0];
+                const data = JSON.parse(page.data || '{}');
+                metaTitle = data.metaTitle || data.title || '404';
+                metaDescription = data.metaDescription || '';
+                headerStyle = data.headerStyle || 'default';
+                footerStyle = data.footerStyle || 'default';
+                
+                if (data.is_block_builder && data.layout_blocks) {
+                    try {
+                        layoutBlocks = Array.isArray(data.layout_blocks) ? data.layout_blocks : JSON.parse(data.layout_blocks);
+                        isConfigured = true;
+                    } catch(e) {
+                        console.error("Failed to parse layoutBlocks for 404", e);
+                    }
+                }
+                
+                // Sidebar Config
+                if (data.layout_config) {
+                    try {
+                        const lconf = typeof data.layout_config === 'string' ? JSON.parse(data.layout_config) : data.layout_config;
+                        if (lconf.override) {
+                            showLeftSidebar = lconf.showLeft;
+                            showRightSidebar = lconf.showRight;
+                        }
+                    } catch(e) {}
+                } else {
+                    const sidebarConfigRes = await db.select().from(settings).where(eq(settings.key, 'sidebar_layout_config')).limit(1);
+                    if (sidebarConfigRes.length > 0) {
+                        try {
+                            const layoutConfig = JSON.parse(sidebarConfigRes[0].value);
+                            showLeftSidebar = layoutConfig.left?.showOnFrontpage ?? false;
+                            showRightSidebar = layoutConfig.right?.showOnFrontpage ?? true;
+                        } catch(e) {}
+                    }
+                }
+            }
+        }
+    } catch(e) {
+        console.error("Failed to parse general_settings for 404 page", e);
+    }
+}
+
+// 3. If a block layout is configured, hydrate it!
+if (isConfigured && layoutBlocks.length > 0) {
+    const articlesColResult = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
+    const articlesColId = articlesColResult[0]?.id;
+
+    const fetchArticles = async (options: { 
+        categoryId?: string | number, 
+        filterTaxonomyId?: string | number,
+        filterTermId?: string | number,
+        limit?: number, 
+        offset?: number, 
+        isRandom?: boolean, 
+        tagSlug?: string 
+    } = {}) => {
+        const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, isRandom = false, tagSlug } = options;
+        if (!articlesColId) return [];
+        
+        let query = db.selectDistinct({
+            entry: entries,
+            author: users
+        })
+        .from(entries)
+        .leftJoin(users, eq(entries.authorId, users.id));
+
+        let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesColId));
+
+        const hasLegacyFilter = (categoryId && categoryId !== 'all') || tagSlug;
+        const hasTaxonomyFilter = filterTaxonomyId && filterTaxonomyId !== 'all';
+        const hasTermFilter = filterTermId && filterTermId !== 'all';
+
+        if (hasLegacyFilter || hasTaxonomyFilter || hasTermFilter) {
+            query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
+            query = query.innerJoin(terms, eq(entryTerms.termId, terms.id));
+            
+            const termConditions = [];
+            
+            if (hasTermFilter) {
+                termConditions.push(eq(terms.id, parseInt(filterTermId as string)));
+            } else if (hasTaxonomyFilter) {
+                termConditions.push(eq(terms.taxonomyId, parseInt(filterTaxonomyId as string)));
+            }
+            
+            if (!hasTermFilter && !hasTaxonomyFilter) {
+                if (categoryId && categoryId !== 'all') {
+                    termConditions.push(eq(terms.id, parseInt(categoryId as string)));
+                }
+                if (tagSlug) {
+                    termConditions.push(eq(terms.slug, tagSlug));
+                }
+            }
+
+            if (termConditions.length > 0) {
+                conditions = and(conditions, ...termConditions);
+            }
+        }
+
+        query = query.where(conditions) as any;
+
+        if (isRandom) {
+            query = query.orderBy(sql`RANDOM()`) as any;
+        } else {
+            query = query.orderBy(desc(entries.publishedAt)) as any;
+        }
+
+        const result = await query.limit(limit).offset(offset);
+        
+        return await Promise.all(result.map(async r => {
+            const data = JSON.parse(r.entry.data || '{}');
+            const rawContent = data.content || '';
+            const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+            const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
+            
+            const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
+
+            return {
+                id: r.entry.id,
+                slug: r.entry.slug,
+                canonicalUrl: `/${canonicalUrl}`,
+                publishedAt: r.entry.publishedAt,
+                ...data,
+                categoryName: 'Article',
+                categorySlug: 'all',
+                authorName: r.author?.name || 'Admin',
+                authorId: r.author?.id || 1,
+                excerpt: excerpt
+            };
+        }));
+    };
+
+    const promises = layoutBlocks.map(async (block) => {
+        if (block.type === 'hero' || block.type === 'hero_2' || block.type === 'hero_3') {
+            blockData[block.id] = await fetchArticles({ limit: block.limit || 5 });
+        } else if (block.type === 'category_block') {
+            blockData[block.id] = await fetchArticles({ 
+                categoryId: block.categoryId, 
+                filterTaxonomyId: block.filterTaxonomyId,
+                filterTermId: block.filterTermId,
+                limit: block.limit || 5, 
+                tagSlug: block.tagSlug 
+            });
+        } else if (block.type === 'category_block_2') {
+            blockData[block.id] = await fetchArticles({ 
+                categoryId: block.categoryId, 
+                filterTaxonomyId: block.filterTaxonomyId,
+                filterTermId: block.filterTermId,
+                limit: block.limit || 11, 
+                tagSlug: block.tagSlug 
+            });
+        } else if (block.type === 'article_grid') {
+            blockData[block.id] = await fetchArticles({ limit: block.limit || 12, isRandom: true });
+        } else if (block.type === 'categories_grid') {
+            const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+            if (catTax.length > 0) {
+                blockData[block.id] = await db.select().from(terms).where(eq(terms.taxonomyId, catTax[0].id)).limit(block.limit || 12).offset(5);
+            } else {
+                blockData[block.id] = [];
+            }
+        }
+    });
+
+    await Promise.all(promises);
+}
+
+const siteUrl = Astro.url.origin;
+const schemaString = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Waritaku",
+    "url": siteUrl
+});
+---
+
+<LayoutFrontPage title={metaTitle} metaDescription={metaDescription} schema={schemaString} headerStyle={headerStyle} footerStyle={footerStyle}>
+    {isConfigured ? (
+        <BlockRenderer 
+            layoutBlocks={layoutBlocks} 
+            blockData={blockData} 
+            showLeftSidebar={showLeftSidebar} 
+            showRightSidebar={showRightSidebar} 
+        />
+    ) : (
+        <div class="container mx-auto px-4 py-32 text-center">
+            <h1 class="text-6xl md:text-8xl font-black uppercase text-primary mb-6 tracking-tighter">404</h1>
+            <h2 class="text-2xl md:text-4xl font-bold uppercase mb-8">Page Not Found</h2>
+            <p class="text-muted-foreground mb-8 max-w-lg mx-auto">The link you followed may be broken, or the page may have been removed.</p>
+            <a href="/" class="inline-flex items-center justify-center px-8 py-4 bg-primary text-primary-foreground font-bold uppercase tracking-widest hover:bg-primary/90 transition-colors">Return to Homepage</a>
+        </div>
+    )}
+</LayoutFrontPage>
