@@ -5,7 +5,7 @@ import { getDb } from '../lib/db';
 import { collections, entries, settings, entryTerms, terms, users, taxonomies } from '../db/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
-import { getCanonicalUrl } from '../lib/urlBuilder';
+import { getCanonicalUrl } from '../lib/queries';
 
 export const prerender = false;
 
