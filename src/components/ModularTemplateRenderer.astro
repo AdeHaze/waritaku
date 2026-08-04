@@ -1,6 +1,7 @@
 ---
 import GlobalSidebar from './GlobalSidebar.astro';
 import { parseEmbeds } from '../utils/embedParser';
+import { sanitizeHtml } from '../utils/sanitize';
 
 export interface Props {
     data: any;
@@ -155,7 +156,7 @@ const customFields = Object.keys(data).filter(k =>
                         <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'} overflow-hidden prose prose-neutral dark:prose-invert prose-lg md:prose-xl prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-xl prose-img:shadow-lg max-w-none`}>
                             {articleUpperHtml && <div class="mb-8" set:html={articleUpperHtml} />}
                             
-                            <div set:html={parsedContent} />
+                            <div set:html={sanitizeHtml(parsedContent)} />
                             
                             {data.tags && data.tags.length > 0 && (
                                 <div class="mt-12 flex flex-wrap gap-2">

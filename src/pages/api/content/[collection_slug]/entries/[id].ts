@@ -1,13 +1,16 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../../../lib/db';
-import { collections, entries, entryTerms } from '../../../../../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { collections, entries, entryTerms, entryRevisions } from '../../../../../db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
 export const PUT: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
     if (!user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+    if (user.role !== 'admin' && user.role !== 'superadmin') {
+        return new Response(JSON.stringify({ error: 'Forbidden: requires admin or superadmin role' }), { status: 403 });
     }
 
     const db = getDb(env);
@@ -34,13 +37,38 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
         let finalSlug = slug || entryRes[0].slug;
 
+        // Map password_protected status to published + visibility field
+        let mappedStatus = status || entryRes[0].status;
+        if (mappedStatus === 'password_protected') {
+            mappedStatus = 'published';
+            customData.visibility = 'password';
+        }
+
+        // Snapshot current state as a revision before updating
+        const oldData = entryRes[0].data;
+        const oldTerms = await db.select({ termId: entryTerms.termId })
+            .from(entryTerms)
+            .where(eq(entryTerms.entryId, entryId));
+        await db.insert(entryRevisions).values({
+            entryId,
+            authorId: user.userId,
+            data: JSON.stringify({
+                slug: entryRes[0].slug,
+                status: entryRes[0].status,
+                ...JSON.parse(oldData || '{}'),
+                terms: oldTerms.map(t => t.termId)
+            }),
+            createdAt: new Date().toISOString()
+        });
+
         // Update Entry
         await db.update(entries).set({
             slug: finalSlug,
-            status: status || entryRes[0].status,
+            status: mappedStatus,
             data: JSON.stringify(customData),
             publishedAt: publishedAt || entryRes[0].publishedAt,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            version: sql`${entries.version} + 1`
         }).where(eq(entries.id, entryId));
 
         // Update Taxonomy Terms
@@ -70,6 +98,9 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
     const user = locals.user;
     if (!user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+    if (user.role !== 'admin' && user.role !== 'superadmin') {
+        return new Response(JSON.stringify({ error: 'Forbidden: requires admin or superadmin role' }), { status: 403 });
     }
 
     const db = getDb(env);

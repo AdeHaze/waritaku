@@ -38,3 +38,12 @@ scripts/migration_report.json
 public_html/
 *.sql
 *.sql.gz
+
+# Waritaku local DB (contains real user data — never commit)
+local.db
+
+# Migrated media dump (belongs in R2/local_uploads)
+public/uploads/
+
+# Raw WP migration data
+migration/

@@ -1,13 +1,10 @@
 import { SignJWT, jwtVerify } from 'jose';
 
 const secretKey = process.env.JWT_SECRET;
-if (!secretKey && process.env.NODE_ENV === 'production') {
-  throw new Error('CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!');
+if (!secretKey) {
+  throw new Error('JWT_SECRET environment variable is required. Set it via `wrangler secret put JWT_SECRET`.');
 }
-
-const JWT_SECRET = new TextEncoder().encode(
-  secretKey || 'super-secret-waritaku-key-local-dev-only'
-);
+const JWT_SECRET = new TextEncoder().encode(secretKey);
 
 export interface SessionPayload {
   userId: number;

@@ -236,20 +236,30 @@ let passwordError = '';
 
 if (pageType === 'article' && data.visibility === 'password') {
     const cookieName = `article_access_${data.id}`;
-    let hasAccess = Astro.cookies.has(cookieName);
-    
+    let hasAccess = false;
+
+    const storedCookie = Astro.cookies.get(cookieName);
+    if (storedCookie && data.password) {
+        const enc = new TextEncoder();
+        const hash = await crypto.subtle.digest('SHA-256', enc.encode(data.password + 'waritaku-salt'));
+        const expected = btoa(String.fromCharCode(...new Uint8Array(hash)));
+        hasAccess = (storedCookie.value === expected);
+    }
+
     if (Astro.request.method === 'POST') {
         const formData = await Astro.request.formData();
         const inputPassword = formData.get('post_password') as string;
-        if (inputPassword === data.password) {
-            // Set cookie for 1 day
-            Astro.cookies.set(cookieName, 'true', { path: '/', maxAge: 60 * 60 * 24 });
+        if (inputPassword && inputPassword === data.password) {
+            const enc = new TextEncoder();
+            const hash = await crypto.subtle.digest('SHA-256', enc.encode(data.password + 'waritaku-salt'));
+            const token = btoa(String.fromCharCode(...new Uint8Array(hash)));
+            Astro.cookies.set(cookieName, token, { path: '/', maxAge: 60 * 60 * 24, httpOnly: true, secure: true, sameSite: 'lax' });
             hasAccess = true;
         } else {
             passwordError = 'Incorrect password.';
         }
     }
-    
+
     if (!hasAccess) {
         showPasswordPrompt = true;
     }
@@ -426,11 +436,16 @@ if (schemaObj && breadcrumbSchema) {
 }
 
 if (data.customSchema) {
-    schemaString = data.customSchema;
+    try {
+        JSON.parse(data.customSchema);
+        schemaString = data.customSchema.replace(/<\/script/gi, '<\\/script');
+    } catch(e) {
+        // Invalid JSON — skip injection
+    }
 }
 
 const acceptHeader = Astro.request.headers.get('Accept') || '';
-if (acceptHeader.includes('text/markdown') && (pageType === 'article' || pageType === 'page')) {
+if (!showPasswordPrompt && acceptHeader.includes('text/markdown') && (pageType === 'article' || pageType === 'page')) {
     let mdContent = parsedContent;
     try {
         const TurndownService = (await import('turndown')).default;

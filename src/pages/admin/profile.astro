@@ -22,7 +22,7 @@ let currentUser: any = null;
 
 let targetUserId = sessionUser.userId;
 const targetIdParam = Astro.url.searchParams.get('id');
-if (targetIdParam && (sessionUser.role === 'admin' || sessionUser.role === 'superadmin')) {
+if (targetIdParam && sessionUser.role === 'superadmin') {
     targetUserId = parseInt(targetIdParam, 10) || sessionUser.userId;
 }
 

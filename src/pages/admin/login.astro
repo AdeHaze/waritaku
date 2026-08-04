@@ -37,40 +37,8 @@ if (Astro.request.method === 'POST') {
       const userResult = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
       const user = userResult[0];
 
-      // Dev backdoor: Seed SuperAdmin for the first login
-      const allUsers = await db.select().from(usersTable).limit(1);
-      const isFirstRun = allUsers.length === 0;
-      const isMigratedAdmin = user && !user.passwordHash && email === 'admin@waritaku.com';
-
-      if (!user || isFirstRun || isMigratedAdmin) {
-        if (isFirstRun || isMigratedAdmin || email === 'admin@waritaku.com') {
-            const hash = await hashPassword(password);
-            
-            let insertedUser;
-            if (user) {
-                await db.update(usersTable).set({ passwordHash: hash, role: 'superadmin' }).where(eq(usersTable.email, email));
-                insertedUser = { ...user, role: 'superadmin' };
-            } else {
-                const newRes = await db.insert(usersTable).values({
-                    name: 'SuperAdmin',
-                    email: email,
-                    passwordHash: hash,
-                    role: 'superadmin'
-                }).returning();
-                insertedUser = newRes[0];
-            }
-
-            const token = await createSessionCookie({
-                userId: insertedUser.id,
-                role: insertedUser.role,
-                name: insertedUser.name,
-                email: insertedUser.email
-            });
-            Astro.cookies.set('session', token, { path: '/', httpOnly: true, secure: true, sameSite: 'lax', maxAge: 60 * 60 * 24 });
-            return Astro.redirect('/admin');
-        } else {
-            error = 'Invalid email or password.';
-        }
+      if (!user) {
+        error = 'Invalid email or password.';
       } else {
         if (!user.passwordHash) {
              error = 'Please reset your password first.';

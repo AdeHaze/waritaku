@@ -15,9 +15,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'No file provided' }), { status: 400 });
     }
 
+    // Validate file type (allow only common image formats)
+    const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'avif'];
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+        return new Response(JSON.stringify({ error: 'File type not allowed. Accepted: JPG, PNG, WebP, GIF, SVG, AVIF.' }), { status: 400 });
+    }
+
+    // Map extensions to MIME types
+    const MIME_MAP: Record<string, string> = {
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+        webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml', avif: 'image/avif'
+    };
+
+    // Validate file size (10 MB max)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+        return new Response(JSON.stringify({ error: 'File too large. Maximum size: 10 MB.' }), { status: 400 });
+    }
+
     // Generate a unique filename
     const arrayBuffer = await file.arrayBuffer();
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     
     // simple random hex string
     const randomHex = [...crypto.getRandomValues(new Uint8Array(8))]
@@ -31,7 +49,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (env && env.UPLOADS) {
         await StorageAdapter.uploadFile(env, uniqueFilename, arrayBuffer, {
             httpMetadata: {
-                contentType: file.type || 'image/jpeg',
+                contentType: MIME_MAP[extension] || 'application/octet-stream',
             },
         });
         

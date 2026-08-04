@@ -102,16 +102,20 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
             });
         });
 
-        const items = results.map(r => ({
-            id: r.entry.id,
-            slug: r.entry.slug,
-            status: r.entry.status,
-            createdAt: r.entry.createdAt,
-            publishedAt: r.entry.publishedAt,
-            authorName: r.author?.name || 'Unknown',
-            terms: termsByEntry[r.entry.id] || [],
-            ...JSON.parse(r.entry.data || '{}')
-        }));
+        const items = results.map(r => {
+            const parsedData = JSON.parse(r.entry.data || '{}');
+            const { password, ...safeData } = parsedData;
+            return {
+                id: r.entry.id,
+                slug: r.entry.slug,
+                status: r.entry.status,
+                createdAt: r.entry.createdAt,
+                publishedAt: r.entry.publishedAt,
+                authorName: r.author?.name || 'Unknown',
+                terms: termsByEntry[r.entry.id] || [],
+                ...safeData
+            };
+        });
 
         return new Response(JSON.stringify({ data: items, total, page, limit }), {
             status: 200,
