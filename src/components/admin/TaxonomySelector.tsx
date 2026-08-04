@@ -12,7 +12,7 @@ export default function TaxonomySelector({ label, taxonomySlug, selectedTerms, o
         setLoading(true);
         try {
             const res = await fetch(`/api/taxonomies/${taxonomySlug}/terms`);
-            const json = await res.json();
+            const json = await res.json() as any;
             if (json.data) {
                 setTerms(json.data);
             }

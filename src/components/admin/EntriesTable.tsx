@@ -38,14 +38,14 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
         const fetchTerms = async () => {
             try {
                 const res = await fetch(`/api/taxonomy-builder`);
-                const taxonomies = await res.json();
+                const taxonomies = await res.json() as any[];
                 const termsList: any[] = [];
                 for (const tax of taxonomies) {
                     try {
                         const allowed = JSON.parse(tax.allowedCollections || '[]');
                         if (allowed.includes(collectionSlug)) {
                             const termRes = await fetch(`/api/taxonomies/${tax.slug}/terms`);
-                            const terms = await termRes.json();
+                            const terms = await termRes.json() as any[];
                             terms.forEach((t: any) => {
                                 termsList.push({ ...t, taxName: tax.label });
                             });
@@ -71,7 +71,7 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
             if (termFilter) url += `&termId=${termFilter}`;
             
             const res = await fetch(url);
-            const json = await res.json();
+            const json = await res.json() as any;
             if (json.data) {
                 setEntries(json.data);
                 setTotal(json.total);

@@ -77,7 +77,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
     
     const response = await next();
 
-    // --- 3. 404 Logging Engine ---
+    // --- 3. Security headers ---
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    if (url.pathname.startsWith('/admin')) {
+        response.headers.set('X-Frame-Options', 'DENY');
+    }
+
+    // --- 4. 404 Logging Engine ---
     if (response.status === 404 && db && enable404Tracking) {
         // Skip logging for Vite internal files during dev to prevent noise
         if (!url.pathname.startsWith('/@') && !url.pathname.startsWith('/node_modules') && url.pathname !== '/favicon.ico') {

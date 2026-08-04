@@ -62,14 +62,19 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         });
 
         // Update Entry
-        await db.update(entries).set({
+        const updateFields: any = {
             slug: finalSlug,
             status: mappedStatus,
             data: JSON.stringify(customData),
             publishedAt: publishedAt || entryRes[0].publishedAt,
             updatedAt: new Date().toISOString(),
             version: sql`${entries.version} + 1`
-        }).where(eq(entries.id, entryId));
+        };
+        // Restore from trash if setting a non-trashed status
+        if (mappedStatus !== 'trashed') {
+            updateFields.deletedAt = null;
+        }
+        await db.update(entries).set(updateFields).where(eq(entries.id, entryId));
 
         // Update Taxonomy Terms
         if (selectedTerms && Array.isArray(selectedTerms)) {
@@ -94,7 +99,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     }
 };
 
-export const DELETE: APIRoute = async ({ params, locals }) => {
+export const DELETE: APIRoute = async ({ params, request, locals }) => {
     const user = locals.user;
     if (!user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
@@ -113,13 +118,28 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
             return new Response(JSON.stringify({ error: 'Collection not found' }), { status: 404 });
         }
 
-        // Delete entry terms first due to FK constraints (handled implicitly by cascade usually, but safe to be explicit)
-        await db.delete(entryTerms).where(eq(entryTerms.entryId, entryId));
-        
-        // Delete entry
-        await db.delete(entries).where(and(eq(entries.id, entryId), eq(entries.collectionId, colRes[0].id)));
+        // Check for permanent deletion flag
+        const url = new URL(request.url);
+        const permanent = url.searchParams.get('permanent') === 'true';
 
-        return new Response(JSON.stringify({ success: true }), {
+        if (permanent) {
+            // Hard delete
+            await db.delete(entryTerms).where(eq(entryTerms.entryId, entryId));
+            await db.delete(entries).where(and(eq(entries.id, entryId), eq(entries.collectionId, colRes[0].id)));
+            return new Response(JSON.stringify({ success: true, permanent: true }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Soft delete: mark as trashed
+        await db.update(entries).set({
+            status: 'trashed',
+            deletedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        }).where(and(eq(entries.id, entryId), eq(entries.collectionId, colRes[0].id)));
+
+        return new Response(JSON.stringify({ success: true, trashed: true }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
         });

@@ -11,8 +11,8 @@ interface Props {
 const { newArticles } = Astro.props;
 
 let widgetHtml = '';
-if (env && env.DB) {
-    const db = getDb(env);
+if (env && (env as any).DB) {
+    const db = getDb(env as any);
     const settingResult = await db.select().from(settings).where(eq(settings.key, 'sidebar_widget_html')).limit(1);
     if (settingResult.length > 0) {
         widgetHtml = settingResult[0].value;

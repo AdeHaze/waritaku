@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown, Plus, Trash2, Settings } from 'lucide-react';
 
-export default function SidebarSettings({ initialWidgets, categories, inputName = "sidebarWidgets" }) {
+type Widget = { id: string; type: string; title: string; [key: string]: any };
+type Category = { id: number | string; name: string };
+
+export default function SidebarSettings({ initialWidgets, categories, inputName = "sidebarWidgets" }: { initialWidgets: Widget[], categories: Category[], inputName?: string }) {
   const [widgets, setWidgets] = useState(initialWidgets || []);
 
-  const updateWidget = (index, updates) => {
+  const updateWidget = (index: number, updates: Partial<Widget>) => {
     const newWidgets = [...widgets];
     newWidgets[index] = { ...newWidgets[index], ...updates };
     setWidgets(newWidgets);
   };
 
-  const moveUp = (index) => {
+  const moveUp = (index: number) => {
     if (index === 0) return;
     const newWidgets = [...widgets];
     const temp = newWidgets[index - 1];
@@ -19,7 +22,7 @@ export default function SidebarSettings({ initialWidgets, categories, inputName 
     setWidgets(newWidgets);
   };
 
-  const moveDown = (index) => {
+  const moveDown = (index: number) => {
     if (index === widgets.length - 1) return;
     const newWidgets = [...widgets];
     const temp = newWidgets[index + 1];
@@ -28,7 +31,7 @@ export default function SidebarSettings({ initialWidgets, categories, inputName 
     setWidgets(newWidgets);
   };
 
-  const removeWidget = (index) => {
+  const removeWidget = (index: number) => {
     if (confirm('Are you sure you want to remove this widget?')) {
       const newWidgets = [...widgets];
       newWidgets.splice(index, 1);
@@ -36,9 +39,9 @@ export default function SidebarSettings({ initialWidgets, categories, inputName 
     }
   };
 
-  const addWidget = (type) => {
+  const addWidget = (type: string) => {
     const id = type + '-' + Date.now();
-    let newWidget = { id, type, title: 'New Widget' };
+    let newWidget: Widget = { id, type, title: 'New Widget' };
     
     if (type === 'recent') {
       newWidget = { ...newWidget, title: 'Terbaru', limit: 5, criteria: 'latest', categoryId: 'all', visibility: 'all' };
@@ -60,7 +63,7 @@ export default function SidebarSettings({ initialWidgets, categories, inputName 
       <input type="hidden" name={inputName} value={JSON.stringify(widgets)} />
       
       <div className="space-y-4">
-        {widgets.map((widget, index) => (
+        {widgets.map((widget: Widget, index: number) => (
           <div key={widget.id} className="bg-card border border-border rounded-xl p-4 shadow-sm relative">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
               <div className="flex items-center gap-2">
@@ -134,7 +137,7 @@ export default function SidebarSettings({ initialWidgets, categories, inputName 
                       className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     >
                       <option value="all">All Categories</option>
-                      {categories.map(c => (
+                      {categories.map((c: Category) => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>

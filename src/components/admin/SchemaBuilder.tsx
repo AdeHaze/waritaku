@@ -48,7 +48,7 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                     supports: JSON.stringify(supports)
                 })
             });
-            const json = await res.json();
+            const json = await res.json() as any;
             if (res.ok) {
                 setMessage('Schema saved successfully!');
             } else {
@@ -111,7 +111,7 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                             <option value="blockbuilder">Block Builder</option>
                         </select>
                         <button 
-                            onClick={() => addField((document.getElementById('addFieldSelect') as HTMLSelectElement).value)}
+                            onClick={() => addField((document.getElementById('addFieldSelect') as unknown as HTMLSelectElement).value)}
                             className="bg-primary text-primary-foreground px-3 py-1.5 rounded text-sm font-medium hover:bg-primary/90 transition-colors"
                         >
                             + Add Field
@@ -310,7 +310,7 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                                 </select>
                                 <button 
                                     onClick={() => {
-                                        const type = (document.getElementById('addBlockSelect') as HTMLSelectElement).value;
+                                        const type = (document.getElementById('addBlockSelect') as unknown as HTMLSelectElement).value;
                                         const currentBlocks = supports.layoutBlocks || [];
                                         setSupports({ 
                                             ...supports, 

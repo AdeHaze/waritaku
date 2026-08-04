@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react';
 
-export default function NavigationSettings({ initialNavbarLinks, initialFooterLinks }) {
+type NavLink = { label: string; url: string };
+type SetList = React.Dispatch<React.SetStateAction<NavLink[]>>;
+
+export default function NavigationSettings({ initialNavbarLinks, initialFooterLinks }: { initialNavbarLinks: NavLink[], initialFooterLinks: NavLink[] }) {
   const [navbarLinks, setNavbarLinks] = useState(initialNavbarLinks || []);
   const [footerLinks, setFooterLinks] = useState(initialFooterLinks || []);
 
-  const updateLink = (list, setList, index, updates) => {
+  const updateLink = (list: NavLink[], setList: SetList, index: number, updates: Partial<NavLink>) => {
     const newList = [...list];
     newList[index] = { ...newList[index], ...updates };
     setList(newList);
   };
 
-  const moveUp = (list, setList, index) => {
+  const moveUp = (list: NavLink[], setList: SetList, index: number) => {
     if (index === 0) return;
     const newList = [...list];
     const temp = newList[index - 1];
@@ -20,7 +23,7 @@ export default function NavigationSettings({ initialNavbarLinks, initialFooterLi
     setList(newList);
   };
 
-  const moveDown = (list, setList, index) => {
+  const moveDown = (list: NavLink[], setList: SetList, index: number) => {
     if (index === list.length - 1) return;
     const newList = [...list];
     const temp = newList[index + 1];
@@ -29,17 +32,17 @@ export default function NavigationSettings({ initialNavbarLinks, initialFooterLi
     setList(newList);
   };
 
-  const removeLink = (list, setList, index) => {
+  const removeLink = (list: NavLink[], setList: SetList, index: number) => {
     const newList = [...list];
     newList.splice(index, 1);
     setList(newList);
   };
 
-  const addLink = (list, setList) => {
+  const addLink = (list: NavLink[], setList: SetList) => {
     setList([...list, { label: 'New Link', url: '/' }]);
   };
 
-  const renderLinkList = (title, list, setList, inputName) => (
+  const renderLinkList = (title: string, list: NavLink[], setList: SetList, inputName: string) => (
     <div className="bg-card border border-border rounded-xl p-6 shadow-sm mb-8">
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
         <h3 className="text-lg font-bold">{title}</h3>
@@ -59,7 +62,7 @@ export default function NavigationSettings({ initialNavbarLinks, initialFooterLi
             <p className="text-sm text-muted-foreground italic text-center py-4">No links added yet.</p>
         )}
         
-        {list.map((link, index) => (
+        {list.map((link: NavLink, index: number) => (
           <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-muted/30 border border-border rounded-lg">
             
             <div className="flex-1 w-full flex flex-col sm:flex-row gap-3">

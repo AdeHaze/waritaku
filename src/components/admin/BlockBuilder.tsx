@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react';
 
+type Block = { id: string; type: string; [key: string]: any };
+
 export default function BlockBuilder({ blocks = [], setBlocks }: any) {
   const [taxonomies, setTaxonomies] = useState<any[]>([]);
   const [terms, setTerms] = useState<any[]>([]);
@@ -8,20 +10,21 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
   useEffect(() => {
     fetch('/api/taxonomies/all')
       .then(res => res.json())
-      .then(data => {
-        setTaxonomies(data.taxonomies || []);
-        setTerms(data.terms || []);
+      .then((data) => {
+        const d = data as { taxonomies?: any[]; terms?: any[] };
+        setTaxonomies(d.taxonomies || []);
+        setTerms(d.terms || []);
       })
       .catch(err => console.error("Error fetching taxonomies:", err));
   }, []);
 
-  const updateBlock = (index, updates) => {
+  const updateBlock = (index: number, updates: Partial<Block>) => {
     const newBlocks = [...blocks];
     newBlocks[index] = { ...newBlocks[index], ...updates };
     setBlocks(newBlocks);
   };
 
-  const moveUp = (index) => {
+  const moveUp = (index: number) => {
     if (index === 0) return;
     const newBlocks = [...blocks];
     const temp = newBlocks[index - 1];
@@ -30,7 +33,7 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
     setBlocks(newBlocks);
   };
 
-  const moveDown = (index) => {
+  const moveDown = (index: number) => {
     if (index === blocks.length - 1) return;
     const newBlocks = [...blocks];
     const temp = newBlocks[index + 1];
@@ -39,7 +42,7 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
     setBlocks(newBlocks);
   };
 
-  const removeBlock = (index) => {
+  const removeBlock = (index: number) => {
     if (confirm('Are you sure you want to remove this block?')) {
       const newBlocks = [...blocks];
       newBlocks.splice(index, 1);
@@ -47,9 +50,9 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
     }
   };
 
-  const addBlock = (type) => {
+  const addBlock = (type: string) => {
     const id = type + '-' + Date.now();
-    let newBlock = { id, type };
+    let newBlock: Block = { id, type };
     
     if (type === 'hero' || type === 'hero_2' || type === 'hero_3') {
       newBlock = { ...newBlock, limit: 5 };
@@ -70,7 +73,7 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
     setBlocks([...blocks, newBlock]);
   };
 
-  const getLayoutBadge = (type) => {
+  const getLayoutBadge = (type: string) => {
     if (['category_block', 'category_block_2'].includes(type)) {
       return <span className="px-2 py-0.5 text-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-500 font-bold rounded">MAIN COLUMN (66%)</span>;
     }
@@ -81,7 +84,7 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
     <div className="space-y-6">
       
       <div className="space-y-4">
-        {blocks.map((block, index) => (
+        {blocks.map((block: Block, index: number) => (
           <div key={block.id} className="bg-card border border-border rounded-xl p-4 shadow-sm relative">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-border">
               <div className="flex items-center gap-3">

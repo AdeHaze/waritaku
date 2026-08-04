@@ -35,14 +35,14 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
     } catch(e) {}
 
     const handleChange = (name: string, value: any) => {
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData((prev: any) => ({ ...prev, [name]: value }));
     };
 
     const loadRevisions = async () => {
         if (!initialEntry?.id) return;
         try {
             const res = await fetch(`/api/content/${collectionSlug}/entries/${initialEntry.id}/revisions`);
-            const json = await res.json();
+            const json = await res.json() as any;
             if (res.ok) {
                 setRevisions(json.data || []);
                 setShowRevisions(true);
@@ -127,7 +127,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                 body: JSON.stringify(formData)
             });
 
-            const json = await res.json();
+            const json = await res.json() as any;
             if (res.ok) {
                 setMessage('Entry saved successfully!');
                 if (!initialEntry?.id) {
@@ -344,6 +344,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                 {taxonomies.map(taxSlug => (
                     <div key={taxSlug} className="bg-card border border-border rounded-xl shadow-sm p-6 mt-6">
                         <TaxonomySelector 
+                            label={taxSlug}
                             taxonomySlug={taxSlug}
                             selectedTerms={formData.selectedTerms || []}
                             onChange={(terms) => handleChange('selectedTerms', terms)}

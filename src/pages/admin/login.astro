@@ -1,5 +1,5 @@
 ---
-import AdminLayout from '../../layouts/AdminLayout.astro';
+import '../../styles/global.css';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { users as usersTable, settings } from '../../db/schema';
@@ -24,6 +24,23 @@ if (env && (env as any).DB) {
 }
 
 if (Astro.request.method === 'POST') {
+  // Rate limiting: 5 attempts max, 60s cooldown
+  const rateCookie = Astro.cookies.get('login_rate');
+  let attempts = 0;
+  let cooldownUntil = 0;
+  if (rateCookie) {
+    try {
+      const parsed = JSON.parse(rateCookie.value);
+      attempts = parsed.a || 0;
+      cooldownUntil = parsed.t || 0;
+    } catch {}
+  }
+  const now = Date.now();
+  if (cooldownUntil > now) {
+    const waitSeconds = Math.ceil((cooldownUntil - now) / 1000);
+    error = `Too many attempts. Please wait ${waitSeconds} seconds.`;
+    // Skip processing — fall through to the form render below
+  } else {
   try {
     const data = await Astro.request.formData();
     const email = data.get('email') as string;
@@ -39,12 +56,16 @@ if (Astro.request.method === 'POST') {
 
       if (!user) {
         error = 'Invalid email or password.';
+        attempts++;
       } else {
         if (!user.passwordHash) {
              error = 'Please reset your password first.';
+             attempts++;
         } else {
             const isValid = await verifyPassword(password, user.passwordHash);
             if (isValid) {
+                // Clear rate limit cookie on success
+                Astro.cookies.delete('login_rate', { path: '/admin/login' });
                 const token = await createSessionCookie({
                     userId: user.id,
                     role: user.role,
@@ -55,13 +76,21 @@ if (Astro.request.method === 'POST') {
                 return Astro.redirect('/admin');
             } else {
                 error = 'Invalid email or password.';
+                attempts++;
             }
         }
       }
     }
   } catch (e: any) {
     error = e.message;
+    attempts++;
   }
+  // Set rate limit cookie after failed attempt
+  if (attempts > 0) {
+    const ratePayload = { a: attempts, t: attempts >= 5 ? Date.now() + 60000 : 0 };
+    Astro.cookies.set('login_rate', JSON.stringify(ratePayload), { path: '/admin/login', maxAge: 300, httpOnly: true, sameSite: 'lax' });
+  }
+  } // end rate-check else
 }
 ---
 
@@ -70,78 +99,144 @@ if (Astro.request.method === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Waritaku - Admin Login</title>
+    <title>Waritaku CMS — Sign In</title>
+    <style>
+        /* Animated gradient background */
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        @keyframes logoPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(var(--primary-rgb, 99, 102, 241), 0.3); }
+            50% { box-shadow: 0 0 40px rgba(var(--primary-rgb, 99, 102, 241), 0.6); }
+        }
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes floatShape {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-6px) rotate(1deg); }
+            66% { transform: translateY(3px) rotate(-1deg); }
+        }
+        .animate-fade-in { animation: fadeSlideUp 0.6s ease-out both; }
+        .animate-fade-in-delay-1 { animation-delay: 0.1s; }
+        .animate-fade-in-delay-2 { animation-delay: 0.2s; }
+        .animate-fade-in-delay-3 { animation-delay: 0.3s; }
+        .animate-logo { animation: logoPulse 3s ease-in-out infinite; }
+        .input-icon-wrapper { position: relative; }
+        .input-icon-wrapper svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; z-index: 1; }
+        .input-icon-wrapper input { padding-left: 44px; }
+    </style>
 </head>
-<body class="bg-background text-foreground flex min-h-screen">
+<body class="bg-background text-foreground flex min-h-screen overflow-hidden">
+
+<!-- Subtle animated gradient backdrop -->
+<div class="fixed inset-0 z-0 opacity-[0.03]" style="background: radial-gradient(ellipse at 20% 50%, var(--color-primary, #6366f1) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, var(--color-primary, #6366f1) 0%, transparent 50%); background-size: 200% 200%; animation: gradientShift 15s ease infinite;"></div>
 
 <!-- Left Side: Login Box -->
-<div class="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-12 bg-background relative z-10">
-    <div class="w-full max-w-md space-y-8">
-        <div class="text-center space-y-2 mb-10">
+<div class="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-10 lg:p-14 bg-background/80 backdrop-blur-sm relative z-10">
+    <div class="w-full max-w-[420px] space-y-6">
+
+        <!-- Logo + Brand -->
+        <div class="text-center animate-fade-in">
             <div class="flex justify-center mb-6">
-                <div class="w-16 h-16 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3 hover:rotate-0 transition-transform cursor-pointer">
-                    <span class="font-black text-4xl tracking-tighter">W</span>
+                <div class="w-20 h-20 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center shadow-2xl transform -rotate-3 hover:rotate-0 transition-all duration-500 cursor-default animate-logo">
+                    <span class="font-black text-5xl tracking-tighter leading-none" style="text-shadow: 0 2px 8px rgba(0,0,0,0.3);">W</span>
                 </div>
             </div>
-            <h1 class="text-3xl font-bold tracking-tight">Welcome Back</h1>
-            <p class="text-muted-foreground text-sm">Enter your credentials to access the Waritaku CMS</p>
+            <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
+                Waritaku <span class="text-primary">CMS</span>
+            </h1>
+            <p class="text-muted-foreground/70 text-sm mt-2 font-medium">
+                Sign in to your dashboard
+            </p>
         </div>
 
+        <!-- Error -->
         {error && (
-            <div class="bg-destructive/15 text-destructive text-sm font-medium p-4 rounded-xl mb-6 text-center border border-destructive/20 shadow-sm">
+            <div class="animate-fade-in animate-fade-in-delay-1 bg-destructive/10 text-destructive text-sm font-semibold p-4 rounded-2xl text-center border border-destructive/20 shadow-sm backdrop-blur-sm flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                 {error}
             </div>
         )}
 
-        <form method="POST" class="space-y-5">
-            <div class="space-y-2">
-                <label for="email" class="text-sm font-bold tracking-wide uppercase text-muted-foreground">Email</label>
-                <input 
-                    type="email" 
-                    id="email" 
-                    name="email" 
-                    required 
-                    class="flex h-12 w-full rounded-xl border-2 border-input bg-background/50 px-4 py-2 text-base ring-offset-background placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 transition-all"
-                    placeholder="admin@waritaku.com"
-                />
-            </div>
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <label for="password" class="text-sm font-bold tracking-wide uppercase text-muted-foreground">Password</label>
-                    <a href="/admin/forgot-password" class="text-sm font-bold text-primary hover:underline">Forgot?</a>
+        <!-- Form Card -->
+        <div class="animate-fade-in animate-fade-in-delay-2 bg-card/60 backdrop-blur-xl border border-border/50 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/5">
+            <form method="POST" class="space-y-5" autocomplete="off">
+                <!-- Email -->
+                <div class="space-y-1.5 input-icon-wrapper">
+                    <label for="email" class="text-xs font-bold tracking-widest uppercase text-muted-foreground/60">Email Address</label>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted-foreground/40"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        required 
+                        autocomplete="email"
+                        class="flex h-12 w-full rounded-2xl border-2 border-input bg-background/40 px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground/30 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10 transition-all duration-200"
+                        placeholder="name@waritaku.com"
+                    />
                 </div>
-                <input 
-                    type="password" 
-                    id="password" 
-                    name="password" 
-                    required 
-                    class="flex h-12 w-full rounded-xl border-2 border-input bg-background/50 px-4 py-2 text-base ring-offset-background placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 transition-all"
-                    placeholder="••••••••"
-                />
-            </div>
-            
-            <button type="submit" class="w-full h-12 mt-8 bg-primary text-primary-foreground font-bold tracking-widest uppercase rounded-xl shadow-md hover:bg-primary/90 hover:shadow-lg hover:-translate-y-0.5 transition-all active:translate-y-0">
-                Sign In
-            </button>
-            
-            <p class="text-xs text-center text-muted-foreground mt-8 leading-relaxed">
-                Need help? <br/> Contact your SuperAdmin or <a href="/admin/forgot-password" class="underline hover:text-foreground">reset your password</a>.
+
+                <!-- Password -->
+                <div class="space-y-1.5 input-icon-wrapper">
+                    <div class="flex items-center justify-between">
+                        <label for="password" class="text-xs font-bold tracking-widest uppercase text-muted-foreground/60">Password</label>
+                        <a href="/admin/forgot-password" class="text-xs font-bold text-primary hover:text-primary/80 transition-colors">Forgot?</a>
+                    </div>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted-foreground/40"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        required 
+                        autocomplete="current-password"
+                        class="flex h-12 w-full rounded-2xl border-2 border-input bg-background/40 px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground/30 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10 transition-all duration-200"
+                        placeholder="Enter your password"
+                    />
+                </div>
+                
+                <!-- Submit -->
+                <button type="submit" class="w-full h-12 mt-6 bg-primary text-primary-foreground font-bold tracking-widest uppercase rounded-2xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 hover:bg-primary/95 active:translate-y-0 active:shadow-md transition-all duration-200 flex items-center justify-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    Sign In
+                </button>
+            </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="animate-fade-in animate-fade-in-delay-3 text-center space-y-2">
+            <p class="text-xs text-muted-foreground/50">
+                Need help? Contact your <span class="text-foreground/70 font-semibold">SuperAdmin</span> or <a href="/admin/forgot-password" class="text-primary/80 hover:text-primary underline underline-offset-2 transition-colors">reset your password</a>.
             </p>
-        </form>
+            <p class="text-[10px] text-muted-foreground/30 font-mono tracking-wider">
+                WARITAKU CMS — ASTRO + CLOUDFLARE
+            </p>
+        </div>
     </div>
 </div>
 
 <!-- Right Side: Configurable Display -->
-<div class="hidden lg:flex lg:w-1/2 bg-muted relative overflow-hidden items-center justify-center">
+<div class="hidden lg:flex lg:w-1/2 bg-muted relative overflow-hidden items-center justify-center z-10">
     {systemLoginHtml ? (
         <div set:html={systemLoginHtml} class="w-full h-full [&>img]:w-full [&>img]:h-full [&>img]:object-cover" />
     ) : (
         <div class="w-full h-full relative">
-            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop" class="w-full h-full object-cover opacity-90" alt="Waritaku Default Login Background" />
-            <div class="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent"></div>
-            <div class="absolute bottom-12 left-12 right-12">
-                <h2 class="text-4xl font-black text-white mb-2 drop-shadow-md">Create Without Limits</h2>
-                <p class="text-white/80 text-lg font-medium drop-shadow-md">You can customize this image in Settings &gt; System Login HTML.</p>
+            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop" class="w-full h-full object-cover opacity-90" alt="" />
+            <div class="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-background/40 to-transparent"></div>
+            <!-- Decorative floating shape -->
+            <div class="absolute top-20 right-20 w-32 h-32 rounded-full bg-primary/10 backdrop-blur-3xl" style="animation: floatShape 8s ease-in-out infinite;"></div>
+            <div class="absolute bottom-40 right-40 w-24 h-24 rounded-full bg-primary/5 backdrop-blur-3xl" style="animation: floatShape 6s ease-in-out infinite 1s;"></div>
+            <div class="absolute bottom-16 left-16 right-16">
+                <p class="text-sm text-white/50 font-mono tracking-widest uppercase mb-3">Waritaku CMS</p>
+                <h2 class="text-4xl sm:text-5xl font-black text-white mb-3 drop-shadow-lg leading-tight">
+                    Craft stories.<br/><span class="text-primary/80">Ship faster.</span>
+                </h2>
+                <p class="text-white/60 text-sm font-medium max-w-md leading-relaxed">
+                    A modern content platform built for speed. Customize this panel in <span class="text-white/80 font-semibold">Settings → System Login HTML</span>.
+                </p>
             </div>
         </div>
     )}

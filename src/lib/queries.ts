@@ -1,5 +1,30 @@
-import { eq, and, desc, sql, like } from 'drizzle-orm';
+import { eq, and, desc, sql, like, gte, lte } from 'drizzle-orm';
 import { entries, collections, users, terms, taxonomies, entryTerms, settings } from '../db/schema';
+
+function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
+    if (!json) return fallback;
+    try { return JSON.parse(json); } catch { return fallback; }
+}
+
+// Batched version of getCanonicalUrl — single query for all entry IDs
+export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Record<number, string>> {
+    if (!entryIds.length) return {};
+    const { inArray } = await import('drizzle-orm');
+    const results = await db.select({
+        entryId: entryTerms.entryId,
+        termSlug: terms.slug
+    })
+    .from(entryTerms)
+    .innerJoin(terms, eq(entryTerms.termId, terms.id))
+    .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+    .where(and(
+        inArray(entryTerms.entryId, entryIds),
+        eq(taxonomies.prefixEntryUrl, true)
+    ));
+    const map: Record<number, string> = {};
+    for (const r of results) map[r.entryId] = r.termSlug;
+    return map;
+}
 
 export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: string) => {
     const prefixRes = await db.select({ termSlug: terms.slug })
@@ -27,25 +52,38 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
     const articlesCol = await getCollection('articles');
     const pagesCol = await getCollection('pages');
 
-    // 0. Check Date Archive (e.g., 2025/03 or 2025/03/15)
+    // 0. Check Date Archive (e.g., 2025/03 or 2025/03/15) — WIB (UTC+7) aware
     const dateMatch = slug.match(/^(\d{4})\/(\d{2})(?:\/(\d{2}))?$/);
     if (dateMatch && articlesCol) {
         const year = dateMatch[1];
         const month = dateMatch[2];
-        const day = dateMatch[3]; // optional
+        const day = dateMatch[3];
 
         const monthNamesIndo = [
             'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
         ];
-        const monthIndex = parseInt(month, 10) - 1;
-        const monthName = monthNamesIndo[monthIndex] || month;
+        const monthName = monthNamesIndo[parseInt(month, 10) - 1] || month;
 
         const archiveTitle = day 
             ? `Arsip: ${day} ${monthName} ${year}`
             : `Arsip: ${monthName} ${year}`;
 
-        const datePrefix = day ? `${year}-${month}-${day}%` : `${year}-${month}-%`;
+        // Compute UTC bounds for the WIB date range
+        const pad = (s: string, n: number) => String(s).padStart(n, '0');
+        const isoStart = `${year}-${pad(month,2)}-${pad(day || '01',2)}T00:00:00.000+07:00`;
+        const utcStart = new Date(isoStart).toISOString();
+        
+        let utcEnd: string;
+        if (day) {
+            const isoEnd = `${year}-${pad(month,2)}-${pad(day,2)}T23:59:59.999+07:00`;
+            utcEnd = new Date(isoEnd).toISOString();
+        } else {
+            const nextMonth = parseInt(month) === 12 ? 1 : parseInt(month) + 1;
+            const nextYear = parseInt(month) === 12 ? parseInt(year) + 1 : parseInt(year);
+            const isoEnd = `${nextYear}-${pad(String(nextMonth),2)}-01T00:00:00.000+07:00`;
+            utcEnd = new Date(new Date(isoEnd).getTime() - 1).toISOString();
+        }
 
         // Count query
         const countResult = await db.select({ count: sql<number>`count(*)` })
@@ -54,7 +92,8 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 and(
                     eq(entries.collectionId, articlesCol.id),
                     eq(entries.status, 'published'),
-                    like(entries.publishedAt, datePrefix)
+                    gte(entries.publishedAt, utcStart),
+                    lte(entries.publishedAt, utcEnd)
                 )
             );
 
@@ -72,7 +111,8 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             and(
                 eq(entries.collectionId, articlesCol.id),
                 eq(entries.status, 'published'),
-                like(entries.publishedAt, datePrefix)
+                gte(entries.publishedAt, utcStart),
+                lte(entries.publishedAt, utcEnd)
             )
         )
         .orderBy(desc(entries.publishedAt))
@@ -80,7 +120,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         .offset((currentPage - 1) * pageSize);
 
         const categoryArticles = entriesResult.map((r: any) => {
-            const data = JSON.parse(r.entry.data || '{}');
+            const data = safeJsonParse(r.entry.data, {});
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
@@ -137,7 +177,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             return { redirect: `/${canonicalUrl}` };
         }
 
-        const parsedData = JSON.parse(entry.data || '{}');
+        const parsedData = safeJsonParse(entry.data, {});
         const genSlug = author?.name ? author.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : 'writer';
         
         let collectionSupports = {};
@@ -300,13 +340,18 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             .offset((currentPage - 1) * pageSize);
 
         const categoryArticles = [];
+        // Batch canonical URL lookup — single query instead of N
+        const entryIds = articlesResult.map((r: any) => r.entry.id);
+        const canonicalMap = await getCanonicalUrls(db, entryIds);
+        
         for (const r of articlesResult) {
-            const data = JSON.parse(r.entry.data || '{}');
+            const data = safeJsonParse(r.entry.data, {});
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
             
-            const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
+            const prefixSlug = canonicalMap[r.entry.id];
+            const canonicalUrl = prefixSlug ? `/${prefixSlug}/${r.entry.slug}` : `/${r.entry.slug}`;
 
             categoryArticles.push({
                 id: r.entry.id,

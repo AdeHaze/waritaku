@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import GlobalSidebar from '../components/GlobalSidebar.astro';
 import { entries as articlesTable, users, collections } from '../db/schema';
-import { eq, and, desc, sql, like } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
 import { getDb } from '../lib/db';
 import { getCanonicalUrl } from '../lib/queries';
@@ -16,8 +16,8 @@ let searchResults: any[] = [];
 let totalPages = 1;
 let totalItems = 0;
 
-if (env && env.DB && query.trim() !== '') {
-    const db = getDb(env);
+if (env && (env as any).DB && query.trim() !== '') {
+    const db = getDb(env as any);
     const searchTerm = `%${query}%`;
     
     const articlesCol = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
@@ -32,7 +32,7 @@ if (env && env.DB && query.trim() !== '') {
                 and(
                     eq(articlesTable.status, 'published'),
                     eq(articlesTable.collectionId, colId),
-                    like(articlesTable.title, searchTerm)
+                    sql`json_extract(${articlesTable.data}, '$.title') LIKE ${searchTerm}`
                 )
             );
             
@@ -51,7 +51,7 @@ if (env && env.DB && query.trim() !== '') {
             and(
                 eq(articlesTable.status, 'published'),
                 eq(articlesTable.collectionId, colId),
-                like(articlesTable.title, searchTerm)
+                sql`json_extract(${articlesTable.data}, '$.title') LIKE ${searchTerm}`
             )
         )
         .orderBy(desc(articlesTable.publishedAt))
@@ -61,7 +61,7 @@ if (env && env.DB && query.trim() !== '') {
         const articlesResult = await articlesQuery;
 
         searchResults = await Promise.all(articlesResult.map(async r => {
-            let data = {};
+            let data: any = {};
             try { data = JSON.parse(r.article.data || '{}'); } catch(e){}
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(new RegExp('<[^>]+>', 'g'), '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();

@@ -77,7 +77,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
             
             try {
                 const res = await fetch('/api/upload', { method: 'POST', body: formData });
-                const data = await res.json();
+                const data = await res.json() as any;
                 if (data.url) {
                     handleImageInsert(data.url);
                 } else {

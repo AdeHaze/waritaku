@@ -20,9 +20,9 @@ let footerConfig = {
     copyright: 'Waritaku - Formerly Known As Wibumesta. All rights reserved.'
 };
 
-if (env && env.DB) {
+if (env && (env as any).DB) {
     try {
-        const db = getDb(env);
+        const db = getDb(env as any);
         const records = await db.select().from(settings).where(inArray(settings.key, ['footer_links', 'general_settings', 'footer_config', 'global_navigation_layout']));
         
         let hasGeneralSettings = false;

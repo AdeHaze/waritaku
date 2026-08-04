@@ -2,7 +2,7 @@
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import { getDb } from '../../../../lib/db';
 import { taxonomies, terms } from '../../../../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc, like, and, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
 const user = Astro.locals.user;
@@ -19,8 +19,16 @@ if (taxRes.length === 0) {
 }
 const taxonomy = taxRes[0];
 
-let message = '';
-let isError = false;
+const url = new URL(Astro.request.url);
+let message = url.searchParams.get('message') || '';
+let messageType = url.searchParams.get('type') || ''; // 'success' or 'error'
+let isError = messageType === 'error';
+
+// Query params for search / pagination / sort
+const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+const limit = 50;
+const search = url.searchParams.get('search') || '';
+const sort = url.searchParams.get('sort') || 'id_desc';
 
 if (Astro.request.method === 'POST') {
     try {
@@ -45,12 +53,34 @@ if (Astro.request.method === 'POST') {
                     name,
                     slug: finalSlug
                 });
-                message = 'Term created successfully.';
+                const u = new URL(Astro.request.url);
+                u.searchParams.set('message', 'Term created successfully.');
+                u.searchParams.set('type', 'success');
+                return Astro.redirect(u.pathname + u.search, 303);
             }
         } else if (action === 'delete') {
             const termId = parseInt(formData.get('termId') as string, 10);
             await db.delete(terms).where(eq(terms.id, termId));
-            message = 'Term deleted successfully.';
+            const u = new URL(Astro.request.url);
+            u.searchParams.set('message', 'Term deleted successfully.');
+            u.searchParams.set('type', 'success');
+            return Astro.redirect(u.pathname + u.search, 303);
+        } else if (action === 'update') {
+            const termId = parseInt(formData.get('termId') as string, 10);
+            const newName = (formData.get('name') as string)?.trim();
+            const newSlug = (formData.get('slug') as string)?.trim();
+            if (!newName) {
+                message = 'Name is required.';
+                isError = true;
+            } else {
+                const updateData: any = { name: newName };
+                if (newSlug) updateData.slug = newSlug;
+                await db.update(terms).set(updateData).where(eq(terms.id, termId));
+                const u = new URL(Astro.request.url);
+                u.searchParams.set('message', 'Term updated successfully.');
+                u.searchParams.set('type', 'success');
+                return Astro.redirect(u.pathname + u.search, 303);
+            }
         }
     } catch (e: any) {
         message = e.message;
@@ -58,7 +88,45 @@ if (Astro.request.method === 'POST') {
     }
 }
 
-const allTerms = await db.select().from(terms).where(eq(terms.taxonomyId, taxonomy.id)).orderBy(desc(terms.id));
+// Build query with search/sort/pagination
+let termConditions: any = eq(terms.taxonomyId, taxonomy.id);
+if (search) {
+    termConditions = and(termConditions, like(terms.name, `%${search}%`));
+}
+
+// Count total
+const countRes = await db.select({ count: sql<number>`count(*)` })
+    .from(terms)
+    .where(termConditions);
+const totalTerms = countRes[0]?.count || 0;
+const totalPages = Math.ceil(totalTerms / limit);
+
+// Sort
+let orderFn = desc(terms.id);
+if (sort === 'name_asc') orderFn = asc(terms.name);
+else if (sort === 'name_desc') orderFn = desc(terms.name);
+else if (sort === 'slug_asc') orderFn = asc(terms.slug);
+
+const allTerms = await db.select()
+    .from(terms)
+    .where(termConditions)
+    .orderBy(orderFn)
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+// Build pagination links helper
+function pageUrl(p: number) {
+    const u = new URL(Astro.request.url);
+    u.searchParams.set('page', String(p));
+    return u.pathname + u.search;
+}
+
+function sortUrl(s: string) {
+    const u = new URL(Astro.request.url);
+    u.searchParams.set('sort', s);
+    u.searchParams.delete('page');
+    return u.pathname + u.search;
+}
 ---
 
 <AdminLayout title={`${taxonomy.label} - Management`}>
@@ -103,34 +171,109 @@ const allTerms = await db.select().from(terms).where(eq(terms.taxonomyId, taxono
         <!-- Terms List -->
         <div class="lg:col-span-2">
             <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+                <!-- Toolbar: search, stats, sort -->
+                <div class="p-4 border-b border-border bg-muted/20 space-y-3">
+                    <form method="GET" class="flex gap-2">
+                        <input 
+                            type="search" 
+                            name="search" 
+                            value={search} 
+                            placeholder="Search terms..."
+                            class="flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <button type="submit" class="px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors">
+                            Search
+                        </button>
+                        {search && (
+                            <a href={Astro.url.pathname} class="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border border-input rounded-lg transition-colors">
+                                Clear
+                            </a>
+                        )}
+                    </form>
+                    <div class="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                            {totalTerms} term{totalTerms !== 1 ? 's' : ''}
+                            {search && <span> matching "<strong class="text-foreground">{search}</strong>"</span>}
+                            {totalPages > 1 && <span> — page {page} of {totalPages}</span>}
+                        </span>
+                        <div class="flex items-center gap-1">
+                            <span class="mr-1">Sort:</span>
+                            {[
+                                { key: 'id_desc', label: 'Newest' },
+                                { key: 'name_asc', label: 'Name ↑' },
+                                { key: 'name_desc', label: 'Name ↓' },
+                                { key: 'slug_asc', label: 'Slug' },
+                            ].map(opt => (
+                                <a href={sortUrl(opt.key)} class={`px-2 py-1 rounded-md transition-colors ${sort === opt.key ? 'bg-primary text-primary-foreground font-semibold' : 'hover:bg-muted'}`}>
+                                    {opt.label}
+                                </a>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
                         <thead class="text-xs text-muted-foreground uppercase bg-muted/30 border-b border-border">
                             <tr>
+                                <th class="px-6 py-4 font-semibold w-12">#</th>
                                 <th class="px-6 py-4 font-semibold">Name</th>
-                                <th class="px-6 py-4 text-right font-semibold">Actions</th>
+                                <th class="px-6 py-4 text-right font-semibold w-24">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-border">
                             {allTerms.length === 0 ? (
                                 <tr>
-                                    <td colspan="3" class="px-6 py-8 text-center text-muted-foreground">No terms found.</td>
+                                    <td colspan="3" class="px-6 py-12 text-center text-muted-foreground">
+                                        {search ? 'No terms match your search.' : 'No terms yet. Add your first one.'}
+                                    </td>
                                 </tr>
                             ) : (
-                                allTerms.map(term => (
+                                allTerms.map((term, i) => (
                                     <tr class="hover:bg-muted/10 transition-colors group">
-                                        <td class="px-6 py-4 font-medium text-foreground">
+                                        <td class="px-6 py-4 text-muted-foreground text-xs font-mono">
+                                            {(page - 1) * limit + i + 1}
+                                        </td>
+                                        <td class="px-6 py-4 font-medium text-foreground term-view">
                                             <div class="flex flex-col">
                                                 <span>{term.name}</span>
                                                 <span class="text-xs text-muted-foreground font-mono mt-0.5">/{term.slug}</span>
                                             </div>
                                         </td>
                                         <td class="px-6 py-4 text-right">
-                                            <form method="POST" class="inline-block" onsubmit="return confirm('Delete this term?');">
-                                                <input type="hidden" name="action" value="delete" />
+                                            <div class="flex items-center justify-end gap-1">
+                                                <button type="button" onclick="const row=this.closest('tr'); const editRow=row.nextElementSibling; row.classList.add('hidden'); editRow.classList.remove('hidden');" class="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="Edit">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                                                </button>
+                                                <form method="POST" class="inline-block" onsubmit={`return confirm('Delete "${term.name}"?');`}>
+                                                    <input type="hidden" name="action" value="delete" />
+                                                    <input type="hidden" name="termId" value={term.id} />
+                                                    <button type="submit" class="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Delete">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <!-- Inline edit row -->
+                                    <tr class="term-edit hidden bg-muted/5 border-b border-border">
+                                        <td colspan="3" class="px-6 py-4">
+                                            <form method="POST" class="flex items-end gap-3 flex-wrap">
+                                                <input type="hidden" name="action" value="update" />
                                                 <input type="hidden" name="termId" value={term.id} />
-                                                <button type="submit" class="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Delete">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                                <div class="flex-1 min-w-[140px]">
+                                                    <label class="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Name</label>
+                                                    <input type="text" name="name" value={term.name} required class="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary" />
+                                                </div>
+                                                <div class="w-40">
+                                                    <label class="block text-[10px] font-bold uppercase text-muted-foreground mb-1">Slug</label>
+                                                    <input type="text" name="slug" value={term.slug} class="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary font-mono text-xs" />
+                                                </div>
+                                                <button type="submit" class="px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 transition-colors">
+                                                    Save
+                                                </button>
+                                                <button type="button" onclick="const editRow=this.closest('tr'); const row=editRow.previousElementSibling; editRow.classList.add('hidden'); row.classList.remove('hidden');" class="px-3 py-2 text-sm text-muted-foreground hover:text-foreground border border-input rounded-lg transition-colors">
+                                                    Cancel
                                                 </button>
                                             </form>
                                         </td>
@@ -140,6 +283,44 @@ const allTerms = await db.select().from(terms).where(eq(terms.taxonomyId, taxono
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Pagination -->
+                {totalPages > 1 && (
+                    <div class="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/10">
+                        <span class="text-xs text-muted-foreground">
+                            Showing {(page - 1) * limit + 1}–{Math.min(page * limit, totalTerms)} of {totalTerms}
+                        </span>
+                        <div class="flex items-center gap-1">
+                            {page > 1 && (
+                                <a href={pageUrl(page - 1)} class="px-3 py-1.5 text-sm border border-input rounded-lg hover:bg-muted transition-colors">
+                                    ← Prev
+                                </a>
+                            )}
+                            {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+                                let p: number;
+                                if (totalPages <= 7) {
+                                    p = i + 1;
+                                } else if (page <= 4) {
+                                    p = i + 1;
+                                } else if (page >= totalPages - 3) {
+                                    p = totalPages - 6 + i;
+                                } else {
+                                    p = page - 3 + i;
+                                }
+                                return (
+                                    <a href={pageUrl(p)} class={`px-3 py-1.5 text-sm rounded-lg transition-colors ${p === page ? 'bg-primary text-primary-foreground font-semibold' : 'border border-input hover:bg-muted'}`}>
+                                        {p}
+                                    </a>
+                                );
+                            })}
+                            {page < totalPages && (
+                                <a href={pageUrl(page + 1)} class="px-3 py-1.5 text-sm border border-input rounded-lg hover:bg-muted transition-colors">
+                                    Next →
+                                </a>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     </div>
