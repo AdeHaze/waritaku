@@ -18,8 +18,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
     try {
         const revisions = await db.select({
-            revision: entryRevisions,
-            author: users
+            id: entryRevisions.id,
+            data: entryRevisions.data,
+            createdAt: entryRevisions.createdAt,
+            authorName: users.name
         })
             .from(entryRevisions)
             .leftJoin(users, eq(entryRevisions.authorId, users.id))

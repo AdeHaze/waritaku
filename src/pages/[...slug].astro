@@ -35,6 +35,7 @@ const pageSize = 12;
 let pageType: 'article' | 'page' | 'category' | null = null;
 let data: any = null;
 let categoryArticles: any[] = [];
+let termsList: any[] = [];
 let totalPages = 1;
 let articleUpperHtml = '';
 let articleBottomHtml = '';
@@ -49,7 +50,8 @@ let blockData: Record<string, any> = {};
 
 if (env && env.DB && slug) {
   const db = getDb(env);
-  const resolved = await resolveRouteData(db, slug, currentPage, pageSize);
+  const sortTermBy = Astro.url.searchParams.get('sort') || 'popular';
+  const resolved = await resolveRouteData(db, slug, currentPage, pageSize, sortTermBy);
   if (resolved) {
       if (resolved.redirect) {
           return Astro.redirect(resolved.redirect, 301);
@@ -57,6 +59,7 @@ if (env && env.DB && slug) {
       pageType = resolved.pageType;
       data = resolved.data;
       categoryArticles = resolved.categoryArticles;
+      termsList = resolved.termsList || [];
       totalPages = resolved.totalPages || 1;
       articleUpperHtml = resolved.articleUpperHtml || '';
       articleBottomHtml = resolved.articleBottomHtml || '';
@@ -515,9 +518,9 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
     headerStyle={headerStyle} 
     footerStyle={footerStyle} 
     canonicalUrl={Astro.url.origin + (data.canonicalUrl ? data.canonicalUrl : `/${data.slug}`)}
-    noindex={data.taxonomy?.allowIndexing === false}
+    noindex={pageType === 'taxonomy_archive' ? (data.taxonomy?.umbrellaAllowIndexing === false || data.taxonomy?.umbrellaAllowIndexing === 0) : (data.taxonomy?.allowIndexing === false || data.taxonomy?.allowIndexing === 0)}
 >
-    {pageType === 'category' && (
+    {(pageType === 'category' || pageType === 'collection_archive') && (
         <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
             <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
                 
@@ -530,7 +533,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                 <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'}`}>
                     <div class="mb-12 border-b-4 border-primary pb-2 flex justify-between items-end">
                         <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight uppercase text-foreground">
-                            Kategori: {data.name} {currentPage > 1 ? `(Page ${currentPage})` : ''}
+                            {pageType === 'collection_archive' ? data.title : `Kategori: ${data.name}`} {currentPage > 1 ? `(Page ${currentPage})` : ''}
                         </h1>
                         <ViewToggle />
                     </div>
@@ -552,7 +555,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                                         <span>&bull;</span>
                                         <time class="flex-shrink-0">{new Date(article.publishedAt).toLocaleDateString()}</time>
                                         <span class="hidden md:inline">&bull;</span>
-                                        <span class="hidden md:inline text-primary truncate max-w-[120px]">{data.name}</span>
+                                        <span class="hidden md:inline text-primary truncate max-w-[120px]">{article.categoryName || data.name}</span>
                                     </div>
                                     <h3 class="text-base md:text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-3 mb-2">
                                         {article.title}
@@ -568,7 +571,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                     <Pagination 
                         currentPage={currentPage} 
                         totalPages={totalPages} 
-                        baseUrl={`/${data.slug}`} 
+                        baseUrl={`/${data.slug || slug}`} 
                     />
                 </div>
 
@@ -581,13 +584,93 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
         </div>
     )}
 
+    {pageType === 'taxonomy_archive' && (
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+            <div class="mb-12 border-b-4 border-primary pb-2 text-center">
+                <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight uppercase text-foreground">
+                    Directory: {data.title} {currentPage > 1 ? `(Page ${currentPage})` : ''}
+                </h1>
+            </div>
+            
+            {data.taxonomy?.umbrellaViewMode === 'all_entries' ? (
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {categoryArticles && categoryArticles.map((article: any) => (
+                        <a href={article.canonicalUrl} class="group block border-2 border-border/50 rounded-2xl overflow-hidden hover:border-primary/50 hover:shadow-lg transition-all flex flex-col h-full bg-card">
+                            {(article.featuredImageUrl || getThumbnail(article.content)) && (
+                                <div class="aspect-video w-full overflow-hidden bg-muted">
+                                    <img 
+                                        src={article.featuredImageUrl || getThumbnail(article.content)} 
+                                        alt={article.title} 
+                                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                        loading="lazy"
+                                    />
+                                </div>
+                            )}
+                            <div class="p-6 flex flex-col flex-grow">
+                                <div class="flex items-center space-x-2 text-[10px] uppercase font-bold tracking-wider mb-2 text-muted-foreground flex-wrap">
+                                    <span class="truncate max-w-full">{article.authorName}</span>
+                                    <span>&bull;</span>
+                                    <time class="flex-shrink-0">{new Date(article.publishedAt).toLocaleDateString()}</time>
+                                    <span class="hidden md:inline">&bull;</span>
+                                    <span class="hidden md:inline text-primary truncate max-w-[120px]">{article.categoryName || data.title}</span>
+                                </div>
+                                <h3 class="text-base md:text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-3 mb-2">
+                                    {article.title}
+                                </h3>
+                                <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
+                                    {article.excerpt}
+                                </p>
+                            </div>
+                        </a>
+                    ))}
+                </div>
+            ) : (
+                <div class="mt-8 flex flex-col sm:flex-row justify-between items-center border-b border-border pb-4 mb-6">
+                    <h2 class="text-xl font-bold text-foreground">All Tags</h2>
+                    <div class="mt-4 sm:mt-0 flex items-center gap-3">
+                        <label for="sort-tags" class="text-sm text-muted-foreground font-medium">Sort By:</label>
+                        <select 
+                            id="sort-tags" 
+                            class="bg-background border border-input text-foreground text-sm rounded-lg focus:ring-primary focus:border-primary block p-2"
+                            onchange="window.location.search = '?sort=' + this.value"
+                        >
+                            <option value="popular" selected={Astro.url.searchParams.get('sort') !== 'az'}>Most Popular</option>
+                            <option value="az" selected={Astro.url.searchParams.get('sort') === 'az'}>A - Z</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap gap-3">
+                    {termsList && termsList.map((term: any) => (
+                        <a href={`/${data.omitTaxonomySlug ? term.slug : `${data.taxonomySlug}/${term.slug}`}`} class="inline-flex items-center gap-2 px-5 py-2.5 bg-muted/40 border border-border/60 hover:border-primary/50 rounded-full text-foreground hover:bg-primary hover:text-primary-foreground font-medium shadow-sm hover:shadow transition-all text-sm md:text-base group">
+                            <span>{term.name}</span>
+                            {term.entryCount !== undefined && (
+                                <span class="text-xs bg-background/50 group-hover:bg-primary-foreground/20 px-2 py-0.5 rounded-full text-muted-foreground group-hover:text-primary-foreground transition-colors">
+                                    {term.entryCount}
+                                </span>
+                            )}
+                        </a>
+                    ))}
+                </div>
+            )}
+            
+            <div class="mt-12">
+                <Pagination 
+                    currentPage={currentPage} 
+                    totalPages={totalPages} 
+                    baseUrl={`/${data.taxonomySlug || slug}`} 
+                />
+            </div>
+        </div>
+    )}
+
     {pageType === 'page' && data.is_block_builder && (
         <main class="w-full">
             <BlockRenderer layoutBlocks={layoutBlocks} blockData={blockData} showLeftSidebar={showLeftSidebar} showRightSidebar={showRightSidebar} />
         </main>
     )}
 
-    {pageType !== 'category' && !(pageType === 'page' && data.is_block_builder) && pageType !== null && (
+    {pageType !== 'category' && pageType !== 'collection_archive' && pageType !== 'taxonomy_archive' && !(pageType === 'page' && data.is_block_builder) && pageType !== null && (
         showPasswordPrompt ? (
             <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
                 <div class="bg-muted/10 border-2 border-border/50 p-8 rounded-2xl shadow-sm text-center max-w-md mx-auto my-12">

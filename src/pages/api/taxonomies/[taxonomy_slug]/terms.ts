@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../../lib/db';
 import { taxonomies, terms } from '../../../../db/schema';
-import { eq, desc, asc, like, and, sql } from 'drizzle-orm';
+import { eq, desc, asc, like, and, or, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { generateUniqueSlug } from '../../../../lib/slug';
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
     const user = locals.user;
@@ -28,7 +29,8 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         let conditions: any = eq(terms.taxonomyId, taxRes[0].id);
         
         if (search) {
-            conditions = and(conditions, like(terms.name, `%${search}%`));
+            const searchPattern = `%${search}%`;
+            conditions = and(conditions, or(like(terms.name, searchPattern), like(terms.slug, searchPattern)));
         }
 
         // Count
@@ -76,15 +78,13 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
         
         const body = await request.json() as any;
         
-        let slug = body.slug;
-        if (!slug && body.name) {
-            slug = body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-        }
+        let initialSlug = body.slug || body.name;
+        const finalSlug = await generateUniqueSlug(db, initialSlug);
 
         const inserted = await db.insert(terms).values({
             taxonomyId: taxRes[0].id,
             name: body.name,
-            slug
+            slug: finalSlug
         }).returning({ id: terms.id });
 
         return new Response(JSON.stringify({ success: true, id: inserted[0].id }), {

@@ -30,6 +30,29 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
     const [supports, setSupports] = useState<any>({});
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
+    const [termsCache, setTermsCache] = useState<Record<string, any[]>>({});
+
+    useEffect(() => {
+        const fetchTerms = async () => {
+            if (!supports?.taxonomies) return;
+            const newCache = { ...termsCache };
+            let updated = false;
+            for (const taxSlug of supports.taxonomies) {
+                if (!newCache[taxSlug]) {
+                    try {
+                        const res = await fetch(`/api/taxonomies/${taxSlug}/terms`);
+                        const json = await res.json() as any;
+                        if (json.data) {
+                            newCache[taxSlug] = json.data;
+                            updated = true;
+                        }
+                    } catch(e) {}
+                }
+            }
+            if (updated) setTermsCache(newCache);
+        };
+        fetchTerms();
+    }, [supports?.taxonomies]);
 
     useEffect(() => {
         try { setFields(JSON.parse(collection.fields || '[]')); } catch(e) {}
@@ -278,6 +301,36 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                             )}
                         </div>
 
+                        {(supports.taxonomies && supports.taxonomies.length > 0) && (
+                            <div className="pt-4 border-t border-border mt-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-xs font-bold text-muted-foreground">Default Primary Term</h4>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mb-3">
+                                    Optionally select a default term. When creating a new entry, this term will be automatically starred as the primary URL prefix (the user can still override it).
+                                </p>
+                                <select 
+                                    className="w-full text-sm bg-background border border-input rounded px-3 py-2 focus:ring-1 focus:ring-primary"
+                                    value={supports.defaultPrimaryTermId || ''}
+                                    onChange={(e) => setSupports({ ...supports, defaultPrimaryTermId: e.target.value })}
+                                >
+                                    <option value="">-- No Default Primary Term --</option>
+                                    {supports.taxonomies.map((taxSlug: string) => {
+                                        const tax = availableTaxonomies.find(t => t.slug === taxSlug);
+                                        const terms = termsCache[taxSlug] || [];
+                                        if (terms.length === 0) return null;
+                                        return (
+                                            <optgroup key={`optg_${taxSlug}`} label={tax?.name || taxSlug}>
+                                                {terms.map(term => (
+                                                    <option key={`opt_${term.id}`} value={term.id}>{term.name}</option>
+                                                ))}
+                                            </optgroup>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                        )}
+
                         <div className="pt-4 border-t border-border">
                             <h4 className="text-xs font-bold text-muted-foreground mb-2">Frontend View Template</h4>
                             <p className="text-[10px] text-muted-foreground mb-3">
@@ -375,6 +428,28 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                                                 </label>
                                             </div>
                                         )}
+
+                                        {block.type === 'taxonomy_terms' && (
+                                            <div className="mt-2 pl-8 pr-2">
+                                                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                                                    Target Taxonomy:
+                                                    <select 
+                                                        value={block.config?.targetTaxonomy || ''}
+                                                        onChange={(e) => {
+                                                            const newBlocks = [...supports.layoutBlocks];
+                                                            newBlocks[idx].config = { ...newBlocks[idx].config, targetTaxonomy: e.target.value };
+                                                            setSupports({ ...supports, layoutBlocks: newBlocks });
+                                                        }}
+                                                        className="ml-auto flex-1 text-xs bg-background border border-border rounded px-2 py-1"
+                                                    >
+                                                        <option value="">-- Select Taxonomy --</option>
+                                                        {availableTaxonomies.map(tax => (
+                                                            <option key={tax.slug} value={tax.slug}>{tax.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -385,6 +460,7 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                                     <option value="hero">Hero Header (Article Style)</option>
                                     <option value="product_split">Product Split Header (Image Left, Info Right)</option>
                                     <option value="body_content">Body Content (Rich Text + Accordions)</option>
+                                    <option value="taxonomy_terms">Taxonomy Terms List (Tags/Categories)</option>
                                     <option value="related_items">Related Items Grid</option>
                                 </select>
                                 <button 

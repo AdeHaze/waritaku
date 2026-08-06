@@ -22,7 +22,12 @@ interface DynamicEntryEditorProps {
 }
 
 export default function DynamicEntryEditor({ collectionSlug, schema, initialEntry, supports, taxonomies = [], taxonomyMeta = [] }: DynamicEntryEditorProps) {
-    const [formData, setFormData] = useState<any>(initialEntry || { status: 'draft', selectedTerms: {} });
+    const defaultPrimaryTermId = React.useMemo(() => {
+        try { if (supports) return JSON.parse(supports).defaultPrimaryTermId || null; } catch(e) {}
+        return null;
+    }, [supports]);
+
+    const [formData, setFormData] = useState<any>(initialEntry || { status: 'draft', selectedTerms: {}, primaryTermId: defaultPrimaryTermId });
     const [allTermsData, setAllTermsData] = useState<Record<string, any[]>>({});
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
@@ -437,6 +442,8 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                                     onChange={(terms) => handleChange('selectedTerms', { ...formData.selectedTerms, [taxSlug]: terms })}
                                     isPrefixPriority={isPrefixPriority}
                                     onTermData={(terms) => setAllTermsData(prev => ({ ...prev, [taxSlug]: terms }))}
+                                    primaryTermId={formData.primaryTermId}
+                                    onSetPrimaryTerm={(id) => handleChange('primaryTermId', id)}
                                 />
                             </div>
                         );
@@ -448,7 +455,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
         {showRevisions && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
                 {diffRevision ? (
-                    <div className="bg-card w-full max-w-5xl h-[90vh] rounded-xl shadow-lg border border-border flex flex-col overflow-hidden">
+                    <div className="bg-card w-full max-w-[95vw] h-[95vh] rounded-xl shadow-lg border border-border flex flex-col overflow-hidden">
                         <RevisionDiff 
                             currentData={formData}
                             revisionData={JSON.parse(diffRevision.data)}

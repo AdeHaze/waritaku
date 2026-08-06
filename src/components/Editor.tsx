@@ -383,6 +383,28 @@ const ImageBubbleMenu = ({ editor }: { editor: any }) => {
                 >
                     <Captions className="w-3.5 h-3.5" /> Caption
                 </button>
+                
+                <div className="w-px bg-border my-1 mx-1"></div>
+                
+                <select
+                    onChange={(e) => {
+                        const width = e.target.value;
+                        if(width) {
+                            editor.chain().focus().updateAttributes('image', { width }).run();
+                        } else {
+                            editor.chain().focus().updateAttributes('image', { width: null }).run();
+                        }
+                    }}
+                    value={editor.getAttributes('image').width || ''}
+                    className="h-7 text-xs bg-background border border-border rounded px-1 focus:outline-none max-w-[80px]"
+                    title="Image Size"
+                >
+                    <option value="">Auto Size</option>
+                    <option value="25%">25% (XS)</option>
+                    <option value="50%">50% (S)</option>
+                    <option value="75%">75% (M)</option>
+                    <option value="100%">100% (L)</option>
+                </select>
             </div>
         </BubbleMenu>
     );
@@ -414,13 +436,70 @@ export default function Editor({ content, onChange }: { content: string, onChang
                   ...this.parent?.(),
                   style: {
                       default: 'display: block; margin: 1rem auto;',
-                      parseHTML: element => element.getAttribute('style'),
+                      parseHTML: element => {
+                          const figure = element.closest('figure');
+                          if (figure) {
+                              if (figure.getAttribute('style')) return figure.getAttribute('style');
+                              if (figure.classList.contains('alignleft')) return 'float: left; margin: 0 1rem 1rem 0;';
+                              if (figure.classList.contains('alignright')) return 'float: right; margin: 0 0 1rem 1rem;';
+                              if (figure.classList.contains('aligncenter')) return 'display: block; margin: 1rem auto;';
+                          }
+                          return element.getAttribute('style');
+                      },
                       renderHTML: attributes => {
                           if (!attributes.style) return {};
                           return { style: attributes.style };
                       }
+                  },
+                  title: {
+                      default: null,
+                      parseHTML: element => {
+                          let title = element.getAttribute('title');
+                          const figure = element.closest('figure');
+                          if (figure) {
+                              const figcaption = figure.querySelector('figcaption');
+                              if (figcaption) {
+                                  title = figcaption.textContent || figcaption.innerText || title;
+                              }
+                          }
+                          return title;
+                      },
+                      renderHTML: attributes => {
+                          // Rendered in custom renderHTML below
+                          return {};
+                      }
+                  },
+                  width: {
+                      default: null,
+                      parseHTML: element => element.getAttribute('width'),
+                      renderHTML: attributes => {
+                          if (!attributes.width) return {};
+                          return { width: attributes.width };
+                      }
+                  },
+                  height: {
+                      default: null,
+                      parseHTML: element => element.getAttribute('height'),
+                      renderHTML: attributes => {
+                          if (!attributes.height) return {};
+                          return { height: attributes.height };
+                      }
                   }
               }
+          },
+          renderHTML({ HTMLAttributes }) {
+              const { title, style, ...imgAttrs } = HTMLAttributes;
+              
+              if (title) {
+                  return [
+                      'figure', 
+                      { style: style, class: 'wp-caption' }, 
+                      ['img', { ...imgAttrs, style }], 
+                      ['figcaption', { class: 'text-sm text-center text-muted-foreground mt-2 italic' }, title]
+                  ];
+              }
+              
+              return ['img', { ...HTMLAttributes }];
           }
       }).configure({
           inline: true,

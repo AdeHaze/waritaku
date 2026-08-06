@@ -175,63 +175,109 @@ try {
                         </div>
                     </label>
 
-                    <label class="flex items-start gap-3 cursor-pointer group">
-                        <div class="mt-1">
-                            <input
-                                type="checkbox"
-                                name="prefixEntryUrl"
-                                value="true"
-                                checked={taxonomy.prefixEntryUrl}
-                                class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background"
-                            />
-                        </div>
+                    <div class="space-y-3 pt-2">
                         <div>
-                            <div
-                                class="font-semibold text-foreground group-hover:text-primary transition-colors"
-                            >
-                                Prefix Entry URLs with Term Slug
+                            <div class="font-semibold text-foreground group-hover:text-primary transition-colors">
+                                Prefix Entry URLs
                             </div>
                             <div class="text-sm text-muted-foreground mt-1">
-                                If checked, any entry assigned a term from this
-                                taxonomy will have the term's slug prefixed to
-                                its URL.
+                                Control how entries assigned to this taxonomy are formatted in URLs.
                             </div>
-                            <div
-                                class="text-xs text-amber-500 mt-1 font-medium bg-amber-500/10 px-2 py-1 rounded inline-block"
-                            >
-                                Note: If multiple terms are assigned to an
-                                entry, the taxonomy priority configured in the
-                                Content Builder is used.
+                            <div class="text-xs text-amber-500 mt-1 font-medium bg-amber-500/10 px-2 py-1 rounded inline-block">
+                                Note: If multiple terms are assigned to an entry, the taxonomy priority configured in the Content Builder is used.
                             </div>
                         </div>
-                    </label>
 
-                    <label class="flex items-start gap-3 cursor-pointer group">
-                        <div class="mt-1">
-                            <input
-                                type="checkbox"
-                                name="allowIndexing"
-                                value="true"
-                                checked={taxonomy.allowIndexing}
-                                class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background"
-                            />
+                        <div class="pl-4 border-l-2 border-border space-y-3">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="entryUrlFormat"
+                                    value="long"
+                                    checked={taxonomy.entryUrlFormat === 'long'}
+                                    class="text-primary focus:ring-primary/50"
+                                />
+                                <span class="text-sm font-medium">Long Format (e.g. <code class="bg-muted px-1 rounded text-xs">/taxonomy-slug/term-slug/entry-slug</code>)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="entryUrlFormat"
+                                    value="short"
+                                    checked={taxonomy.entryUrlFormat === 'short' || taxonomy.entryUrlFormat === 'default'}
+                                    class="text-primary focus:ring-primary/50"
+                                />
+                                <span class="text-sm font-medium">Short Format (e.g. <code class="bg-muted px-1 rounded text-xs">/term-slug/entry-slug</code>)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="entryUrlFormat"
+                                    value="none"
+                                    checked={taxonomy.entryUrlFormat === 'none'}
+                                    class="text-primary focus:ring-primary/50"
+                                />
+                                <span class="text-sm font-medium">No Prefix (e.g. <code class="bg-muted px-1 rounded text-xs">/entry-slug</code>)</span>
+                            </label>
                         </div>
-                        <div>
-                            <div
-                                class="font-semibold text-foreground group-hover:text-primary transition-colors"
-                            >
-                                Allow Search Engine Indexing
+                    </div>
+                    
+                    <div class="border-t border-border my-4 pt-4">
+                        <h4 class="font-bold text-sm mb-3 uppercase tracking-wider text-muted-foreground">Umbrella Archive Page (/taxonomy)</h4>
+                        
+                        <div class="space-y-4 pl-4 border-l-2 border-primary/20">
+                            <div>
+                                <div class="font-semibold text-foreground text-sm">View Mode</div>
+                                <div class="text-xs text-muted-foreground mt-1 mb-2">Control what is displayed when visiting the main taxonomy index page.</div>
+                                <select name="umbrellaViewMode" class="w-full max-w-xs px-3 py-1.5 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                                    <option value="child_terms" selected={taxonomy.umbrellaViewMode === 'child_terms' || !taxonomy.umbrellaViewMode}>List Child Terms (Default)</option>
+                                    <option value="all_entries" selected={taxonomy.umbrellaViewMode === 'all_entries'}>List All Entries (Paginated Grid)</option>
+                                </select>
                             </div>
-                            <div class="text-sm text-muted-foreground mt-1">
-                                If unchecked, the taxonomy archive pages will
-                                output a <code
-                                    class="bg-muted px-1 py-0.5 rounded text-xs"
-                                    >&lt;meta name="robots"
-                                    content="noindex"&gt;</code
-                                > tag.
+                            
+                            <div>
+                                <div class="font-semibold text-foreground text-sm">Items Per Page</div>
+                                <div class="text-xs text-muted-foreground mt-1 mb-2">Number of items to show per page before paginating.</div>
+                                <select name="umbrellaItemsPerPage" class="w-full max-w-xs px-3 py-1.5 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary">
+                                    <option value="0" selected={taxonomy.umbrellaItemsPerPage === 0 || !taxonomy.umbrellaItemsPerPage}>Fetch All (No Pagination)</option>
+                                    <option value="12" selected={taxonomy.umbrellaItemsPerPage === 12}>12 Items</option>
+                                    <option value="24" selected={taxonomy.umbrellaItemsPerPage === 24}>24 Items</option>
+                                    <option value="48" selected={taxonomy.umbrellaItemsPerPage === 48}>48 Items</option>
+                                    <option value="100" selected={taxonomy.umbrellaItemsPerPage === 100}>100 Items</option>
+                                </select>
                             </div>
+                            
+                            <label class="flex items-start gap-3 cursor-pointer group">
+                                <div class="mt-0.5">
+                                    <input type="checkbox" name="umbrellaAllowIndexing" value="true" checked={taxonomy.umbrellaAllowIndexing !== false && taxonomy.umbrellaAllowIndexing !== 0} class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background" />
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-foreground text-sm group-hover:text-primary transition-colors">Allow Search Engine Indexing</div>
+                                    <div class="text-xs text-muted-foreground mt-1">If unchecked, the umbrella archive page will output a <code class="bg-muted px-1 py-0.5 rounded text-[10px]">&lt;meta name="robots" content="noindex"&gt;</code> tag.</div>
+                                </div>
+                            </label>
                         </div>
-                    </label>
+                    </div>
+
+                    <div class="border-t border-border my-4 pt-4">
+                        <h4 class="font-bold text-sm mb-3 uppercase tracking-wider text-muted-foreground">Term Archive Pages (/taxonomy/term)</h4>
+                        
+                        <label class="flex items-start gap-3 cursor-pointer group pl-4 border-l-2 border-primary/20">
+                            <div class="mt-0.5">
+                                <input
+                                    type="checkbox"
+                                    name="allowIndexing"
+                                    value="true"
+                                    checked={taxonomy.allowIndexing}
+                                    class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background"
+                                />
+                            </div>
+                            <div>
+                                <div class="font-semibold text-foreground text-sm group-hover:text-primary transition-colors">Allow Search Engine Indexing</div>
+                                <div class="text-xs text-muted-foreground mt-1">If unchecked, individual term pages will output a <code class="bg-muted px-1 py-0.5 rounded text-[10px]">&lt;meta name="robots" content="noindex"&gt;</code> tag.</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -317,15 +363,17 @@ try {
                 slug: formData.get("slug"),
                 description: formData.get("description"),
                 isRouted: formData.get("isRouted") === "true",
-                prefixEntryUrl: formData.get("prefixEntryUrl") === "true",
+                entryUrlFormat: formData.get("entryUrlFormat"),
                 allowIndexing: formData.get("allowIndexing") === "true",
+                umbrellaViewMode: formData.get("umbrellaViewMode") || "child_terms",
+                umbrellaItemsPerPage: formData.get("umbrellaItemsPerPage"),
+                umbrellaAllowIndexing: formData.get("umbrellaAllowIndexing") === "true",
                 omitTaxonomySlug: formData.get("omitTaxonomySlug") === "true",
                 allowedCollections: formData.getAll("allowedCollections"),
             };
 
-            if (data.prefixEntryUrl && !data.isRouted) {
-                data.isRouted = true;
-            }
+            // Maintain backwards compatibility with API logic
+            data.prefixEntryUrl = data.entryUrlFormat !== 'none';
 
             try {
                 const res = await fetch(`/api/taxonomy-builder/${id}`, {

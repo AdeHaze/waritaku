@@ -163,6 +163,7 @@ if (env && (env as any).DB) {
         if (!hasActiveFilter && entryIdsForCategory.length > 0) {
             const termResults = await db.select({
                 entryId: entryTerms.entryId,
+                termId: terms.id,
                 termName: terms.name,
                 termSlug: terms.slug
             })
@@ -175,7 +176,7 @@ if (env && (env as any).DB) {
             ));
             for (const t of termResults) {
                 if (!categoryMap[t.entryId]) categoryMap[t.entryId] = [];
-                categoryMap[t.entryId].push({ name: t.termName, slug: t.termSlug });
+                categoryMap[t.entryId].push({ id: t.termId, name: t.termName, slug: t.termSlug });
             }
         }
         
@@ -186,9 +187,18 @@ if (env && (env as any).DB) {
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
             
             const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
-            const cats = hasActiveFilter
+            let cats = hasActiveFilter
                 ? [{ name: filterCategoryName, slug: filterCategorySlug }]
                 : (categoryMap[r.entry.id] || []);
+
+            const primaryTermId = data.primaryTermId;
+            if (primaryTermId && !hasActiveFilter) {
+                cats = [...cats].sort((a: any, b: any) => {
+                    if (a.id === primaryTermId) return -1;
+                    if (b.id === primaryTermId) return 1;
+                    return 0;
+                });
+            }
 
             return {
                 id: r.entry.id,

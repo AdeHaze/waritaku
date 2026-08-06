@@ -162,15 +162,7 @@ const customFields = Object.keys(data).filter(k =>
                             
                             <div set:html={sanitizeHtml(parsedContent)} />
                             
-                            {data.tags && data.tags.length > 0 && (
-                                <div class="mt-12 flex flex-wrap gap-2">
-                                    {data.tags.map((tag: any) => (
-                                        <a href={`/tag/${tag.slug}`} class="inline-flex items-center justify-center px-4 py-2 border border-border rounded-lg text-sm font-semibold hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors">
-                                            {tag.name}
-                                        </a>
-                                    ))}
-                                </div>
-                            )}
+
 
                             {articleBottomHtml && (
                                 <div class="mt-16 pt-12 border-t border-border">
@@ -189,15 +181,52 @@ const customFields = Object.keys(data).filter(k =>
             );
         }
 
-        // 5. RELATED ITEMS
+        // 5. TAXONOMY TERMS
+        if (block.type === 'taxonomy_terms') {
+            const taxSlug = block.config?.targetTaxonomy;
+            if (!taxSlug || !data.taxonomyTerms || !data.taxonomyTerms[taxSlug]) return null;
+            const terms = data.taxonomyTerms[taxSlug];
+            
+            return (
+                <div class={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 ${!showLeftSidebar && !showRightSidebar ? 'max-w-4xl' : ''}`}>
+                    <div class="flex flex-wrap gap-2">
+                        {terms.map((term: any) => (
+                            <a href={term.url} class="inline-flex items-center justify-center px-4 py-2 border border-border rounded-lg text-sm font-semibold bg-muted/30 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm">
+                                {term.name}
+                            </a>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // 6. RELATED ITEMS
         if (block.type === 'related_items') {
+            if (!data.relatedItems || data.relatedItems.length === 0) return null;
             return (
                 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-border mt-12 bg-muted/10">
                     <h3 class="text-2xl font-bold mb-8 uppercase tracking-widest text-center">Related Items</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                        <div class="text-center text-sm text-muted-foreground col-span-full italic">
-                            Related items will appear here based on the {block.config?.targetTaxonomy ? block.config.targetTaxonomy + ' taxonomy' : (data.categoryName || 'current category')}.
-                        </div>
+                        {data.relatedItems.map((item: any) => (
+                            <a href={`/${item.slug}`} class="group flex flex-col bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1">
+                                <div class="aspect-[16/9] w-full overflow-hidden bg-muted">
+                                    <img 
+                                        src={item.featuredImageUrl || `https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}`}
+                                        alt={item.title}
+                                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                        onerror={`this.src='https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}'`}
+                                    />
+                                </div>
+                                <div class="p-5 flex flex-col flex-grow">
+                                    <h4 class="text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                                        {item.title}
+                                    </h4>
+                                    <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
+                                        {item.excerpt}
+                                    </p>
+                                </div>
+                            </a>
+                        ))}
                     </div>
                 </div>
             );

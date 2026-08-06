@@ -3,6 +3,7 @@ import { getDb } from '../../../../../lib/db';
 import { collections, entries, entryTerms, entryRevisions } from '../../../../../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { generateUniqueSlug } from '../../../../../lib/slug';
 
 export const PUT: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
@@ -35,7 +36,8 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         // Extract standard fields
         const { slug, status, publishedAt, selectedTerms, ...customData } = body;
 
-        let finalSlug = slug || entryRes[0].slug;
+        let initialSlug = slug || entryRes[0].slug;
+        let finalSlug = await generateUniqueSlug(db, initialSlug, undefined, entryId);
 
         // Map password_protected status to published + visibility field
         let mappedStatus = status || entryRes[0].status;

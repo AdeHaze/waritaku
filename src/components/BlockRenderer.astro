@@ -43,13 +43,18 @@ if (currentMainColumnGroup.length > 0) {
                         </div>
                     )}
                     <div class={showLeftSidebar && showRightSidebar ? 'lg:col-span-2 space-y-12' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2 space-y-12' : 'lg:col-span-1 space-y-12'}>
-                        {section.blocks.map((block: any) => (
-                            block.type === 'category_block' ? (
-                                <CategoryBlock title={block.title || 'Category'} categorySlug={block.tagSlug ? `tag/${block.tagSlug}` : (blockData[block.id]?.[0]?.categorySlug || 'category')} articles={blockData[block.id] || []} />
+                        {section.blocks.map((block: any) => {
+                            const hasFilter = block.config?.targetTaxonomy || block.config?.targetTerm || block.tagSlug || block.categoryId;
+                            const archiveUrl = hasFilter 
+                                ? (block.tagSlug ? `tag/${block.tagSlug}` : (blockData[block.id]?.[0]?.categories?.[0]?.slug || 'category'))
+                                : (block.config?.targetCollection || 'articles');
+                            
+                            return block.type === 'category_block' ? (
+                                <CategoryBlock title={block.title || 'Category'} categorySlug={archiveUrl} articles={blockData[block.id] || []} />
                             ) : (
-                                <CategoryBlockType2 title={block.title || 'Category'} categorySlug={block.tagSlug ? `tag/${block.tagSlug}` : (blockData[block.id]?.[0]?.categorySlug || 'category')} articles={blockData[block.id] || []} showExcerpt={block.showExcerpt} />
-                            )
-                        ))}
+                                <CategoryBlockType2 title={block.title || 'Category'} categorySlug={archiveUrl} articles={blockData[block.id] || []} showExcerpt={block.showExcerpt} />
+                            );
+                        })}
                     </div>
                     {showRightSidebar && (
                         <div class="lg:col-span-1">

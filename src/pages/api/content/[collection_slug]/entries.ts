@@ -3,6 +3,7 @@ import { getDb } from '../../../../lib/db';
 import { collections, entries, terms, entryTerms, users } from '../../../../db/schema';
 import { eq, and, sql, desc, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { generateUniqueSlug } from '../../../../lib/slug';
 
 export const GET: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
@@ -151,12 +152,13 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
         // Extract standard fields
         const { slug, status, publishedAt, selectedTerms, ...customData } = body;
 
-        // Auto-generate slug if missing
-        let finalSlug = slug;
-        if (!finalSlug) {
+        // Auto-generate slug if missing, and ensure it's universally unique
+        let initialSlug = slug;
+        if (!initialSlug) {
              const title = customData.title || customData.name || 'entry';
-             finalSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now().toString().slice(-4);
+             initialSlug = title;
         }
+        const finalSlug = await generateUniqueSlug(db, initialSlug);
 
         // Insert Entry
         const inserted = await db.insert(entries).values({

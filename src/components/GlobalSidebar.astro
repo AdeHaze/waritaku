@@ -4,7 +4,6 @@ import { eq, and, desc, like, sql } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
 import { getDb } from '../lib/db';
 import { getCanonicalUrl } from '../lib/queries';
-import { useTranslation } from '../i18n';
 
 interface Props {
     zone?: 'left' | 'right';
@@ -14,21 +13,12 @@ const { zone = 'right', context = 'all' } = Astro.props;
 
 let widgets: any[] = [];
 let db: any = null;
-let currentLang = 'id';
 let showSidebar = true;
 let stickyClass = "sticky top-24";
 
 if (env && (env as any).DB) {
     db = getDb(env as any);
     
-    const genSet = await db.select().from(settings).where(eq(settings.key, 'general_settings')).limit(1);
-    if (genSet.length > 0) {
-        try {
-            const parsed = JSON.parse(genSet[0].value);
-            if (parsed.language) currentLang = parsed.language;
-        } catch(e) {}
-    }
-
     // Check global layout config
     const configRes = await db.select().from(settings).where(eq(settings.key, 'sidebar_layout_config')).limit(1);
     if (configRes.length > 0) {
@@ -69,7 +59,7 @@ if (env && (env as any).DB) {
 // Filter widgets based on widget-level visibility
 widgets = widgets.filter(w => !w.visibility || w.visibility === 'all' || w.visibility === context);
 
-const t = useTranslation(currentLang);
+const t = Astro.locals.t || ((k: string, f?: string) => f || k);
 
 function getThumbnail(content: string) {
     if (!content) return '/placeholder.webp';
@@ -135,16 +125,16 @@ const processedWidgets = await Promise.all(widgets.map(async (widget: any) => {
                     const catTax = await db.select({ id: taxonomies.id })
                         .from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
                     if (catTax.length > 0) {
-                        const catTermRows = await db.select({ entryId: entryTerms.entryId, name: terms.name })
+                        const catTermRows = await db.select({ entryId: entryTerms.entryId, id: terms.id, name: terms.name })
                             .from(entryTerms)
                             .innerJoin(terms, eq(entryTerms.termId, terms.id))
                             .where(and(
                                 eq(terms.taxonomyId, catTax[0].id),
                                 sql`${entryTerms.entryId} IN (${sql.join(entryIds.map((id: number) => sql`${id}`), sql`, `)})`
                             ));
-                        // Keep first category per entry
                         for (const row of catTermRows) {
-                            if (!categoryMap[row.entryId]) categoryMap[row.entryId] = row.name;
+                            if (!categoryMap[row.entryId]) categoryMap[row.entryId] = [];
+                            (categoryMap[row.entryId] as any).push(row);
                         }
                     }
                 }
@@ -154,7 +144,15 @@ const processedWidgets = await Promise.all(widgets.map(async (widget: any) => {
                     const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
                     const excerpt = textOnly.length > 80 ? textOnly.substring(0, 80) + '...' : textOnly;
                     const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
-                    return { id: r.entry.id, slug: r.entry.slug, canonicalUrl: `/${canonicalUrl}`, publishedAt: r.entry.publishedAt, ...data, categoryName: categoryMap[r.entry.id] || '', excerpt };
+                    
+                    let categoryName = '';
+                    const cats = (categoryMap[r.entry.id] as any) || [];
+                    if (cats.length > 0) {
+                        const primary = data.primaryTermId ? cats.find((c: any) => c.id === data.primaryTermId) : null;
+                        categoryName = primary ? primary.name : cats[0].name;
+                    }
+
+                    return { id: r.entry.id, slug: r.entry.slug, canonicalUrl: `/${canonicalUrl}`, publishedAt: r.entry.publishedAt, ...data, categoryName, excerpt };
                 }));
             }
         }
@@ -307,7 +305,7 @@ const processedWidgets = await Promise.all(widgets.map(async (widget: any) => {
                             <div class="text-sm text-muted-foreground text-center py-4">No articles found.</div>
                         )}
                     </div>
-                    <a href="/all" class="block w-full text-center text-sm font-bold text-muted-foreground hover:text-primary transition-colors bg-background border border-border mt-6 py-2 rounded-lg">
+                    <a href="/articles" class="block w-full text-center text-sm font-bold text-muted-foreground hover:text-primary transition-colors bg-background border border-border mt-6 py-2 rounded-lg">
                         Lihat Semua &raquo;
                     </a>
                 </section>

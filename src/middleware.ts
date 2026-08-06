@@ -4,6 +4,7 @@ import { getDb } from './lib/db';
 import { redirects, notFoundLogs, settings } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { useTranslation } from './i18n';
 
 // Simple in-memory settings cache with 60s TTL
 let settingsCache: { config: any; timestamp: number } | null = null;
@@ -33,6 +34,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
         } catch(e) {}
         }
     }
+
+    // Set up i18n from the cached config language
+    const language = settingsCache?.config?.language || 'id';
+    context.locals.t = useTranslation(language);
 
     // --- 0. Redirect Engine ---
     if (db && enableRedirections) {

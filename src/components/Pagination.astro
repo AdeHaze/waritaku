@@ -1,6 +1,4 @@
 ---
-import { useTranslation } from '../i18n';
-
 interface Props {
   currentPage: number;
   totalPages: number;
@@ -8,7 +6,7 @@ interface Props {
   lang?: string;
 }
 const { currentPage, totalPages, baseUrl: propBaseUrl, lang = 'id' } = Astro.props;
-const t = useTranslation(lang);
+const t = Astro.locals.t || ((k: string, f?: string) => f || k);
 
 // Generate page links based on current URL (WordPress style /page/N/)
 function getPageUrl(page: number) {

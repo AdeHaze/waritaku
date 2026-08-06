@@ -26,8 +26,13 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
 
         let isRouted = body.isRouted === true || body.isRouted === 'true';
         const prefixEntryUrl = body.prefixEntryUrl === true || body.prefixEntryUrl === 'true';
+        const entryUrlFormat = body.entryUrlFormat || 'default';
         const allowIndexing = body.allowIndexing !== false && body.allowIndexing !== 'false';
         const omitTaxonomySlug = body.omitTaxonomySlug === true || body.omitTaxonomySlug === 'true';
+
+        const umbrellaViewMode = body.umbrellaViewMode || 'child_terms';
+        const umbrellaAllowIndexing = body.umbrellaAllowIndexing !== false && body.umbrellaAllowIndexing !== 'false';
+        const umbrellaItemsPerPage = parseInt(body.umbrellaItemsPerPage) || 0;
 
         if (prefixEntryUrl) {
             isRouted = true;
@@ -43,8 +48,12 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
             allowedCollections: allowedStr,
             isRouted: isRouted,
             prefixEntryUrl: prefixEntryUrl,
+            entryUrlFormat: entryUrlFormat,
             allowIndexing: allowIndexing,
             omitTaxonomySlug: omitTaxonomySlug,
+            umbrellaViewMode: umbrellaViewMode,
+            umbrellaAllowIndexing: umbrellaAllowIndexing,
+            umbrellaItemsPerPage: umbrellaItemsPerPage,
         }).where(eq(taxonomies.id, id)).returning();
 
         // Sync collections.supports.taxonomies

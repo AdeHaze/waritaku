@@ -11,15 +11,88 @@ interface RevisionDiffProps {
 
 export default function RevisionDiff({ currentData, revisionData, schema, onRestore, onBack }: RevisionDiffProps) {
     const renderTextDiff = (oldText: string, newText: string) => {
-        const changes = diff.diffWords(oldText || '', newText || '');
+        const formatHtml = (str: string) => {
+            if (str.includes('<') && str.includes('>')) {
+                return str.replace(/(>)(<)/g, '$1\n$2');
+            }
+            return str;
+        };
+        
+        const changes = diff.diffLines(formatHtml(oldText || ''), formatHtml(newText || ''));
+        const rows: { left: string | null, right: string | null, leftType: 'removed' | 'normal' | 'empty', rightType: 'added' | 'normal' | 'empty' }[] = [];
+        
+        let i = 0;
+        while (i < changes.length) {
+            const part = changes[i];
+            const lines = part.value.replace(/\n$/, '').split('\n');
+            
+            if (part.removed) {
+                if (i + 1 < changes.length && changes[i + 1].added) {
+                    const nextPart = changes[i + 1];
+                    const addedLines = nextPart.value.replace(/\n$/, '').split('\n');
+                    const maxLines = Math.max(lines.length, addedLines.length);
+                    for (let j = 0; j < maxLines; j++) {
+                        rows.push({
+                            left: j < lines.length ? lines[j] : null,
+                            leftType: j < lines.length ? 'removed' : 'empty',
+                            right: j < addedLines.length ? addedLines[j] : null,
+                            rightType: j < addedLines.length ? 'added' : 'empty'
+                        });
+                    }
+                    i += 2;
+                } else {
+                    for (const line of lines) {
+                        rows.push({ left: line, leftType: 'removed', right: null, rightType: 'empty' });
+                    }
+                    i++;
+                }
+            } else if (part.added) {
+                for (const line of lines) {
+                    rows.push({ left: null, leftType: 'empty', right: line, rightType: 'added' });
+                }
+                i++;
+            } else {
+                for (const line of lines) {
+                    rows.push({ left: line, leftType: 'normal', right: line, rightType: 'normal' });
+                }
+                i++;
+            }
+        }
+
         return (
-            <div className="p-3 bg-background border border-input rounded-md whitespace-pre-wrap text-sm leading-relaxed">
-                {changes.map((part, index) => {
-                    const color = part.added ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' :
-                                  part.removed ? 'bg-red-500/20 text-red-700 dark:text-red-300 line-through' :
-                                  'text-foreground';
-                    return <span key={index} className={color}>{part.value}</span>;
-                })}
+            <div className="bg-[#0d1117] border border-border rounded-md overflow-x-auto text-xs font-mono leading-relaxed">
+                <table className="w-full text-left border-collapse table-fixed">
+                    <colgroup>
+                        <col className="w-[50%]" />
+                        <col className="w-[50%]" />
+                    </colgroup>
+                    <thead>
+                        <tr className="bg-[#161b22] text-[#8b949e] border-b border-[#30363d]">
+                            <th className="px-4 py-2 font-semibold">Current State (Left)</th>
+                            <th className="px-4 py-2 font-semibold border-l border-[#30363d]">Revision (Right)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, index) => (
+                            <tr key={index} className="border-b border-[#30363d]/30">
+                                <td className={`px-4 py-1 whitespace-pre-wrap break-all align-top ${
+                                    row.leftType === 'removed' ? 'bg-[#f8514926] text-[#ff7b72]' :
+                                    row.leftType === 'empty' ? 'bg-[#0d1117]' : 'text-[#e6edf3]'
+                                }`}>
+                                    {row.leftType === 'removed' ? '- ' : row.leftType === 'normal' ? '  ' : ''}
+                                    {row.left}
+                                </td>
+                                <td className={`px-4 py-1 whitespace-pre-wrap break-all align-top border-l border-[#30363d] ${
+                                    row.rightType === 'added' ? 'bg-[#2ea04326] text-[#7ee787]' :
+                                    row.rightType === 'empty' ? 'bg-[#0d1117]' : 'text-[#e6edf3]'
+                                }`}>
+                                    {row.rightType === 'added' ? '+ ' : row.rightType === 'normal' ? '  ' : ''}
+                                    {row.right}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         );
     };

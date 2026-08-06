@@ -162,6 +162,20 @@
       "when": 1785998519409,
       "tag": "0022_nakiri_ayame",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1786008505148,
+      "tag": "0023_hakui_koyori",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1786027885865,
+      "tag": "0024_legal_shatterstar",
+      "breakpoints": true
     }
   ]
 }

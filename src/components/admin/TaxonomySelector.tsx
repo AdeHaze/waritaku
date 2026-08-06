@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Star } from 'lucide-react';
 
-export default function TaxonomySelector({ label, taxonomySlug, selectedTerms, onChange, isPrefixPriority, onTermData }: { label: string, taxonomySlug: string, selectedTerms: string[], onChange: (terms: string[]) => void, isPrefixPriority?: boolean, onTermData?: (terms: any[]) => void }) {
+export default function TaxonomySelector({ label, taxonomySlug, selectedTerms, onChange, isPrefixPriority, onTermData, primaryTermId, onSetPrimaryTerm }: { label: string, taxonomySlug: string, selectedTerms: string[], onChange: (terms: string[]) => void, isPrefixPriority?: boolean, onTermData?: (terms: any[]) => void, primaryTermId?: string | number, onSetPrimaryTerm?: (termId: string | number | null) => void }) {
     const [terms, setTerms] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -55,17 +56,43 @@ export default function TaxonomySelector({ label, taxonomySlug, selectedTerms, o
                     {terms.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No terms found.</p>
                     ) : (
-                        terms.map(term => (
-                            <label key={term.id} className="flex items-start gap-2 p-1.5 hover:bg-muted/30 rounded cursor-pointer transition-colors group">
-                                <input 
-                                    type="checkbox"
-                                    checked={selectedTerms.includes(term.id.toString())}
-                                    onChange={() => toggleTerm(term.id.toString())}
-                                    className="mt-0.5 w-4 h-4 text-primary bg-background border-input rounded focus:ring-primary focus:ring-2"
-                                />
-                                <span className="text-sm text-foreground group-hover:text-primary transition-colors">{term.name}</span>
-                            </label>
-                        ))
+                        terms.map(term => {
+                            const isSelected = selectedTerms.includes(term.id.toString());
+                            const isPrimary = primaryTermId?.toString() === term.id.toString();
+                            
+                            return (
+                                <div key={term.id} className="flex items-center justify-between p-1.5 hover:bg-muted/30 rounded transition-colors group">
+                                    <label className="flex items-start gap-2 cursor-pointer flex-1">
+                                        <input 
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => {
+                                                toggleTerm(term.id.toString());
+                                                if (isSelected && isPrimary && onSetPrimaryTerm) {
+                                                    onSetPrimaryTerm(null); // Deselect primary if unchecked
+                                                }
+                                            }}
+                                            className="mt-0.5 w-4 h-4 text-primary bg-background border-input rounded focus:ring-primary focus:ring-2"
+                                        />
+                                        <span className={`text-sm transition-colors ${isSelected ? 'font-medium text-foreground group-hover:text-primary' : 'text-foreground/80 group-hover:text-primary'}`}>{term.name}</span>
+                                    </label>
+                                    
+                                    {isPrefixPriority && isSelected && onSetPrimaryTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                onSetPrimaryTerm(isPrimary ? null : term.id);
+                                            }}
+                                            className={`p-1 rounded flex items-center justify-center transition-colors ${isPrimary ? 'text-amber-500 bg-amber-500/10' : 'text-muted-foreground hover:text-amber-500 hover:bg-muted'}`}
+                                            title={isPrimary ? "Primary Term for URL" : "Make Primary for URL"}
+                                        >
+                                            <Star size={14} className={isPrimary ? 'fill-current' : ''} />
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })
                     )}
                 </div>
             )}
