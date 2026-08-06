@@ -1,4 +1,5 @@
 ---
+import { sanitizeHtml } from '../utils/sanitize';
 import '../styles/global.css';
 import DisplaySettings from '../components/DisplaySettings.astro';
 import ThemeInjector from '../components/ThemeInjector.astro';
@@ -55,7 +56,7 @@ const displayTitle = title ? `${title} | ${generalConfig.siteTitle}` : generalCo
         {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
         {noindex && <meta name="robots" content="noindex, nofollow" />}
         {schema && <script type="application/ld+json" set:html={schema} />}
-        {generalConfig.headerHtml && <Fragment set:html={generalConfig.headerHtml} />}
+        {generalConfig.headerHtml && <Fragment set:html={sanitizeHtml(generalConfig.headerHtml)} />}
 		
 		<script is:inline>
 			// Prevent FOUC (Flash of Unstyled Content) by instantly applying settings
@@ -95,6 +96,6 @@ const displayTitle = title ? `${title} | ${generalConfig.siteTitle}` : generalCo
 		
 		<DisplaySettings />
 
-        {generalConfig.footerHtml && <Fragment set:html={generalConfig.footerHtml} />}
+        {generalConfig.footerHtml && <Fragment set:html={sanitizeHtml(generalConfig.footerHtml)} />}
 	</body>
 </html>

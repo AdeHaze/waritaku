@@ -9,7 +9,7 @@ if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
     return Astro.redirect('/admin', 302);
 }
 
-const lastUpdated = 'July 2026';
+const lastUpdated = 'August 2026';
 ---
 
 <AdminLayout title="System Documentation">
@@ -124,6 +124,82 @@ waritaku/
                     </div>
                 </section>
 
+                {/* 0.5 System Architecture */}
+                <section id="docs-architecture" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-sky-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-sky-500/80 group-hover:bg-sky-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-sky-500">System Architecture</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+
+                        <p>
+                            Waritaku CMS is a <strong class="text-foreground">headless, EAV (Entity-Attribute-Value) / JSON-schema driven</strong> content platform.
+                            The design goal is <strong class="text-foreground">multi-site, multi-collection, multi-taxonomy support</strong> from day one — the same engine that powers
+                            a news site can power a product catalog or a WooCommerce-style store without schema changes.
+                        </p>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Core Data Model (EAV / JSON-driven)</h4>
+                            <ul class="list-disc pl-5 space-y-2">
+                                <li><strong class="text-foreground">`collections`</strong> — content type definitions (articles, pages, products…). A JSON `fields` column defines the editor schema; a `supports` column toggles features (revisions, drafts, etc.).</li>
+                                <li><strong class="text-foreground">`entries`</strong> — all content. Custom field values live in a flexible JSON `data` column. Status: draft / published / scheduled / trashed.</li>
+                                <li><strong class="text-foreground">`taxonomies`</strong> — classification groups with `allowedCollections` (which collections they apply to), `isRouted` (creates archive pages), and `prefixEntryUrl` (e.g. /category/article-slug).</li>
+                                <li><strong class="text-foreground">`terms`</strong> — hierarchical taxonomy items.</li>
+                                <li><strong class="text-foreground">`entry_terms`</strong> — many-to-many junction between entries and terms.</li>
+                                <li><strong class="text-foreground">`entry_revisions`</strong> — full JSON snapshots of every save (with author + timestamp) for rollback.</li>
+                                <li><strong class="text-foreground">`users`</strong> — roles: superadmin, admin, editor, author, contributor, user.</li>
+                                <li><strong class="text-foreground">`settings`</strong> — key-value store (general_settings, theme_colors, sidebar_widgets, system_secrets…).</li>
+                                <li><strong class="text-foreground">`redirects`</strong> / <strong class="text-foreground">`notFoundLogs`</strong> — 301/302 engine and 404 tracking.</li>
+                            </ul>
+                            <p class="text-xs mt-2">
+                                <strong class="text-foreground">Cost of EAV:</strong> no DB-level validation of field types. Validation must happen in the editor/API layer.
+                                <strong class="text-foreground">Benefit:</strong> new content types and fields require zero schema migrations.
+                            </p>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Adapter Pattern (vendor lock-in prevention)</h4>
+                            <p>Two files isolate all infrastructure-specific code — swap providers without touching 50+ components:</p>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-foreground">Database Adapter (<code>src/lib/db.ts</code>)</strong>: `getDb(env)` is the single D1 entry point. Swap to PostgreSQL/Postgres.js by editing one file.</li>
+                                <li><strong class="text-foreground">Storage Adapter (<code>src/lib/storage.ts</code>)</strong>: `StorageAdapter` wraps R2 upload/delete/get/list. Swap to AWS S3 by editing these methods.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Routing & Rendering</h4>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-foreground"><code>[...slug].astro</code></strong> — the catch-all frontend router. Resolves entries, taxonomy archives, and date archives (<code>/2025/03</code>). Enforces canonical URLs with taxonomy prefixes (301 redirect).</li>
+                                <li><strong class="text-foreground"><code>src/lib/queries.ts</code></strong> — `resolveRouteData()` is the router's brain; also batches canonical URL lookups (single query per page, not per article).</li>
+                                <li><strong class="text-foreground"><code>src/middleware.ts</code></strong> — runs on every request: redirect engine, trailing-slash normalization, `/admin` + `/api` JWT auth guard, security headers, 404 logging.</li>
+                                <li><strong class="text-foreground">Block-builder pages</strong> — pages (and the front page) can be assembled from layout blocks (heroes, category blocks, article grids) via <code>BlockRenderer.astro</code>.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Content Pipeline (WordPress compatibility)</h4>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li>WordPress shortcodes → HTML: <code>[caption]</code> → <code>&lt;figure&gt;</code>, <code>[faq]</code> → <code>&lt;details&gt;</code>.</li>
+                                <li><code>.jpg/.png</code> → <code>.webp</code> rewrite for migrated image URLs.</li>
+                                <li>Auto Table of Contents generated from <code>h2</code>/<code>h3</code>.</li>
+                                <li>Embed parsing via <code>src/utils/embedParser.ts</code> (YouTube, Twitter, etc.).</li>
+                                <li><code>Accept: text/markdown</code> → content served as Markdown (via Turndown) for AI/LLM consumption.</li>
+                                <li>JSON-LD schema: NewsArticle, WebPage, CollectionPage, BreadcrumbList; `customSchema` override (validated, script-tag-safe).</li>
+                                <li>Password-protected articles (SHA-256 HMAC cookie gate).</li>
+                                <li>HTML sanitization via <code>sanitize-html</code> on all user-editable output (TipTap content, widget HTML).</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Serverless-first Design</h4>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li>Auth uses Web Crypto API (PBKDF2 + jose JWT) — no Node crypto dependency at the edge.</li>
+                                <li>The only <code>nodejs_compat</code> need is <code>process.env</code> for <code>JWT_SECRET</code>.</li>
+                                <li>Deploys as a single Cloudflare Worker + D1 + R2 — cost scales with usage, not monthly server rent.</li>
+                                <li>Archive queries are timezone-aware (Asia/Jakarta UTC+7) so Indonesian readers see correct dates.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
                 {/* 1. Dashboard */}
                 <section id="docs-dashboard" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-primary/50 transition-colors scroll-mt-24">
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-primary/80 group-hover:bg-primary transition-colors"></div>
@@ -199,7 +275,7 @@ waritaku/
                             - <strong>`terms`</strong>: The actual classification items (e.g., 'Technology', 'News').
                             - <strong>`entry_terms`</strong>: Join table linking `entries` to `terms`.
                         </p>
-                        <p><strong class="text-foreground">Technology:</strong> Uses Astro form actions for CRUD operations. Drizzle ORM queries fetch filtered entries based on term slugs.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Drizzle ORM queries fetch filtered entries based on term slugs. The management page supports <strong class="text-foreground">search</strong> (name LIKE filter), <strong class="text-foreground">sorting</strong> (newest / name asc-desc / slug), and <strong class="text-foreground">pagination</strong> (50 per page) so taxonomies with 10k+ terms stay responsive.</p>
                         
                         <div class="bg-amber-500/10 border-l-4 border-amber-500 p-4 mt-4 rounded-r-md">
                             <h4 class="font-bold text-amber-600 dark:text-amber-400 mb-1">Baked-in Examples: Categories &amp; Tags</h4>
@@ -228,9 +304,23 @@ waritaku/
                     <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-orange-500">System: Users & Roles</h3>
                     <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
                         <p><strong class="text-foreground">Function:</strong> Manages user access and permission levels.</p>
-                        <p><strong class="text-foreground">Database Structure:</strong> Updates the `users` table. The `articles` and `pages` tables reference `users.id` as `authorId`.</p>
-                        <p><strong class="text-foreground">Technology:</strong> Astro middleware (`src/middleware.ts`) verifies session tokens against the `users` table for each request.</p>
-                        <p><strong class="text-foreground">Permissions:</strong> Supports `admin` and `superadmin` roles. The UI hides administrative tools from users who lack the `superadmin` role.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> Updates the `users` table. Entries reference `users.id` as `authorId`.</p>
+                        <p><strong class="text-foreground">Technology:</strong> Astro middleware (`src/middleware.ts`) verifies JWT session tokens for every `/admin` and `/api` request.</p>
+                        <p><strong class="text-foreground">Permissions:</strong> Six roles, ordered by privilege:</p>
+                        <div class="bg-muted/30 p-4 rounded-md border border-border mt-2 space-y-2">
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-foreground">superadmin</strong> — Full access: users management, settings, system tools, exports, all collections.</li>
+                                <li><strong class="text-foreground">admin</strong> — Content + layout management, but cannot manage users or access superadmin-only system tools.</li>
+                                <li><strong class="text-foreground">editor</strong> — Create/edit/delete entries and manage terms.</li>
+                                <li><strong class="text-foreground">author</strong> — Create and edit own entries.</li>
+                                <li><strong class="text-foreground">contributor</strong> — Draft-only authoring (cannot publish).</li>
+                                <li><strong class="text-foreground">user</strong> — Minimal access (e.g. subscriber).</li>
+                            </ul>
+                            <p class="text-xs text-muted-foreground mt-2">
+                                Role enforcement is <strong class="text-foreground">server-side</strong>: the API layer checks `locals.user.role` on mutating endpoints
+                                (entries PUT/DELETE require admin+, profile password changes are superadmin-only for other users).
+                            </p>
+                        </div>
                     </div>
                 </section>
 
@@ -346,6 +436,53 @@ waritaku/
                     <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
                         <p><strong class="text-foreground">Markdown for Agents:</strong> `src/pages/[slug].astro` checks request headers. If the header contains <code>Accept: text/markdown</code>, the server uses `turndown` to convert HTML to Markdown. The server adds YAML frontmatter and returns Markdown content.</p>
                         <p><strong class="text-foreground">RFC 9727 API Catalog:</strong> The CMS serves an API catalog at <code>/.well-known/api-catalog</code>. The endpoint returns `application/linkset+json` data with `service-desc`, `service-doc`, and `status` links.</p>
+                    </div>
+                </section>
+
+                {/* 16. Security Model */}
+                <section id="docs-security" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-rose-500/50 transition-colors scroll-mt-24">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-rose-500/80 group-hover:bg-rose-500 transition-colors"></div>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-rose-500">Security Model</h3>
+                    <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Authentication</h4>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-foreground">Session:</strong> stateless HS256 JWT stored in an <code>httpOnly, secure, sameSite=lax</code> cookie, 24-hour expiry.</li>
+                                <li><strong class="text-foreground">Secret:</strong> <code>JWT_SECRET</code> env var is required — there is no fallback secret. Provision via <code>wrangler secret put JWT_SECRET</code> (or <code>.dev.vars</code> locally).</li>
+                                <li><strong class="text-foreground">Passwords:</strong> Web Crypto PBKDF2 (100k iterations, SHA-256). WordPress <code>$wp$2y$</code> bcrypt hashes verify via bcryptjs; legacy <code>$P$</code> phpass hashes are rejected with a reset prompt.</li>
+                                <li><strong class="text-foreground">Rate limiting:</strong> login endpoint allows 5 attempts per 60s (cookie-tracked) before a cooldown.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Authorization</h4>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li>Middleware protects every <code>/admin</code> page (except <code>/admin/login</code>, forgot/reset password) and every <code>/api</code> route.</li>
+                                <li>API mutating endpoints enforce role checks server-side: entries PUT/DELETE require <code>admin</code>+, term writes require <code>admin</code>+, profile edits are self-only (superadmin may retarget).</li>
+                                <li>List APIs never return sensitive fields (e.g. article passwords are stripped server-side).</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Data Protection</h4>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-foreground">XSS:</strong> all user-editable HTML (TipTap content, widget HTML) passes through <code>sanitize-html</code> allowlists at render; <code>customSchema</code> is JSON-validated and <code>&lt;/script&gt;</code>-escaped.</li>
+                                <li><strong class="text-foreground">Uploads:</strong> MIME allowlist (jpg/png/webp/gif/svg/avif), 10 MB size cap, server-side Content-Type from extension.</li>
+                                <li><strong class="text-foreground">Headers:</strong> <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy</code>, HSTS, and <code>X-Frame-Options: DENY</code> on /admin.</li>
+                                <li><strong class="text-foreground">SQL:</strong> all queries are Drizzle parameterized — no string-built SQL.</li>
+                                <li><strong class="text-foreground">Password-protected articles:</strong> gate cookie is a SHA-256 HMAC of the password (not forgeable); the markdown endpoint respects the same gate.</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
+                            <h4 class="font-bold text-foreground mb-2">Data Integrity</h4>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-foreground">Soft-delete:</strong> entry DELETE marks <code>status='trashed'</code> + <code>deletedAt</code> by default; permanent deletion requires <code>?permanent=true</code>.</li>
+                                <li><strong class="text-foreground">Revisions:</strong> every entry save snapshots the previous state (data + terms + status) into <code>entry_revisions</code> and increments <code>version</code> atomically.</li>
+                                <li><strong class="text-foreground">Secrets:</strong> API keys live in the <code>settings</code> table, never in client bundles. Never commit <code>.env</code> / <code>.dev.vars</code> / <code>local.db</code>.</li>
+                            </ul>
+                        </div>
                     </div>
                 </section>
 
@@ -533,6 +670,7 @@ npx wrangler d1 execute DB --remote --file=local-dump.sql</code></pre>
                     <ul class="space-y-1 text-xs">
                         {[
                             { id: 'docs-environments', label: 'DB Environments & Safety' },
+                            { id: 'docs-architecture', label: 'System Architecture' },
                             { id: 'docs-dashboard',    label: 'Dashboard' },
                             { id: 'docs-collections-entries', label: 'Collections & Entries' },
                             { id: 'docs-profile',      label: 'My Profile' },
@@ -548,6 +686,7 @@ npx wrangler d1 execute DB --remote --file=local-dump.sql</code></pre>
                             { id: 'docs-theme-colors', label: 'Theme Colors' },
                             { id: 'docs-seo',          label: 'SEO & Sitemaps' },
                             { id: 'docs-ai-api',       label: 'AI & API Discoverability' },
+                            { id: 'docs-security',     label: 'Security Model' },
                             { id: 'docs-migration-guide',  label: 'WordPress Migration' },
                         ].map(({ id, label }) => (
                             <li>

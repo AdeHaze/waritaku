@@ -196,7 +196,7 @@ if (db) {
                                     
                                     try {
                                         const res = await fetch('/api/upload', { method: 'POST', body: formData });
-                                        const data = await res.json();
+                                        const data = await res.json() as any;
                                         if (data.url) {
                                             const urlInput = document.getElementById('avatarUrl') as HTMLInputElement | null;
                                             if (urlInput) urlInput.value = data.url;

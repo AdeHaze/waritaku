@@ -24,14 +24,27 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
             allowedStr = body.allowedCollections;
         }
 
+        let isRouted = body.isRouted === true || body.isRouted === 'true';
+        const prefixEntryUrl = body.prefixEntryUrl === true || body.prefixEntryUrl === 'true';
+        const allowIndexing = body.allowIndexing !== false && body.allowIndexing !== 'false';
+        const omitTaxonomySlug = body.omitTaxonomySlug === true || body.omitTaxonomySlug === 'true';
+
+        if (prefixEntryUrl) {
+            isRouted = true;
+        }
+        if (omitTaxonomySlug && !isRouted) {
+            return new Response(JSON.stringify({ error: 'Cannot omit taxonomy slug if archive pages are disabled' }), { status: 400 });
+        }
+
         const updated = await db.update(taxonomies).set({
             label: body.label,
             slug: body.slug,
             description: body.description || '',
             allowedCollections: allowedStr,
-            isRouted: body.isRouted === true || body.isRouted === 'true',
-            prefixEntryUrl: body.prefixEntryUrl === true || body.prefixEntryUrl === 'true',
-            allowIndexing: body.allowIndexing !== false && body.allowIndexing !== 'false',
+            isRouted: isRouted,
+            prefixEntryUrl: prefixEntryUrl,
+            allowIndexing: allowIndexing,
+            omitTaxonomySlug: omitTaxonomySlug,
         }).where(eq(taxonomies.id, id)).returning();
 
         // Sync collections.supports.taxonomies
@@ -75,7 +88,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error: any) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };
 
@@ -98,6 +111,6 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error: any) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

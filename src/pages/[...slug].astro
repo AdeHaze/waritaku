@@ -1,4 +1,5 @@
 ---
+import { getThumbnail } from '../lib/utils';
 import LayoutArticlePage from '../layouts/LayoutArticlePage.astro';
 import GlobalSidebar from '../components/GlobalSidebar.astro';
 import Pagination from '../components/Pagination.astro';
@@ -9,7 +10,7 @@ import { env } from "cloudflare:workers";
 import { getDb } from '../lib/db';
 import { resolveRouteData } from '../lib/queries';
 import { settings, entries, collections, users, taxonomies, terms, entryTerms } from '../db/schema';
-import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+import { eq, and, or, desc, sql, inArray, exists } from 'drizzle-orm';
 
 import { parseEmbeds } from '../utils/embedParser';
 
@@ -56,9 +57,9 @@ if (env && env.DB && slug) {
       pageType = resolved.pageType;
       data = resolved.data;
       categoryArticles = resolved.categoryArticles;
-      totalPages = resolved.totalPages;
-      articleUpperHtml = resolved.articleUpperHtml;
-      articleBottomHtml = resolved.articleBottomHtml;
+      totalPages = resolved.totalPages || 1;
+      articleUpperHtml = resolved.articleUpperHtml || '';
+      articleBottomHtml = resolved.articleBottomHtml || '';
   }
   
   if (pageType) {
@@ -92,20 +93,24 @@ if (env && env.DB && slug) {
                   layoutBlocks = typeof data.layout_blocks === 'string' ? JSON.parse(data.layout_blocks) : data.layout_blocks;
               } catch(e) {}
 
-              const articlesColResult = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
-              const articlesColId = articlesColResult[0]?.id;
-
               const fetchArticles = async (options: { 
                   categoryId?: string | number, 
                   filterTaxonomyId?: string | number,
                   filterTermId?: string | number,
+                  filters?: { taxonomyId?: string, termId?: string }[],
+                  filterMatchType?: string,
+                  collectionId?: string,
                   limit?: number, 
                   offset?: number, 
                   isRandom?: boolean, 
                   tagSlug?: string 
               } = {}) => {
-                  const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, isRandom = false, tagSlug } = options;
-                  if (!articlesColId) return [];
+                  const { categoryId, filterTaxonomyId, filterTermId, filters = [], filterMatchType = 'AND', collectionId = 'articles', limit = 5, offset = 0, isRandom = false, tagSlug } = options;
+                  
+                  const targetColResult = await db.select({ id: collections.id, labelSingular: collections.labelSingular }).from(collections).where(eq(collections.slug, collectionId)).limit(1);
+                  const targetColId = targetColResult[0]?.id;
+                  
+                  if (!targetColId) return [];
                   
                   let query = db.selectDistinct({
                       entry: entries,
@@ -114,13 +119,45 @@ if (env && env.DB && slug) {
                   .from(entries)
                   .leftJoin(users, eq(entries.authorId, users.id));
 
-                  let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesColId));
+                  let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, targetColId));
 
                   const hasLegacyFilter = (categoryId && categoryId !== 'all') || tagSlug;
                   const hasTaxonomyFilter = filterTaxonomyId && filterTaxonomyId !== 'all';
                   const hasTermFilter = filterTermId && filterTermId !== 'all';
+                  
+                  // Filter out empty entries from the new filters array
+                  const activeFilters = filters.filter(f => f.taxonomyId && f.taxonomyId !== 'all');
 
-                  if (hasLegacyFilter || hasTaxonomyFilter || hasTermFilter) {
+                  if (activeFilters.length > 0) {
+                      if (filterMatchType === 'AND') {
+                          // Match ALL specified filters (Intersection)
+                          for (const f of activeFilters) {
+                              const termCond = (f.termId && f.termId !== 'all') 
+                                  ? eq(terms.id, parseInt(f.termId as string)) 
+                                  : eq(terms.taxonomyId, parseInt(f.taxonomyId as string));
+                              
+                              const existsQuery = db.select({ id: sql`1` })
+                                  .from(entryTerms)
+                                  .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                                  .where(and(eq(entryTerms.entryId, entries.id), termCond));
+                                  
+                              conditions = and(conditions, exists(existsQuery));
+                          }
+                      } else {
+                          // Match ANY of the specified filters (Union)
+                          query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
+                          query = query.innerJoin(terms, eq(entryTerms.termId, terms.id));
+                          
+                          const orConditions = activeFilters.map(f => {
+                              if (f.termId && f.termId !== 'all') {
+                                  return eq(terms.id, parseInt(f.termId as string));
+                              }
+                              return eq(terms.taxonomyId, parseInt(f.taxonomyId as string));
+                          });
+                          
+                          conditions = and(conditions, or(...orConditions));
+                      }
+                  } else if (hasLegacyFilter || hasTaxonomyFilter || hasTermFilter) {
                       query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
                       query = query.innerJoin(terms, eq(entryTerms.termId, terms.id));
                       
@@ -159,8 +196,9 @@ if (env && env.DB && slug) {
                   const result = await query.limit(limit).offset(offset);
                   
                   return result.map(r => {
-                      const data = JSON.parse(r.entry.data || '{}');
-                      const rawContent = data.content || '';
+                      let blkData: any;
+                      try { blkData = JSON.parse(r.entry.data || '{}'); } catch { blkData = {}; }
+                      const rawContent = blkData.content || '';
                       const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
                       const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
 
@@ -168,8 +206,8 @@ if (env && env.DB && slug) {
                           id: r.entry.id,
                           slug: r.entry.slug,
                           publishedAt: r.entry.publishedAt,
-                          ...data,
-                          categoryName: 'Article', // Can be populated if needed
+                          ...blkData,
+                          categoryName: targetColResult[0]?.labelSingular || 'Entry', // Dynamically use collection label
                           categorySlug: 'all',
                           authorName: r.author?.name || 'Admin',
                           authorId: r.author?.id || 1,
@@ -180,12 +218,15 @@ if (env && env.DB && slug) {
 
               const promises = layoutBlocks.map(async (block) => {
                   if (block.type === 'hero' || block.type === 'hero_2' || block.type === 'hero_3') {
-                      blockData[block.id] = await fetchArticles({ limit: block.limit || 5 });
+                      blockData[block.id] = await fetchArticles({ limit: block.limit || 5, collectionId: block.collectionId });
                   } else if (block.type === 'category_block') {
                       blockData[block.id] = await fetchArticles({ 
                           categoryId: block.categoryId, 
                           filterTaxonomyId: block.filterTaxonomyId,
                           filterTermId: block.filterTermId,
+                          filters: block.filters,
+                          filterMatchType: block.filterMatchType,
+                          collectionId: block.collectionId,
                           limit: block.limit || 5, 
                           tagSlug: block.tagSlug 
                       });
@@ -194,6 +235,9 @@ if (env && env.DB && slug) {
                           categoryId: block.categoryId, 
                           filterTaxonomyId: block.filterTaxonomyId,
                           filterTermId: block.filterTermId,
+                          filters: block.filters,
+                          filterMatchType: block.filterMatchType,
+                          collectionId: block.collectionId,
                           limit: block.limit || 11, 
                           tagSlug: block.tagSlug 
                       });
@@ -272,7 +316,7 @@ parsedContent = parsedContent.replace(/https?:\/\/127\.0\.0\.1:\d+\/wp-content\/
 parsedContent = parsedContent.replace(/https?:\/\/localhost:\d+\/wp-content\/uploads/gi, '/uploads');
 parsedContent = parsedContent.replace(/(\/uploads\/[^\s"'<>]+?)(-\d+x\d+)?\.(jpe?g|png)(?=["'\s>])/gi, '$1.webp');
 
-parsedContent = parsedContent.replace(/\[caption[^\]]*\]([\s\S]*?)\[\/caption\]/gi, (match, innerHtml) => {
+parsedContent = parsedContent.replace(/\[caption[^\]]*\]([\s\S]*?)\[\/caption\]/gi, (match: string, innerHtml: string) => {
     const imgMatch = innerHtml.match(/(<a[^>]*>)?\s*(<img[^>]+>)\s*(<\/a>)?/i);
     if (imgMatch) {
         const fullImgHtml = imgMatch[0];
@@ -282,13 +326,12 @@ parsedContent = parsedContent.replace(/\[caption[^\]]*\]([\s\S]*?)\[\/caption\]/
     return match;
 });
 
-
-parsedContent = parsedContent.replace(/<img([^>]*)title="([^"]+)"([^>]*)>/gi, (match, before, title, after) => {
+parsedContent = parsedContent.replace(/<img([^>]*)title="([^"]+)"([^>]*)>/gi, (match: string, before: string, title: string, after: string) => {
     return `<figure class="my-8"><img${before}title="${title}"${after}><figcaption class="text-center text-sm text-muted-foreground mt-2">${title}</figcaption></figure>`;
 });
 
 const fallbackAlt = (data.title || data.name || '').replace(/"/g, '&quot;');
-parsedContent = parsedContent.replace(/<img([^>]*)>/gi, (match, attrs) => {
+parsedContent = parsedContent.replace(/<img([^>]*)>/gi, (match: string, attrs: string) => {
     if (!/alt="[^"]+"/i.test(attrs)) {
         let newAttrs = attrs.replace(/\s*alt=(["'])\1/gi, '');
         return `<img alt="${fallbackAlt}" ${newAttrs}>`;
@@ -296,7 +339,7 @@ parsedContent = parsedContent.replace(/<img([^>]*)>/gi, (match, attrs) => {
     return match;
 });
 
-parsedContent = parsedContent.replace(/\[faq title="([^"]+)"\]([\s\S]*?)\[\/faq\]/gi, (match, title, answer) => {
+parsedContent = parsedContent.replace(/\[faq title="([^"]+)"\]([\s\S]*?)\[\/faq\]/gi, (match: string, title: string, answer: string) => {
     return `<details class="group my-4 border border-border rounded-lg bg-card shadow-sm overflow-hidden"><summary class="flex justify-between items-center cursor-pointer p-4 font-semibold hover:bg-muted/50 transition-colors"><span>${title}</span><span class="transition-transform group-open:rotate-180">▼</span></summary><div class="p-4 border-t border-border text-muted-foreground">${answer.trim()}</div></details>`;
 });
 
@@ -307,7 +350,7 @@ function generateToC(html: string) {
     let hasHeadings = false;
     let counter = 1;
     
-    const modifiedHtml = html.replace(/<(h[23])[^>]*>(.*?)<\/\1>/gi, (match, tag, text) => {
+    const modifiedHtml = html.replace(/<(h[23])[^>]*>(.*?)<\/\1>/gi, (match: string, tag: string, text: string) => {
         hasHeadings = true;
         const rawText = text.replace(/<[^>]+>/g, '').trim();
         const id = `toc-${counter++}`;
@@ -338,11 +381,6 @@ if (!data.is_block_builder) {
     parsedContent = generateToC(parsedContent);
 }
 
-function getThumbnail(content: string) {
-    if (!content) return '/placeholder.webp';
-    const match = content.match(/<img[^>]+src="([^">]+)"/i);
-    return match ? match[1] : '/placeholder.webp';
-}
 
 const headerImage = data.featuredImageUrl || data.featuredImage || data.image || data.heroImage || data.thumbnail || data.coverImage || data.hero || getThumbnail(parsedContent);
 const pageTitle = data.metaTitle || data.title || data.name;
@@ -396,7 +434,7 @@ if (data.supports?.breadcrumbs !== false) {
                 "@type": "ListItem",
                 "position": 1,
                 "name": "Home",
-                "item": currentUrl.origin
+                "item": siteUrl
             }
         ]
     };
@@ -405,26 +443,26 @@ if (data.supports?.breadcrumbs !== false) {
             "@type": "ListItem",
             "position": 2,
             "name": data.categoryName || "Category",
-            "item": `${currentUrl.origin}/${data.categorySlug}`
+            "item": `${siteUrl}/${data.categorySlug}`
         });
         breadcrumbSchema.itemListElement.push({
             "@type": "ListItem",
             "position": 3,
             "name": pageTitle,
-            "item": currentUrl.href
+            "item": currentUrl
         });
     } else {
         breadcrumbSchema.itemListElement.push({
             "@type": "ListItem",
             "position": 2,
             "name": pageType ? pageType.charAt(0).toUpperCase() + pageType.slice(1) : 'Page',
-            "item": `${currentUrl.origin}/${pageType || 'page'}`
+            "item": `${siteUrl}/${pageType || 'page'}`
         });
         breadcrumbSchema.itemListElement.push({
             "@type": "ListItem",
             "position": 3,
             "name": pageTitle,
-            "item": currentUrl.href
+            "item": currentUrl
         });
     }
 }
@@ -466,6 +504,8 @@ if (!showPasswordPrompt && acceptHeader.includes('text/markdown') && (pageType =
         }
     });
 }
+
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
 ---
 
 <LayoutArticlePage 

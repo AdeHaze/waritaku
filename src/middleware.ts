@@ -5,6 +5,10 @@ import { redirects, notFoundLogs, settings } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
+// Simple in-memory settings cache with 60s TTL
+let settingsCache: { config: any; timestamp: number } | null = null;
+const SETTINGS_CACHE_TTL = 60_000; // 60 seconds
+
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
     const db = getDb(env);
@@ -13,14 +17,21 @@ export const onRequest = defineMiddleware(async (context, next) => {
     let enable404Tracking = true;
 
     if (db) {
+        const now = Date.now();
+        if (settingsCache && (now - settingsCache.timestamp) < SETTINGS_CACHE_TTL) {
+            enableRedirections = settingsCache.config.enableRedirections !== false;
+            enable404Tracking = settingsCache.config.enable404Tracking !== false;
+        } else {
         try {
             const configRow = await db.select().from(settings).where(eq(settings.key, 'general_settings')).get();
             if (configRow) {
                 const config = JSON.parse(configRow.value);
+                settingsCache = { config, timestamp: now };
                 enableRedirections = config.enableRedirections !== false;
                 enable404Tracking = config.enable404Tracking !== false;
             }
         } catch(e) {}
+        }
     }
 
     // --- 0. Redirect Engine ---
@@ -78,6 +89,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const response = await next();
 
     // --- 3. Security headers ---
+    // CSP: 'unsafe-inline' needed for Astro is:inline scripts; frame-src allows embeds (YouTube, Twitter, Vimeo, Spotify, SoundCloud)
+    response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://platform.twitter.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self'; connect-src 'self'; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://platform.twitter.com https://twitter.com https://x.com");
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');

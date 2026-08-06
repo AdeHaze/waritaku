@@ -15,7 +15,7 @@ export const GET: APIRoute = async ({ locals }) => {
         const list = await db.select().from(collections);
         return new Response(JSON.stringify(list), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };
 
@@ -76,6 +76,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         if (e.message.includes('UNIQUE constraint failed')) {
             return new Response(JSON.stringify({ error: 'A content type with this slug already exists.' }), { status: 400 });
         }
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

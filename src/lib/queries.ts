@@ -12,29 +12,92 @@ export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Rec
     const { inArray } = await import('drizzle-orm');
     const results = await db.select({
         entryId: entryTerms.entryId,
-        termSlug: terms.slug
+        termSlug: terms.slug,
+        taxonomySlug: taxonomies.slug,
+        supports: collections.supports,
+        entryData: entries.data
     })
     .from(entryTerms)
     .innerJoin(terms, eq(entryTerms.termId, terms.id))
     .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+    .innerJoin(entries, eq(entries.id, entryTerms.entryId))
+    .innerJoin(collections, eq(entries.collectionId, collections.id))
     .where(and(
         inArray(entryTerms.entryId, entryIds),
         eq(taxonomies.prefixEntryUrl, true)
     ));
+    
+    // Group by entryId
+    const byEntry: Record<number, any[]> = {};
+    for (const r of results) {
+        if (!byEntry[r.entryId]) byEntry[r.entryId] = [];
+        byEntry[r.entryId].push(r);
+    }
+
     const map: Record<number, string> = {};
-    for (const r of results) map[r.entryId] = r.termSlug;
+    for (const entryIdStr of Object.keys(byEntry)) {
+        const entryId = parseInt(entryIdStr, 10);
+        const rows = byEntry[entryId];
+        const parsedData = safeJsonParse(rows[0].entryData, {} as any);
+        const override = parsedData.primaryTaxonomyOverride;
+        if (override) {
+            const overrideMatch = rows.find(r => r.taxonomySlug === override);
+            if (overrideMatch) {
+                map[entryId] = overrideMatch.termSlug;
+                continue;
+            }
+        }
+
+        let supportsData: any = {};
+        try { supportsData = JSON.parse(rows[0].supports || '{}'); } catch(e) {}
+        const priorityArray: string[] = supportsData.taxonomies || [];
+
+        rows.sort((a, b) => {
+            const idxA = priorityArray.indexOf(a.taxonomySlug);
+            const idxB = priorityArray.indexOf(b.taxonomySlug);
+            const rankA = idxA === -1 ? 999 : idxA;
+            const rankB = idxB === -1 ? 999 : idxB;
+            return rankA - rankB;
+        });
+        map[entryId] = rows[0].termSlug;
+    }
     return map;
 }
 
 export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: string) => {
-    const prefixRes = await db.select({ termSlug: terms.slug })
+    const prefixRes = await db.select({ 
+        termSlug: terms.slug, 
+        taxonomySlug: taxonomies.slug,
+        supports: collections.supports,
+        entryData: entries.data
+    })
         .from(entryTerms)
         .innerJoin(terms, eq(entryTerms.termId, terms.id))
         .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
-        .where(and(eq(entryTerms.entryId, entryId), eq(taxonomies.prefixEntryUrl, true)))
-        .limit(1);
+        .innerJoin(entries, eq(entries.id, entryTerms.entryId))
+        .innerJoin(collections, eq(entries.collectionId, collections.id))
+        .where(and(eq(entryTerms.entryId, entryId), eq(taxonomies.prefixEntryUrl, true)));
     
     if (prefixRes.length > 0) {
+        const parsedData = safeJsonParse(prefixRes[0].entryData, {} as any);
+        const override = parsedData.primaryTaxonomyOverride;
+        if (override) {
+            const overrideMatch = prefixRes.find(r => r.taxonomySlug === override);
+            if (overrideMatch) return `${overrideMatch.termSlug}/${entrySlug}`;
+        }
+
+        let supportsData: any = {};
+        try { supportsData = JSON.parse(prefixRes[0].supports || '{}'); } catch(e) {}
+        const priorityArray: string[] = supportsData.taxonomies || [];
+
+        prefixRes.sort((a, b) => {
+            const idxA = priorityArray.indexOf(a.taxonomySlug);
+            const idxB = priorityArray.indexOf(b.taxonomySlug);
+            const rankA = idxA === -1 ? 999 : idxA;
+            const rankB = idxB === -1 ? 999 : idxB;
+            return rankA - rankB;
+        });
+
         return `${prefixRes[0].termSlug}/${entrySlug}`;
     }
     return entrySlug;
@@ -127,6 +190,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             return {
                 id: r.entry.id,
                 slug: r.entry.slug,
+                canonicalUrl: `/${r.entry.slug}`,
                 publishedAt: r.entry.publishedAt,
                 ...data,
                 authorName: r.author?.name || 'Writer',
@@ -209,8 +273,9 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
             .where(eq(entryTerms.entryId, entry.id));
 
-            // Map category name
+            // Map categories (all assigned categories, not just the first)
             const cats = entryTermsResult.filter((t: any) => t.taxonomy.slug === 'categories');
+            data.categories = cats.map((c: any) => ({ name: c.term.name, slug: c.term.slug }));
             data.categoryName = cats.length > 0 ? cats[0].term.name : 'Article';
             data.categorySlug = cats.length > 0 ? cats[0].term.slug : 'all';
 
@@ -248,7 +313,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
     if (segments.length === 1 && segments[0] === 'all') {
         termResult = [{ term: { id: null, name: 'Semua Berita', slug: 'all' }, taxonomy: { allowIndexing: true } }];
     } else if (segments.length === 1) {
-        // e.g. /category-term
+        // e.g. /category-term — prefer lower taxonomy id when multiple match
         termResult = await db.select({
             term: terms,
             taxonomy: taxonomies
@@ -261,6 +326,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 eq(taxonomies.isRouted, true)
             )
         )
+        .orderBy(taxonomies.id)
         .limit(1);
     } else if (segments.length === 2) {
         // e.g. /product/dining-room
@@ -283,6 +349,15 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
     if (termResult.length > 0) {
         const data = termResult[0].term;
         taxonomyData = termResult[0].taxonomy;
+
+        // Strict URL Enforcement: Redirect if the visited format does not match the configured setting
+        if (segments.length === 1 && !taxonomyData.allowIndexing && data.slug === 'all') {
+             // Let /all pass through as usual
+        } else if (segments.length === 1 && !taxonomyData.omitTaxonomySlug && data.slug !== 'all') {
+            return { redirect: `/${taxonomyData.slug}/${data.slug}` };
+        } else if (segments.length === 2 && taxonomyData.omitTaxonomySlug) {
+            return { redirect: `/${data.slug}` };
+        }
         
         let countQuery = db.select({ count: sql<number>`count(distinct ${entries.id})` })
             .from(entries);
@@ -351,12 +426,12 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
             
             const prefixSlug = canonicalMap[r.entry.id];
-            const canonicalUrl = prefixSlug ? `/${prefixSlug}/${r.entry.slug}` : `/${r.entry.slug}`;
+            const canonicalPath = prefixSlug ? `/${prefixSlug}/${r.entry.slug}` : `/${r.entry.slug}`;
 
             categoryArticles.push({
                 id: r.entry.id,
                 slug: r.entry.slug,
-                canonicalUrl: `/${canonicalUrl}`,
+                canonicalUrl: canonicalPath,
                 publishedAt: r.entry.publishedAt,
                 ...data,
                 authorName: r.author?.name || 'Writer',

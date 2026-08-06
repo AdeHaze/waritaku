@@ -50,6 +50,33 @@ async function main() {
 
   if (setupDb === 'yes') {
     const s = spinner();
+    s.start('Checking database state before migration...');
+
+    // Pre-flight safety check: refuse if legacy WP tables exist alongside new schema
+    // This prevents the wipe scenario warned about in AGENTS.md.
+    // We check for the 'articles' table (legacy WP) AND 'collections' table (new headless schema)
+    // If both exist, the DB is in a transitional state and running migrations would be destructive.
+    try {
+      const checkOutput = await runCommandSilent('npx', ['wrangler', 'd1', 'execute', 'DB', '--local', '--command=SELECT name FROM sqlite_master WHERE type=\'table\' AND name IN (\'articles\', \'collections\')'], PROJECT_ROOT);
+      const hasArticles = checkOutput.includes('articles');
+      const hasCollections = checkOutput.includes('collections');
+
+      if (hasArticles && hasCollections) {
+        s.stop(pc.yellow('Both legacy (articles) and new (collections) tables found.'));
+        console.log(pc.red('\n  ⚠️  DESTRUCTIVE MIGRATION DETECTED'));
+        console.log(pc.yellow('  The migration series at 0016 drops legacy tables (articles, pages, categories, etc.).'));
+        console.log(pc.yellow('  Your database appears to be in a transitional state — running migrations now'));
+        console.log(pc.yellow('  would permanently DELETE the imported WordPress data.\n'));
+        console.log(pc.cyan('  To safely migrate:'));
+        console.log(pc.cyan('  1. Back up .wrangler/state/v3/d1/ first'));
+        console.log(pc.cyan('  2. Verify headless data exists in collections/entries tables'));
+        console.log(pc.cyan('  3. Re-run this wizard to apply migrations\n'));
+        process.exit(1);
+      }
+    } catch (e) {
+      // If the check query fails, the DB may not exist yet — safe to proceed
+    }
+
     s.start('Applying Drizzle migrations to local D1 (wrangler)...');
     try {
       await runCommandSilent('npx', ['wrangler', 'd1', 'migrations', 'apply', 'DB', '--local'], PROJECT_ROOT);

@@ -23,6 +23,7 @@ const schema = JSON.parse(collection.fields || '[]');
 // Fetch allowed taxonomies for this collection
 const taxQuery = await db.select().from(taxonomies).where(like(taxonomies.allowedCollections, `%"${collection.slug}"%`));
 const allowedTaxonomies = taxQuery.map(t => t.slug);
+const taxonomyMeta = taxQuery.map(t => ({ slug: t.slug, label: t.label, prefixEntryUrl: t.prefixEntryUrl }));
 
 import DynamicEntryEditor from '../../../../components/admin/DynamicEntryEditor';
 ---
@@ -37,5 +38,5 @@ import DynamicEntryEditor from '../../../../components/admin/DynamicEntryEditor'
     </div>
 
     <!-- The React Root for our Editor -->
-    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} taxonomies={allowedTaxonomies} initialEntry={null} supports={collection.supports} />
+    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} initialEntry={null} supports={collection.supports} />
 </AdminLayout>

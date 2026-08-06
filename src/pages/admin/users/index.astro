@@ -5,7 +5,6 @@ import { users, passwordResets } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from "cloudflare:workers";
 import { getDb } from '../../../lib/db';
-import crypto from 'node:crypto';
 
 import { hashPassword } from '../../../lib/auth';
 
@@ -59,7 +58,7 @@ if (env && env.DB) {
           } else if (action === 'generate_reset_link') {
               const id = parseInt(data.get('id') as string, 10);
               if (id) {
-                  const token = crypto.randomBytes(32).toString('hex');
+                  const token = [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join('');
                   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
                   
                   await db.insert(passwordResets).values({

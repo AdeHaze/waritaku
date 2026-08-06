@@ -18,10 +18,12 @@ interface DynamicEntryEditorProps {
     initialEntry: any | null;
     supports?: string;
     taxonomies?: string[];
+    taxonomyMeta?: { slug: string; label: string; prefixEntryUrl: boolean }[];
 }
 
-export default function DynamicEntryEditor({ collectionSlug, schema, initialEntry, supports, taxonomies = [] }: DynamicEntryEditorProps) {
-    const [formData, setFormData] = useState<any>(initialEntry || { status: 'draft', selectedTerms: [] });
+export default function DynamicEntryEditor({ collectionSlug, schema, initialEntry, supports, taxonomies = [], taxonomyMeta = [] }: DynamicEntryEditorProps) {
+    const [formData, setFormData] = useState<any>(initialEntry || { status: 'draft', selectedTerms: {} });
+    const [allTermsData, setAllTermsData] = useState<Record<string, any[]>>({});
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
     const [showRevisions, setShowRevisions] = useState(false);
@@ -121,10 +123,15 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
             
             const method = initialEntry?.id ? 'PUT' : 'POST';
 
+            const payload = { ...formData };
+            if (payload.selectedTerms) {
+                payload.selectedTerms = Object.values(payload.selectedTerms).flat();
+            }
+
             const res = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(payload)
             });
 
             const json = await res.json() as any;
@@ -231,6 +238,69 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
 
             {/* Sidebar metadata */}
             <div className="space-y-6">
+                
+                {/* Canonical URL Preview */}
+                {(() => {
+                    let supportedTax = [];
+                    try { if (supports) supportedTax = JSON.parse(supports).taxonomies || []; } catch(e) {}
+                    
+                    const prefixedTaxonomies = taxonomyMeta.filter(t => t.prefixEntryUrl && supportedTax.includes(t.slug));
+                    
+                    let primaryTaxonomy = '';
+                    if (formData.primaryTaxonomyOverride) {
+                        primaryTaxonomy = formData.primaryTaxonomyOverride;
+                    } else if (prefixedTaxonomies.length > 0) {
+                        // Find first in supported priority order
+                        for (const slug of supportedTax) {
+                            if (prefixedTaxonomies.some(t => t.slug === slug)) {
+                                primaryTaxonomy = slug;
+                                break;
+                            }
+                        }
+                    }
+
+                    let prefixTerm = null;
+                    if (primaryTaxonomy && formData.selectedTerms?.[primaryTaxonomy]?.length > 0) {
+                        const termId = formData.selectedTerms[primaryTaxonomy][0];
+                        const terms = allTermsData[primaryTaxonomy] || [];
+                        prefixTerm = terms.find(t => t.id.toString() === termId);
+                    }
+
+                    const canonicalUrl = `/${prefixTerm ? prefixTerm.slug + '/' : ''}${formData.slug || 'untitled'}`;
+
+                    if (prefixedTaxonomies.length > 0) {
+                        return (
+                            <div className="bg-card border border-border rounded-xl shadow-sm p-6 relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+                                <h3 className="text-sm font-bold uppercase tracking-wider mb-2 text-foreground">Canonical URL</h3>
+                                <p className="text-xs text-muted-foreground mb-4">This entry's URL is prefixed by its primary taxonomy.</p>
+                                
+                                <div className="bg-accent/50 border border-input rounded-md p-3 mb-4 break-all">
+                                    <span className="text-muted-foreground text-sm">https://yoursite.com</span>
+                                    <span className="text-primary font-bold text-sm">{canonicalUrl}</span>
+                                </div>
+
+                                {prefixedTaxonomies.length > 1 && (
+                                    <div>
+                                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Override Primary Taxonomy</label>
+                                        <select 
+                                            value={formData.primaryTaxonomyOverride || ''}
+                                            onChange={(e) => handleChange('primaryTaxonomyOverride', e.target.value)}
+                                            className="w-full px-3 py-2 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                        >
+                                            <option value="">Default (Collection Priority)</option>
+                                            {prefixedTaxonomies.map(t => (
+                                                <option key={t.slug} value={t.slug}>{t.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
+
                 <div className="bg-card border border-border rounded-xl shadow-sm p-6">
                     <h3 className="text-sm font-bold uppercase tracking-wider mb-4 pb-2 border-b border-border">Publishing</h3>
                     
@@ -341,16 +411,37 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                     </div>
                 </div>
                 {/* Taxonomies */}
-                {taxonomies.map(taxSlug => (
-                    <div key={taxSlug} className="bg-card border border-border rounded-xl shadow-sm p-6 mt-6">
-                        <TaxonomySelector 
-                            label={taxSlug}
-                            taxonomySlug={taxSlug}
-                            selectedTerms={formData.selectedTerms || []}
-                            onChange={(terms) => handleChange('selectedTerms', terms)}
-                        />
-                    </div>
-                ))}
+                {(() => {
+                    let supportedTax = [];
+                    try { if (supports) supportedTax = JSON.parse(supports).taxonomies || []; } catch(e) {}
+                    
+                    let activePrimary = formData.primaryTaxonomyOverride;
+                    if (!activePrimary) {
+                        for (const slug of supportedTax) {
+                            if (taxonomyMeta.find(t => t.slug === slug)?.prefixEntryUrl) {
+                                activePrimary = slug;
+                                break;
+                            }
+                        }
+                    }
+
+                    return taxonomies.map(taxSlug => {
+                        const meta = taxonomyMeta.find(t => t.slug === taxSlug);
+                        const isPrefixPriority = activePrimary === taxSlug;
+                        return (
+                            <div key={taxSlug} className="mt-6">
+                                <TaxonomySelector 
+                                    label={meta?.label || taxSlug}
+                                    taxonomySlug={taxSlug}
+                                    selectedTerms={formData.selectedTerms?.[taxSlug] || []}
+                                    onChange={(terms) => handleChange('selectedTerms', { ...formData.selectedTerms, [taxSlug]: terms })}
+                                    isPrefixPriority={isPrefixPriority}
+                                    onTermData={(terms) => setAllTermsData(prev => ({ ...prev, [taxSlug]: terms }))}
+                                />
+                            </div>
+                        );
+                    });
+                })()}
             </div>
         </form>
 

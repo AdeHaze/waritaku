@@ -1,42 +1,50 @@
 ---
-import '../styles/global.css';
-import DisplaySettings from '../components/DisplaySettings.astro';
-import ThemeInjector from '../components/ThemeInjector.astro';
-import LayoutGlobalHeader from '../components/LayoutGlobalHeader.astro';
-import LayoutGlobalFooter from '../components/LayoutGlobalFooter.astro';
-import { settings } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { sanitizeHtml } from "../utils/sanitize";
+import "../styles/global.css";
+import DisplaySettings from "../components/DisplaySettings.astro";
+import ThemeInjector from "../components/ThemeInjector.astro";
+import LayoutGlobalHeader from "../components/LayoutGlobalHeader.astro";
+import LayoutGlobalFooter from "../components/LayoutGlobalFooter.astro";
+import { settings } from "../db/schema";
+import { eq } from "drizzle-orm";
 import { env } from "cloudflare:workers";
-import { getDb } from '../lib/db';
-
+import { getDb } from "../lib/db";
 
 interface Props {
-  title: string;
-  metaDescription?: string;
+	title: string;
+	metaDescription?: string;
 }
 
 const { title, metaDescription } = Astro.props;
 
 let generalConfig = {
-    siteTitle: 'Waritaku',
-    siteDescription: '',
-    faviconUrl: '/favicon.svg',
-    language: 'id',
-    headerHtml: '',
-    footerHtml: ''
+	siteTitle: "Waritaku",
+	siteDescription: "Membahas Pop Kultur",
+	faviconUrl: "/favicon.svg",
+	language: "id",
+	headerHtml: "",
+	footerHtml: "",
 };
 
 if (env && env.DB) {
-    try {
-        const db = getDb(env);
-        const record = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
-        if (record.length > 0) {
-            generalConfig = { ...generalConfig, ...JSON.parse(record[0].value) };
-        }
-    } catch(e) {}
+	try {
+		const db = getDb(env);
+		const record = await db
+			.select()
+			.from(settings)
+			.where(eq(settings.key, "general_settings"));
+		if (record.length > 0) {
+			generalConfig = {
+				...generalConfig,
+				...JSON.parse(record[0].value),
+			};
+		}
+	} catch (e) {}
 }
 
-const displayTitle = title ? `${title} | ${generalConfig.siteTitle}` : generalConfig.siteTitle;
+const displayTitle = title
+	? `${title} | ${generalConfig.siteTitle}`
+	: generalConfig.siteTitle;
 const displayDesc = metaDescription || generalConfig.siteDescription;
 ---
 
@@ -48,37 +56,45 @@ const displayDesc = metaDescription || generalConfig.siteDescription;
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
 		<title>{displayTitle}</title>
-        {displayDesc && <meta name="description" content={displayDesc} />}
-        {generalConfig.headerHtml && <Fragment set:html={generalConfig.headerHtml} />}
-		
+		{displayDesc && <meta name="description" content={displayDesc} />}
+		{
+			generalConfig.headerHtml && (
+				<Fragment set:html={sanitizeHtml(generalConfig.headerHtml)} />
+			)
+		}
+
 		<script is:inline>
 			// Prevent FOUC (Flash of Unstyled Content) by instantly applying settings
-			(function() {
+			(function () {
 				try {
-					var theme = localStorage.getItem('theme') || 'system';
+					var theme = localStorage.getItem("theme") || "system";
 					var root = document.documentElement;
-					if (theme === 'system') {
-						if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-							root.classList.add('dark');
+					if (theme === "system") {
+						if (
+							window.matchMedia("(prefers-color-scheme: dark)")
+								.matches
+						) {
+							root.classList.add("dark");
 						} else {
-							root.classList.add('light');
+							root.classList.add("light");
 						}
 					} else {
 						root.classList.add(theme);
 					}
-					
-					var textSize = localStorage.getItem('textSize');
+
+					var textSize = localStorage.getItem("textSize");
 					if (textSize) root.dataset.textSize = textSize;
-					
-					var spacing = localStorage.getItem('spacing');
+
+					var spacing = localStorage.getItem("spacing");
 					if (spacing) root.dataset.spacing = spacing;
 				} catch (e) {}
 			})();
 		</script>
-        <ThemeInjector />
+		<ThemeInjector />
 	</head>
-	<body class="min-h-screen bg-background font-sans antialiased flex flex-col selection:bg-primary selection:text-primary-foreground transition-colors duration-300">
-		
+	<body
+		class="min-h-screen bg-background font-sans antialiased flex flex-col selection:bg-primary selection:text-primary-foreground transition-colors duration-300"
+	>
 		<LayoutGlobalHeader />
 
 		<main class="flex-1">
@@ -86,9 +102,13 @@ const displayDesc = metaDescription || generalConfig.siteDescription;
 		</main>
 
 		<LayoutGlobalFooter />
-		
+
 		<DisplaySettings />
 
-        {generalConfig.footerHtml && <Fragment set:html={generalConfig.footerHtml} />}
+		{
+			generalConfig.footerHtml && (
+				<Fragment set:html={sanitizeHtml(generalConfig.footerHtml)} />
+			)
+		}
 	</body>
 </html>

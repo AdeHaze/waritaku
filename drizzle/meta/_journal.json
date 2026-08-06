@@ -132,7 +132,35 @@
       "idx": 18,
       "version": "6",
       "when": 1785849595264,
-      "tag": "0018_add_password_resets",
+      "tag": "0018_amelia_watson",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1785900000000,
+      "tag": "0019_ouro_kronii",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1786100000000,
+      "tag": "0020_tanya_degurechaff",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1785998357029,
+      "tag": "0021_kizuna_ai",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1785998519409,
+      "tag": "0022_nakiri_ayame",
       "breakpoints": true
     }
   ]

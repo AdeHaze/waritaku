@@ -26,7 +26,6 @@ export function parseEmbeds(content: string): string {
     // Twitter Regex
     // E.g. https://twitter.com/G_Witch_M/status/1609202768635629568
     // E.g. https://x.com/G_Witch_M/status/1609202768635629568
-    // Note: (?<!["'=]) ensures we don't accidentally match a URL inside an href="..." attribute!
     const twitterRegex = /(?<!["'=])(?:<p>)?\s*(?:<a[^>]*>)?\s*https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/([a-zA-Z0-9_]+)\/status\/([0-9]+)\s*(?:<\/a>)?\s*(?:<\/p>)?/gi;
     
     let hasTwitter = false;

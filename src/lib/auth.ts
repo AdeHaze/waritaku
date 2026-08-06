@@ -19,7 +19,7 @@ export async function createSessionCookie(payload: SessionPayload): Promise<stri
     .setIssuedAt()
     .setExpirationTime('24h') // 24 hours
     .sign(JWT_SECRET);
-    
+
   return jwt;
 }
 
@@ -49,7 +49,7 @@ export async function hashPassword(password: string): Promise<string> {
     false,
     ['deriveBits']
   );
-  
+
   const hashBuffer = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
@@ -60,8 +60,8 @@ export async function hashPassword(password: string): Promise<string> {
     keyMaterial,
     256
   );
-  
-  return buf2hex(salt) + ':' + buf2hex(hashBuffer);
+
+  return buf2hex(salt.buffer) + ':' + buf2hex(hashBuffer);
 }
 
 /**
@@ -102,7 +102,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
       false,
       ['deriveBits']
     );
-    
+
     const hashBuffer = await crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
@@ -113,7 +113,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
       keyMaterial,
       256
     );
-    
+
     return buf2hex(hashBuffer) === originalHashHex;
   } catch {
     return false;

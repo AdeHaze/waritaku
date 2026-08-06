@@ -1,11 +1,11 @@
 ---
-import { getDb } from '../lib/db';
-import '../styles/global.css';
-import DisplaySettings from '../components/DisplaySettings.astro';
-import ThemeInjector from '../components/ThemeInjector.astro';
-import { settings, collections, taxonomies } from '../db/schema';
-import { eq } from 'drizzle-orm';
-import { env } from 'cloudflare:workers';
+import { getDb } from "../lib/db";
+import "../styles/global.css";
+import DisplaySettings from "../components/DisplaySettings.astro";
+import ThemeInjector from "../components/ThemeInjector.astro";
+import { settings, collections, taxonomies } from "../db/schema";
+import { eq } from "drizzle-orm";
+import { env } from "cloudflare:workers";
 
 interface Props {
   title: string;
@@ -15,52 +15,61 @@ const { title } = Astro.props;
 const user = Astro.locals.user;
 
 // Fetch Database Environment Indicator
-let dbEnv = 'Unknown Database';
+let dbEnv = "Unknown Database";
 if (env && env.DB) {
-    try {
-        const db = getDb(env);
-        const existing = await db.select().from(settings).where(eq(settings.key, 'database_environment'));
-        if (existing.length > 0) {
-            dbEnv = existing[0].value;
-        } else {
-            dbEnv = 'Local Development'; // Default fallback
-        }
-    } catch (e) {
-        dbEnv = 'Database Error';
+  try {
+    const db = getDb(env);
+    const existing = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "database_environment"));
+    if (existing.length > 0) {
+      dbEnv = existing[0].value;
+    } else {
+      dbEnv = "Local Development"; // Default fallback
     }
+  } catch (e) {
+    dbEnv = "Database Error";
+  }
 }
 
-let collectionsList = [];
-let taxonomiesList = [];
+let collectionsList: any[] = [];
+let taxonomiesList: any[] = [];
 if (env && env.DB) {
-    try {
-        const db = getDb(env);
-        collectionsList = await db.select().from(collections);
-        taxonomiesList = await db.select().from(taxonomies);
-    } catch(e) {}
+  try {
+    const db = getDb(env);
+    collectionsList = await db.select().from(collections);
+    taxonomiesList = await db.select().from(taxonomies);
+  } catch (e) {}
 }
 
 // Generate badge styles based on environment
-let badgeClasses = "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
+let badgeClasses =
+  "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700";
 let dotClass = "bg-gray-400";
 
-if (dbEnv === 'Local Development') {
-    badgeClasses = "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800/50";
-    dotClass = "bg-green-500";
-} else if (dbEnv === 'Local Cloud Development') {
-    badgeClasses = "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800/50";
-    dotClass = "bg-yellow-500";
-} else if (dbEnv === 'Production') {
-    badgeClasses = "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50";
-    dotClass = "bg-red-500 animate-pulse";
+if (dbEnv === "Local Development") {
+  badgeClasses =
+    "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800/50";
+  dotClass = "bg-green-500";
+} else if (dbEnv === "Local Cloud Development") {
+  badgeClasses =
+    "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800/50";
+  dotClass = "bg-yellow-500";
+} else if (dbEnv === "Production") {
+  badgeClasses =
+    "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50";
+  dotClass = "bg-red-500 animate-pulse";
 }
 
 // Fetch Image Environment
-let imageEnv = 'Local Disk';
-let imageBadgeClasses = "bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-900/30 dark:text-slate-400 dark:border-slate-800/50";
+let imageEnv = "Local Disk";
+let imageBadgeClasses =
+  "bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-900/30 dark:text-slate-400 dark:border-slate-800/50";
 if (env && (env as any).UPLOADS) {
-    imageEnv = 'Cloudflare R2';
-    imageBadgeClasses = "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50";
+  imageEnv = "Cloudflare R2";
+  imageBadgeClasses =
+    "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50";
 }
 ---
 
@@ -71,191 +80,322 @@ if (env && (env as any).UPLOADS) {
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <title>{title} | Admin Dashboard</title>
-    
+
     <script is:inline>
-        // Prevent FOUC (Flash of Unstyled Content) by instantly applying settings
-        (function() {
-            try {
-                var theme = localStorage.getItem('theme') || 'system';
-                var root = document.documentElement;
-                if (theme === 'system') {
-                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                        root.classList.add('dark');
-                    } else {
-                        root.classList.add('light');
-                    }
-                } else {
-                    root.classList.add(theme);
-                }
-                
-                var textSize = localStorage.getItem('textSize');
-                if (textSize) root.dataset.textSize = textSize;
-                
-                var spacing = localStorage.getItem('spacing');
-                if (spacing) root.dataset.spacing = spacing;
-            } catch (e) {}
-        })();
+      // Prevent FOUC (Flash of Unstyled Content) by instantly applying settings
+      (function () {
+        try {
+          var theme = localStorage.getItem("theme") || "system";
+          var root = document.documentElement;
+          if (theme === "system") {
+            if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+              root.classList.add("dark");
+            } else {
+              root.classList.add("light");
+            }
+          } else {
+            root.classList.add(theme);
+          }
+
+          var textSize = localStorage.getItem("textSize");
+          if (textSize) root.dataset.textSize = textSize;
+
+          var spacing = localStorage.getItem("spacing");
+          if (spacing) root.dataset.spacing = spacing;
+        } catch (e) {}
+      })();
     </script>
     <ThemeInjector />
   </head>
-  <body class="min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
+  <body
+    class="min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground"
+  >
     <div class="flex min-h-screen relative overflow-hidden md:overflow-visible">
       <!-- Mobile Overlay Backdrop -->
-      <div id="mobile-sidebar-backdrop" class="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 hidden md:hidden"></div>
+      <div
+        id="mobile-sidebar-backdrop"
+        class="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 hidden md:hidden"
+      >
+      </div>
 
       <!-- Sidebar -->
-      <aside id="admin-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-sidebar text-sidebar-foreground p-6 flex flex-col gap-8 transform -translate-x-full transition-transform duration-300 md:relative md:translate-x-0 md:flex shrink-0 h-[100dvh] overflow-y-auto">
+      <aside
+        id="admin-sidebar"
+        class="fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-sidebar text-sidebar-foreground p-6 flex flex-col gap-8 transform -translate-x-full transition-transform duration-300 md:relative md:translate-x-0 md:flex shrink-0 h-[100dvh] overflow-y-auto"
+      >
         <div class="flex flex-col gap-4">
-            <div class="flex items-center gap-3">
-              <div class="size-10 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-md shadow-primary/20 shrink-0">W</div>
-              <span class="text-xl font-bold tracking-tight">Waritaku Admin</span>
+          <div class="flex items-center gap-3">
+            <div
+              class="size-10 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-md shadow-primary/20 shrink-0"
+            >
+              W
             </div>
-            
-            {user?.role === 'superadmin' && (
-                <div class="flex flex-col gap-2">
-                    <div class={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-sm w-fit ${badgeClasses}`}>
-                        <span class={`size-2 rounded-full ${dotClass}`}></span>
-                        {dbEnv}
-                    </div>
-                    <div class={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-sm w-fit ${imageBadgeClasses}`}>
-                        <span>{imageEnv === 'Cloudflare R2' ? '☁️' : '📁'}</span>
-                        {imageEnv}
-                    </div>
+            <span class="text-xl font-bold tracking-tight">Waritaku Admin</span>
+          </div>
+
+          {
+            user?.role === "superadmin" && (
+              <div class="flex flex-col gap-2">
+                <div
+                  class={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-sm w-fit ${badgeClasses}`}
+                >
+                  <span class={`size-2 rounded-full ${dotClass}`} />
+                  {dbEnv}
                 </div>
-            )}
+                <div
+                  class={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-sm w-fit ${imageBadgeClasses}`}
+                >
+                  <span>{imageEnv === "Cloudflare R2" ? "☁️" : "📁"}</span>
+                  {imageEnv}
+                </div>
+              </div>
+            )
+          }
         </div>
-        
+
         <nav class="flex flex-col gap-2 flex-1">
-          <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Overview</p>
-          <a href="/admin" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === '/admin' ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+          <p
+            class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2"
+          >
+            Overview
+          </p>
+          <a
+            href="/admin"
+            class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === "/admin" ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+          >
             Dashboard
           </a>
-          
-          <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-4 mb-2">Content</p>
-          <a href="/admin/media" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/media') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+
+          <p
+            class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-4 mb-2"
+          >
+            Content
+          </p>
+          <a
+            href="/admin/media"
+            class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/media") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+          >
             Media Library
           </a>
-          {collectionsList.map(c => (
-              <a href={`/admin/content/${c.slug}`} class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith(`/admin/content/${c.slug}`) ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+          {
+            collectionsList.map((c) => (
+              <a
+                href={`/admin/content/${c.slug}`}
+                class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith(`/admin/content/${c.slug}`) ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+              >
                 {c.label}
               </a>
-          ))}
-          
-          {(user?.role === 'editor' || user?.role === 'admin' || user?.role === 'superadmin') && (
-            <>
-              <div class="mt-4 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Taxonomies</div>
-              {taxonomiesList.map(t => (
-                  <a href={`/admin/taxonomies/${t.slug}`} class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith(`/admin/taxonomies/${t.slug}`) ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+            ))
+          }
+
+          {
+            (user?.role === "editor" ||
+              user?.role === "admin" ||
+              user?.role === "superadmin") && (
+              <>
+                <div class="mt-4 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Taxonomies
+                </div>
+                {taxonomiesList.map((t) => (
+                  <a
+                    href={`/admin/taxonomies/${t.slug}`}
+                    class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith(`/admin/taxonomies/${t.slug}`) ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                  >
                     {t.label}
                   </a>
-              ))}
-            </>
-          )}
+                ))}
+              </>
+            )
+          }
 
-          <div class="mt-4 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Account</div>
-          <a href="/admin/profile" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/profile') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+          <div
+            class="mt-4 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+          >
+            Account
+          </div>
+          <a
+            href="/admin/profile"
+            class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/profile") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+          >
             My Profile
           </a>
 
-          {(user?.role === 'superadmin') && (
-             <>
-                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-4 mb-2">System</p>
-                <a href="/admin/users" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/users') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+          {
+            user?.role === "superadmin" && (
+              <>
+                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-4 mb-2">
+                  System
+                </p>
+                <a
+                  href="/admin/users"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/users") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Users & Roles
                 </a>
-                <a href="/admin/content-builder" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/content-builder') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/content-builder"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/content-builder") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Content Type Builder
                 </a>
-                <a href="/admin/taxonomy-builder" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border flex justify-between items-center ${Astro.url.pathname.startsWith('/admin/taxonomy-builder') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/taxonomy-builder"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border flex justify-between items-center ${Astro.url.pathname.startsWith("/admin/taxonomy-builder") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   <span>Taxonomy Builder</span>
-                  <span class="bg-amber-500/20 text-amber-600 dark:text-amber-500 text-[9px] uppercase font-black px-1.5 py-0.5 rounded">New</span>
+                  <span class="bg-amber-500/20 text-amber-600 dark:text-amber-500 text-[9px] uppercase font-black px-1.5 py-0.5 rounded">
+                    New
+                  </span>
                 </a>
-                <a href="/admin/settings" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === '/admin/settings' ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/settings"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === "/admin/settings" ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   General Settings
                 </a>
-                <a href="/admin/docs" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === '/admin/docs' ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/docs"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === "/admin/docs" ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Documentation
                 </a>
-                <a href="/admin/system/redirects" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/system/redirects') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/system/redirects"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/system/redirects") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Redirections
                 </a>
-                <a href="/admin/system" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === '/admin/system' ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/system"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname === "/admin/system" ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   System Advanced
                 </a>
-                <a href="/admin/migration-report" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border flex items-center gap-2 ${Astro.url.pathname === '/admin/migration-report' ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/migration-report"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border flex items-center gap-2 ${Astro.url.pathname === "/admin/migration-report" ? "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   <span>🔍</span> Migration Report
                 </a>
 
-                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-4 mb-2">Appearance</p>
-                <a href="/admin/layout/dashboard" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/layout/dashboard') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-4 mb-2">
+                  Appearance
+                </p>
+                <a
+                  href="/admin/layout/dashboard"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/layout/dashboard") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Dashboard Toolkit
                 </a>
-                <a href="/admin/layout/navigation" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/layout/navigation') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/layout/navigation"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/layout/navigation") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Navigation & Footer
                 </a>
-                <a href="/admin/layout/frontpage" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/layout/frontpage') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/layout/frontpage"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/layout/frontpage") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Front Page Builder
                 </a>
-                <a href="/admin/layout/sidebar" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/layout/sidebar') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/layout/sidebar"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/layout/sidebar") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Global Sidebar
                 </a>
-                <a href="/admin/layout/colors" class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith('/admin/layout/colors') ? 'bg-primary/10 text-primary border-primary/20' : 'hover:bg-muted text-muted-foreground border-transparent hover:border-border'}`}>
+                <a
+                  href="/admin/layout/colors"
+                  class={`px-4 py-2.5 rounded-md font-medium text-sm transition-colors border ${Astro.url.pathname.startsWith("/admin/layout/colors") ? "bg-primary/10 text-primary border-primary/20" : "hover:bg-muted text-muted-foreground border-transparent hover:border-border"}`}
+                >
                   Theme Colors
                 </a>
-             </>
-          )}
+              </>
+            )
+          }
         </nav>
       </aside>
 
       <!-- Main Content -->
       <main class="flex-1 flex flex-col h-[100dvh] overflow-hidden min-w-0">
-        <header class="h-16 border-b border-border flex justify-between items-center px-4 md:px-8 bg-card/80 backdrop-blur-md shrink-0">
+        <header
+          class="h-16 border-b border-border flex justify-between items-center px-4 md:px-8 bg-card/80 backdrop-blur-md shrink-0"
+        >
           <div class="flex items-center gap-3">
-            <button id="mobile-menu-btn" class="p-2 -ml-2 text-muted-foreground hover:text-foreground md:hidden" aria-label="Toggle Menu">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            <button
+              id="mobile-menu-btn"
+              class="p-2 -ml-2 text-muted-foreground hover:text-foreground md:hidden"
+              aria-label="Toggle Menu"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><line x1="4" x2="20" y1="12" y2="12"></line><line
+                  x1="4"
+                  x2="20"
+                  y1="6"
+                  y2="6"></line><line x1="4" x2="20" y1="18" y2="18"
+                ></line></svg
+              >
             </button>
             <h1 class="text-xl font-semibold tracking-tight">{title}</h1>
           </div>
           <div class="flex items-center gap-4">
-             {user && (
-                 <div class="text-sm text-right hidden sm:block">
-                     <div class="font-medium">{user.name}</div>
-                     <div class="text-xs text-muted-foreground capitalize">{user.role}</div>
-                 </div>
-             )}
-             <form method="POST" action="/admin/logout">
-                 <button type="submit" class="text-sm font-medium text-destructive hover:underline px-3 py-1.5 rounded-md hover:bg-destructive/10 transition-colors">Logout</button>
-             </form>
+            {
+              user && (
+                <div class="text-sm text-right hidden sm:block">
+                  <div class="font-medium">{user.name}</div>
+                  <div class="text-xs text-muted-foreground capitalize">
+                    {user.role}
+                  </div>
+                </div>
+              )
+            }
+            <form method="POST" action="/admin/logout">
+              <button
+                type="submit"
+                class="text-sm font-medium text-destructive hover:underline px-3 py-1.5 rounded-md hover:bg-destructive/10 transition-colors"
+                >Logout</button
+              >
+            </form>
           </div>
         </header>
-        
+
         <div class="flex-1 overflow-y-auto p-8 bg-background">
           <slot />
         </div>
       </main>
     </div>
-    
+
     <DisplaySettings />
-    
+
     <script is:inline>
-      document.addEventListener('DOMContentLoaded', () => {
-        const btn = document.getElementById('mobile-menu-btn');
-        const sidebar = document.getElementById('admin-sidebar');
-        const backdrop = document.getElementById('mobile-sidebar-backdrop');
-        
+      document.addEventListener("DOMContentLoaded", () => {
+        const btn = document.getElementById("mobile-menu-btn");
+        const sidebar = document.getElementById("admin-sidebar");
+        const backdrop = document.getElementById("mobile-sidebar-backdrop");
+
         function toggleMenu() {
-          const isClosed = sidebar.classList.contains('-translate-x-full');
+          const isClosed = sidebar.classList.contains("-translate-x-full");
           if (isClosed) {
-            sidebar.classList.remove('-translate-x-full');
-            backdrop.classList.remove('hidden');
+            sidebar.classList.remove("-translate-x-full");
+            backdrop.classList.remove("hidden");
           } else {
-            sidebar.classList.add('-translate-x-full');
-            backdrop.classList.add('hidden');
+            sidebar.classList.add("-translate-x-full");
+            backdrop.classList.add("hidden");
           }
         }
-        
-        if (btn) btn.addEventListener('click', toggleMenu);
-        if (backdrop) backdrop.addEventListener('click', toggleMenu);
+
+        if (btn) btn.addEventListener("click", toggleMenu);
+        if (backdrop) backdrop.addEventListener("click", toggleMenu);
       });
     </script>
   </body>

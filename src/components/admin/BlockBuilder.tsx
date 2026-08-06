@@ -6,6 +6,7 @@ type Block = { id: string; type: string; [key: string]: any };
 export default function BlockBuilder({ blocks = [], setBlocks }: any) {
   const [taxonomies, setTaxonomies] = useState<any[]>([]);
   const [terms, setTerms] = useState<any[]>([]);
+  const [collections, setCollections] = useState<any[]>([]);
 
   useEffect(() => {
     fetch('/api/taxonomies/all')
@@ -16,6 +17,13 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
         setTerms(d.terms || []);
       })
       .catch(err => console.error("Error fetching taxonomies:", err));
+
+    fetch('/api/content-builder')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setCollections(data);
+      })
+      .catch(err => console.error("Error fetching collections:", err));
   }, []);
 
   const updateBlock = (index: number, updates: Partial<Block>) => {
@@ -57,9 +65,9 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
     if (type === 'hero' || type === 'hero_2' || type === 'hero_3') {
       newBlock = { ...newBlock, limit: 5 };
     } else if (type === 'category_block') {
-      newBlock = { ...newBlock, title: 'New Content List (Vertical)', filterTaxonomyId: 'all', filterTermId: 'all', limit: 5 };
+      newBlock = { ...newBlock, title: 'New Content List (Vertical)', collectionId: 'articles', filters: [], filterMatchType: 'AND', filterTaxonomyId: 'all', filterTermId: 'all', limit: 5 };
     } else if (type === 'category_block_2') {
-      newBlock = { ...newBlock, title: 'New Content Grid (2-Col)', filterTaxonomyId: 'all', filterTermId: 'all', limit: 11, showExcerpt: false };
+      newBlock = { ...newBlock, title: 'New Content Grid (2-Col)', collectionId: 'articles', filters: [], filterMatchType: 'AND', filterTaxonomyId: 'all', filterTermId: 'all', limit: 11, showExcerpt: false };
     } else if (type === 'categories_grid') {
       newBlock = { ...newBlock, title: 'Kategori Pilihan', limit: 12 };
     } else if (type === 'article_grid') {
@@ -113,38 +121,102 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
               )}
 
               {['category_block', 'category_block_2'].includes(block.type) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Taxonomy Filter</label>
-                    <select 
-                      value={block.filterTaxonomyId || 'all'} 
-                      onChange={(e) => updateBlock(index, { filterTaxonomyId: e.target.value, filterTermId: 'all' })}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      <option value="all">All Content (No Taxonomy)</option>
-                      {taxonomies.map(t => (
-                        <option key={t.id} value={t.id}>{t.label}</option>
-                      ))}
-                    </select>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/10 p-3 rounded-lg border border-border">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-primary mb-1">Content Source</label>
+                      <select 
+                        value={block.collectionId || 'articles'} 
+                        onChange={(e) => updateBlock(index, { collectionId: e.target.value })}
+                        className="w-full px-2 py-1.5 border border-input rounded text-sm font-semibold bg-background focus:ring-1 focus:ring-primary"
+                      >
+                        {collections.length > 0 ? (
+                          collections.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)
+                        ) : (
+                          <option value="articles">Articles</option>
+                        )}
+                      </select>
+                      <p className="text-[10px] text-muted-foreground mt-1">Select the Content Type to fetch data from.</p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Term Filter</label>
-                    <select 
-                      value={block.filterTermId || block.categoryId || 'all'} 
-                      onChange={(e) => updateBlock(index, { filterTermId: e.target.value })}
-                      disabled={!block.filterTaxonomyId || block.filterTaxonomyId === 'all'}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+
+                  <div className="bg-muted/10 p-4 border border-border rounded-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Taxonomy Filters</h4>
+                      <select
+                        value={block.filterMatchType || 'AND'}
+                        onChange={(e) => updateBlock(index, { filterMatchType: e.target.value })}
+                        className="px-2 py-1 bg-background border border-input rounded text-xs font-semibold focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="AND">Match ALL (AND)</option>
+                        <option value="OR">Match ANY (OR)</option>
+                      </select>
+                    </div>
+
+                    {(block.filters || []).map((filter: any, fIdx: number) => (
+                      <div key={fIdx} className="flex flex-col md:flex-row gap-2 mb-2 items-center bg-background p-2 rounded border border-border">
+                        <select
+                          value={filter.taxonomyId || ''}
+                          onChange={(e) => {
+                            const newFilters = [...(block.filters || [])];
+                            newFilters[fIdx] = { taxonomyId: e.target.value, termId: 'all' };
+                            updateBlock(index, { filters: newFilters });
+                          }}
+                          className="w-full md:w-1/2 px-2 py-1.5 border border-input rounded text-sm bg-transparent"
+                        >
+                          <option value="">Select Taxonomy...</option>
+                          {taxonomies.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                        </select>
+
+                        <select
+                          value={filter.termId || 'all'}
+                          onChange={(e) => {
+                            const newFilters = [...(block.filters || [])];
+                            newFilters[fIdx] = { ...newFilters[fIdx], termId: e.target.value };
+                            updateBlock(index, { filters: newFilters });
+                          }}
+                          disabled={!filter.taxonomyId}
+                          className="w-full md:w-1/2 px-2 py-1.5 border border-input rounded text-sm bg-transparent disabled:opacity-50"
+                        >
+                          <option value="all">All Terms in Taxonomy</option>
+                          {terms.filter(t => t.taxonomyId.toString() === (filter.taxonomyId || '').toString()).map(term => (
+                            <option key={term.id} value={term.id}>{term.name}</option>
+                          ))}
+                        </select>
+
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const newFilters = [...(block.filters || [])];
+                            newFilters.splice(fIdx, 1);
+                            updateBlock(index, { filters: newFilters });
+                          }}
+                          className="p-1.5 text-destructive hover:bg-destructive/10 rounded"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Legacy compatibility display */}
+                    {(!block.filters || block.filters.length === 0) && ((block.filterTaxonomyId && block.filterTaxonomyId !== 'all') || (block.categoryId && block.categoryId !== 'all')) && (
+                      <div className="mb-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-600">
+                        <strong>Legacy Filter Active:</strong> Using legacy taxonomy/category filter. Add a new filter above to upgrade.
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newFilters = [...(block.filters || []), { taxonomyId: '', termId: 'all' }];
+                        updateBlock(index, { filters: newFilters });
+                      }}
+                      className="text-xs font-semibold text-primary hover:bg-primary/10 px-2 py-1 rounded mt-1 flex items-center gap-1 transition-colors"
                     >
-                      <option value="all">All Terms in Taxonomy</option>
-                      {terms.filter(t => t.taxonomyId.toString() === (block.filterTaxonomyId || '').toString()).map(term => (
-                        <option key={term.id} value={term.id}>{term.name}</option>
-                      ))}
-                      {/* Backward compatibility for categoryId if taxonomy isn't set properly yet */}
-                      {block.categoryId && block.categoryId !== 'all' && (!block.filterTaxonomyId || block.filterTaxonomyId === 'all') && (
-                          <option value={block.categoryId}>Legacy Category ID: {block.categoryId}</option>
-                      )}
-                    </select>
+                      <Plus size={14} /> Add Taxonomy Filter
+                    </button>
                   </div>
+
                   <div>
                     <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Number of Articles</label>
                     <input 
@@ -152,12 +224,12 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
                       min="1" max="20"
                       value={block.limit} 
                       onChange={(e) => updateBlock(index, { limit: parseInt(e.target.value) || 5 })}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full md:w-1/3 px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   
                   {block.type === 'category_block_2' && (
-                      <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
                           <div>
                             <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Legacy Tag Override</label>
                             <input 

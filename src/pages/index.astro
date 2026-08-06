@@ -135,6 +135,50 @@ if (env && (env as any).DB) {
 
         const result = await query.limit(limit).offset(offset);
         
+        // Determine category context: use filter term if active, otherwise batch-query the DB
+        let filterCategoryName = '';
+        let filterCategorySlug = '';
+        const hasActiveFilter = hasTermFilter || hasTaxonomyFilter || (categoryId && categoryId !== 'all') || tagSlug;
+        
+        if (hasActiveFilter) {
+            // Look up the filter term to use as the category display name
+            let lookupTermId = filterTermId ? parseInt(filterTermId as string) : (categoryId && categoryId !== 'all' ? parseInt(categoryId as string) : null);
+            if (lookupTermId) {
+                const termRow = await db.select({ name: terms.name, slug: terms.slug })
+                    .from(terms).where(eq(terms.id, lookupTermId)).limit(1);
+                if (termRow.length > 0) {
+                    filterCategoryName = termRow[0].name;
+                    filterCategorySlug = termRow[0].slug;
+                }
+            }
+            if (tagSlug) {
+                filterCategoryName = tagSlug;
+                filterCategorySlug = `tag/${tagSlug}`;
+            }
+        }
+        
+        // Only batch-fetch categories when no specific filter is active
+        const categoryMap: Record<number, { name: string, slug: string }[]> = {};
+        const entryIdsForCategory = result.map((r: any) => r.entry.id);
+        if (!hasActiveFilter && entryIdsForCategory.length > 0) {
+            const termResults = await db.select({
+                entryId: entryTerms.entryId,
+                termName: terms.name,
+                termSlug: terms.slug
+            })
+            .from(entryTerms)
+            .innerJoin(terms, eq(entryTerms.termId, terms.id))
+            .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+            .where(and(
+                inArray(entryTerms.entryId, entryIdsForCategory),
+                eq(taxonomies.slug, 'categories')
+            ));
+            for (const t of termResults) {
+                if (!categoryMap[t.entryId]) categoryMap[t.entryId] = [];
+                categoryMap[t.entryId].push({ name: t.termName, slug: t.termSlug });
+            }
+        }
+        
         return await Promise.all(result.map(async r => {
             const data = JSON.parse(r.entry.data || '{}');
             const rawContent = data.content || '';
@@ -142,6 +186,9 @@ if (env && (env as any).DB) {
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
             
             const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
+            const cats = hasActiveFilter
+                ? [{ name: filterCategoryName, slug: filterCategorySlug }]
+                : (categoryMap[r.entry.id] || []);
 
             return {
                 id: r.entry.id,
@@ -149,8 +196,9 @@ if (env && (env as any).DB) {
                 canonicalUrl: `/${canonicalUrl}`,
                 publishedAt: r.entry.publishedAt,
                 ...data,
-                categoryName: 'Article', // Can be populated via extra term query if needed
-                categorySlug: 'all',
+                categories: cats,
+                categoryName: hasActiveFilter ? filterCategoryName : (cats.length > 0 ? cats[0].name : 'Article'),
+                categorySlug: hasActiveFilter ? filterCategorySlug : (cats.length > 0 ? cats[0].slug : 'all'),
                 authorName: r.author?.name || 'Admin',
                 authorId: r.author?.id || 1,
                 excerpt: excerpt
@@ -205,6 +253,8 @@ const schemaObj = {
     }
 };
 const schemaString = JSON.stringify(schemaObj);
+
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
 ---
 
 <LayoutFrontPage title={metaTitle} metaDescription={metaDescription} schema={schemaString} headerStyle={headerStyle} footerStyle={footerStyle}>

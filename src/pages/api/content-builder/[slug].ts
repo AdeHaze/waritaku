@@ -14,7 +14,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     const { slug } = params;
     
     try {
-        const body = await request.json();
+        const body = await request.json() as any;
         const updateData: any = {};
         
         if (body.fields) updateData.fields = body.fields;
@@ -54,7 +54,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };
 
@@ -84,6 +84,6 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
         await db.delete(collections).where(eq(collections.slug, slug as string));
         return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

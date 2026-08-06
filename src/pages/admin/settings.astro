@@ -45,8 +45,12 @@ let pageOptions: { id: number, title: string }[] = [];
 if (db) {
     const pagesCol = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
     if (pagesCol.length > 0) {
-        const pagesEntries = await db.select({ id: entries.id, title: entries.title }).from(entries).where(and(eq(entries.collectionId, pagesCol[0].id), eq(entries.status, 'published')));
-        pageOptions = pagesEntries;
+        const rawPages = await db.select({ id: entries.id, data: entries.data }).from(entries).where(and(eq(entries.collectionId, pagesCol[0].id), eq(entries.status, 'published')));
+        pageOptions = rawPages.map(p => {
+            let t = 'Untitled';
+            try { t = JSON.parse(p.data).title || t; } catch {}
+            return { id: p.id, title: t };
+        });
     }
 }
 

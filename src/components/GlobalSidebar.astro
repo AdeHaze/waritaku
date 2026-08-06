@@ -127,13 +127,34 @@ const processedWidgets = await Promise.all(widgets.map(async (widget: any) => {
                 } else {
                     result = await query.where(conditions).orderBy(desc(entries.publishedAt)).limit(widget.limit || 5);
                 }
+                // Batch-fetch the primary category term for all results
+                const entryIds = result.map((r: any) => r.entry.id);
+                let categoryMap: Record<number, string> = {};
+                if (entryIds.length > 0) {
+                    // Find the 'categories' taxonomy id
+                    const catTax = await db.select({ id: taxonomies.id })
+                        .from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+                    if (catTax.length > 0) {
+                        const catTermRows = await db.select({ entryId: entryTerms.entryId, name: terms.name })
+                            .from(entryTerms)
+                            .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                            .where(and(
+                                eq(terms.taxonomyId, catTax[0].id),
+                                sql`${entryTerms.entryId} IN (${sql.join(entryIds.map((id: number) => sql`${id}`), sql`, `)})`
+                            ));
+                        // Keep first category per entry
+                        for (const row of catTermRows) {
+                            if (!categoryMap[row.entryId]) categoryMap[row.entryId] = row.name;
+                        }
+                    }
+                }
                 articleList = await Promise.all(result.map(async (r: any) => {
                     const data = JSON.parse(r.entry.data || '{}');
                     const rawContent = data.content || '';
                     const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
                     const excerpt = textOnly.length > 80 ? textOnly.substring(0, 80) + '...' : textOnly;
                     const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
-                    return { id: r.entry.id, slug: r.entry.slug, canonicalUrl: `/${canonicalUrl}`, publishedAt: r.entry.publishedAt, ...data, categoryName: 'Article', excerpt };
+                    return { id: r.entry.id, slug: r.entry.slug, canonicalUrl: `/${canonicalUrl}`, publishedAt: r.entry.publishedAt, ...data, categoryName: categoryMap[r.entry.id] || '', excerpt };
                 }));
             }
         }
@@ -417,3 +438,4 @@ const processedWidgets = await Promise.all(widgets.map(async (widget: any) => {
     // Initial call just in case it's already loaded
     initBidirectionalSticky();
 </script>
+ 

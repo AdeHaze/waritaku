@@ -30,7 +30,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             return new Response(JSON.stringify({ error: 'Entry not found in this collection' }), { status: 404 });
         }
 
-        const body = await request.json();
+        const body = await request.json() as any;
         
         // Extract standard fields
         const { slug, status, publishedAt, selectedTerms, ...customData } = body;
@@ -95,7 +95,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };
 
@@ -144,6 +144,6 @@ export const DELETE: APIRoute = async ({ params, request, locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

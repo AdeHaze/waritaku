@@ -15,7 +15,7 @@ export function getDb(env: any) {
     if (!env || !env.DB) {
         throw new Error(
             'Database binding (DB) is missing from the environment. ' +
-            'Make sure the D1 database is bound in wrangler.toml or the Cloudflare dashboard.'
+            'Make sure the D1 database is bound in wrangler.jsonc or the Cloudflare dashboard.'
         );
     }
 

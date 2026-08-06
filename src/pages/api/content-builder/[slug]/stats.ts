@@ -25,6 +25,6 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
         return new Response(JSON.stringify({ count: stats?.count || 0 }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

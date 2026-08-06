@@ -11,7 +11,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     try {
-        const payload = await request.json();
+        const payload = await request.json() as any;
         const db = getDb(env);
 
         if (payload.version !== '2.0' && payload.version !== '1.0') {
@@ -170,8 +170,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
             headers: { 'Content-Type': 'application/json' } 
         });
 
-    } catch (e: any) { console.error('D1 Error Cause:', e.cause); console.error(e);
-        return new Response(JSON.stringify({ error: e.message, cause: e.cause ? e.cause.message : null }), { 
+    } catch (e: any) { console.error('D1 Import Error:', e); console.error(e);
+        return new Response(JSON.stringify({ error: 'An internal error occurred during import.' }), { 
             status: 500, 
             headers: { 'Content-Type': 'application/json' } 
         });

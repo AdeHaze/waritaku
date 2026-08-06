@@ -14,8 +14,11 @@ export default defineConfig({
     host: '127.0.0.1'
   },
   vite: {
+    resolve: {
+      dedupe: ['react', 'react-dom'],
+    },
     optimizeDeps: {
-      exclude: ['lucide-react', 'diff']
+      exclude: ['diff']
     },
     plugins: [
       tailwindcss(),

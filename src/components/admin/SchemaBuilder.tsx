@@ -179,22 +179,101 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                     
                     <div className="space-y-4">
                         <div>
-                            <h4 className="text-xs font-bold text-muted-foreground mb-2">Supported Taxonomies</h4>
+                            <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-xs font-bold text-muted-foreground">Supported Taxonomies</h4>
+                                <div className="text-[10px] text-primary/70 font-semibold bg-primary/10 px-2 py-0.5 rounded">Ordered by Priority</div>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mb-3">
+                                The order below determines which taxonomy is used for the URL prefix if an entry belongs to multiple taxonomies.
+                            </p>
+
                             {availableTaxonomies.length === 0 ? (
                                 <p className="text-xs text-muted-foreground italic">No taxonomies found in the system.</p>
                             ) : (
-                                <div className="space-y-2">
-                                    {availableTaxonomies.map(tax => (
-                                        <label key={tax.slug} className="flex items-center gap-2 cursor-pointer text-sm">
-                                            <input 
-                                                type="checkbox"
-                                                checked={(supports.taxonomies || []).includes(tax.slug)}
-                                                onChange={() => toggleTaxonomy(tax.slug)}
-                                                className="w-4 h-4 text-primary rounded"
-                                            />
-                                            {tax.name}
-                                        </label>
-                                    ))}
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        {(supports.taxonomies || []).map((taxSlug: string, idx: number) => {
+                                            const tax = availableTaxonomies.find(t => t.slug === taxSlug);
+                                            if (!tax) return null;
+                                            return (
+                                                <div key={taxSlug} className="flex justify-between items-center p-2 bg-muted/30 border border-border rounded-lg text-sm">
+                                                    <div className="flex items-center gap-2">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (idx === 0) return;
+                                                                const newTax = [...supports.taxonomies];
+                                                                const temp = newTax[idx-1];
+                                                                newTax[idx-1] = newTax[idx];
+                                                                newTax[idx] = temp;
+                                                                setSupports({ ...supports, taxonomies: newTax });
+                                                            }}
+                                                            className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                                                            disabled={idx === 0}
+                                                            title="Move Priority Up"
+                                                        >
+                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                                                        </button>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (idx === (supports.taxonomies.length - 1)) return;
+                                                                const newTax = [...supports.taxonomies];
+                                                                const temp = newTax[idx+1];
+                                                                newTax[idx+1] = newTax[idx];
+                                                                newTax[idx] = temp;
+                                                                setSupports({ ...supports, taxonomies: newTax });
+                                                            }}
+                                                            className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                                                            disabled={idx === (supports.taxonomies.length - 1)}
+                                                            title="Move Priority Down"
+                                                        >
+                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                                        </button>
+                                                        <span className="font-semibold text-sm">{tax.name}</span>
+                                                    </div>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => toggleTaxonomy(taxSlug)}
+                                                        className="text-red-500 hover:bg-red-500/10 p-1 rounded"
+                                                        title="Remove Taxonomy"
+                                                    >
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                        {(!supports.taxonomies || supports.taxonomies.length === 0) && (
+                                            <div className="p-3 text-center border border-dashed border-border rounded-lg text-xs text-muted-foreground">
+                                                No taxonomies enabled for this content type.
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <select id="addTaxonomySelect" className="flex-1 text-sm bg-background border border-input rounded px-2 py-1.5 focus:ring-1 focus:ring-primary">
+                                            {availableTaxonomies.filter(tax => !(supports.taxonomies || []).includes(tax.slug)).map(tax => (
+                                                <option key={`opt_${tax.slug}`} value={tax.slug}>{tax.name}</option>
+                                            ))}
+                                        </select>
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const select = document.getElementById('addTaxonomySelect') as HTMLSelectElement;
+                                                const val = select?.value;
+                                                if (val) {
+                                                    const currentTax = supports.taxonomies || [];
+                                                    if (!currentTax.includes(val)) {
+                                                        setSupports({ ...supports, taxonomies: [...currentTax, val] });
+                                                    }
+                                                }
+                                            }}
+                                            className="bg-primary/20 text-primary px-3 py-1.5 rounded text-sm font-medium hover:bg-primary/30 transition-colors whitespace-nowrap"
+                                            disabled={availableTaxonomies.filter(tax => !(supports.taxonomies || []).includes(tax.slug)).length === 0}
+                                        >
+                                            + Add
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

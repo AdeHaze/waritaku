@@ -11,3 +11,6 @@ declare namespace App {
     user?: import('./lib/auth').SessionPayload;
   }
 }
+
+declare module 'sanitize-html';
+

@@ -42,6 +42,6 @@ export const GET: APIRoute = async ({ params, locals }) => {
         });
 
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

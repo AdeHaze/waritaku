@@ -21,11 +21,11 @@ export const GET: APIRoute = async ({ params, locals }) => {
             revision: entryRevisions,
             author: users
         })
-        .from(entryRevisions)
-        .leftJoin(users, eq(entryRevisions.authorId, users.id))
-        .where(eq(entryRevisions.entryId, entryId))
-        .orderBy(desc(entryRevisions.createdAt))
-        .limit(50);
+            .from(entryRevisions)
+            .leftJoin(users, eq(entryRevisions.authorId, users.id))
+            .where(eq(entryRevisions.entryId, entryId))
+            .orderBy(desc(entryRevisions.createdAt))
+            .limit(50);
 
         return new Response(JSON.stringify({ data: revisions }), {
             status: 200,
@@ -49,7 +49,7 @@ export const DELETE: APIRoute = async ({ params, request, locals }) => {
     const entryId = parseInt(params.id as string, 10);
 
     try {
-        const body = await request.json();
+        const body = await request.json() as any;
         const revisionId = body.revisionId;
         if (!revisionId) {
             return new Response(JSON.stringify({ error: 'revisionId is required' }), { status: 400 });

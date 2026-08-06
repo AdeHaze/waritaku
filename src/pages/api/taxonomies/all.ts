@@ -28,6 +28,6 @@ export const GET: APIRoute = async ({ locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error: any) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

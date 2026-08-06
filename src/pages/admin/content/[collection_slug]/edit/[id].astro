@@ -1,7 +1,7 @@
 ---
 import AdminLayout from '../../../../../layouts/AdminLayout.astro';
 import { getDb } from '../../../../../lib/db';
-import { collections, entries, entryTerms, taxonomies } from '../../../../../db/schema';
+import { collections, entries, entryTerms, taxonomies, terms } from '../../../../../db/schema';
 import { eq, and, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
@@ -26,9 +26,21 @@ if (entryRes.length === 0) {
     return Astro.redirect('/404');
 }
 
-// Fetch assigned terms
-const termsRes = await db.select().from(entryTerms).where(eq(entryTerms.entryId, entryId));
-const selectedTerms = termsRes.map(t => t.termId.toString());
+// Fetch assigned terms grouped by taxonomy
+const termsRes = await db.select({
+    termId: entryTerms.termId,
+    taxonomySlug: taxonomies.slug
+})
+.from(entryTerms)
+.innerJoin(terms, eq(entryTerms.termId, terms.id))
+.innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+.where(eq(entryTerms.entryId, entryId));
+
+const selectedTerms: Record<string, string[]> = {};
+for (const r of termsRes) {
+    if (!selectedTerms[r.taxonomySlug]) selectedTerms[r.taxonomySlug] = [];
+    selectedTerms[r.taxonomySlug].push(r.termId.toString());
+}
 
 const entry = {
     id: entryRes[0].id,
@@ -42,6 +54,7 @@ const entry = {
 // Fetch allowed taxonomies for this collection
 const taxQuery = await db.select().from(taxonomies).where(like(taxonomies.allowedCollections, `%"${collection.slug}"%`));
 const allowedTaxonomies = taxQuery.map(t => t.slug);
+const taxonomyMeta = taxQuery.map(t => ({ slug: t.slug, label: t.label, prefixEntryUrl: t.prefixEntryUrl }));
 
 import DynamicEntryEditor from '../../../../../components/admin/DynamicEntryEditor';
 ---
@@ -64,5 +77,5 @@ import DynamicEntryEditor from '../../../../../components/admin/DynamicEntryEdit
     </div>
 
     <!-- The React Root for our Editor -->
-    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} initialEntry={entry} taxonomies={allowedTaxonomies} />
+    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} initialEntry={entry} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} />
 </AdminLayout>

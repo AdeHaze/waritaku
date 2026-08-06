@@ -32,7 +32,7 @@ if (env && env.UPLOADS) {
 
     try {
         const listed = await StorageAdapter.listFiles(env, );
-        objects = listed.objects.sort((a, b) => (b.uploaded?.getTime() || 0) - (a.uploaded?.getTime() || 0));
+        objects = listed.objects.sort((a: any, b: any) => (b.uploaded?.getTime() || 0) - (a.uploaded?.getTime() || 0));
     } catch (e: any) {
         error = e.message;
     }

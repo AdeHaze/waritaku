@@ -1,4 +1,5 @@
 ---
+import { getThumbnail } from '../lib/utils';
 import Layout from '../layouts/Layout.astro';
 import GlobalSidebar from '../components/GlobalSidebar.astro';
 import { entries as articlesTable, users, collections } from '../db/schema';
@@ -79,11 +80,6 @@ if (env && (env as any).DB && query.trim() !== '') {
     }
 }
 
-function getThumbnail(content: string) {
-    if (!content) return '/placeholder.webp';
-    const match = content.match(/<img[^>]+src="([^">]+)"/i);
-    return match ? match[1] : '/placeholder.webp';
-}
 ---
 
 <Layout title={`Search Results for "${query}"`}>

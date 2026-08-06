@@ -1,14 +1,10 @@
 ---
+import { getThumbnail } from '../lib/utils';
 interface Props {
   articles: any[];
 }
 const { articles } = Astro.props;
 
-function getThumbnail(content: string) {
-    if (!content) return '/placeholder.webp';
-    const match = content.match(/<img[^>]+src="([^">]+)"/i);
-    return match ? match[1] : '/placeholder.webp';
-}
 
 const featured = articles[0];
 const subFeatured = articles.slice(1, 5); // 4 articles

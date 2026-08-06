@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
     const db = getDb(env);
     const { collection_slug } = params;
     const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get('page') || '1');
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const search = url.searchParams.get('search') || '';
     const status = url.searchParams.get('status') || '';
@@ -51,8 +51,11 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
                 const { inArray } = await import('drizzle-orm');
                 conditions = and(conditions, inArray(entries.id, eIds));
             } else {
-                // Force empty result if term has no entries
-                conditions = and(conditions, eq(entries.id, -1));
+                // No entries match this term — return empty result immediately
+                return new Response(JSON.stringify({ data: [], total: 0, page, limit }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
             }
         }
 
@@ -103,7 +106,8 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
         });
 
         const items = results.map(r => {
-            const parsedData = JSON.parse(r.entry.data || '{}');
+            let parsedData: any;
+            try { parsedData = JSON.parse(r.entry.data || '{}'); } catch { parsedData = {}; }
             const { password, ...safeData } = parsedData;
             return {
                 id: r.entry.id,
@@ -122,7 +126,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };
 
@@ -142,7 +146,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
         }
         const collectionId = colRes[0].id;
 
-        const body = await request.json();
+        const body = await request.json() as any;
         
         // Extract standard fields
         const { slug, status, publishedAt, selectedTerms, ...customData } = body;
@@ -181,6 +185,6 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
     }
 };

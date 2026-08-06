@@ -9,7 +9,9 @@
     "dist",
     "public_html",
     "local_uploads",
-    ".wrangler"
+    ".wrangler",
+    "scratch",
+    "scripts/legacy_migrations"
   ],
   "compilerOptions": {
     "jsx": "react-jsx",

@@ -1,3 +1,7 @@
+## Development Rules
+- **CRITICAL DATABASE RULE 1:** NEVER wipe, delete, or recreate any database (not the development `.wrangler` database, nor any carbon copy) under any circumstances, UNLESS the user explicitly types exactly: "Purge Development Database".
+- **CRITICAL DATABASE RULE 2:** NEVER insert arbitrary or fake data into the database (no fake users, fake articles, fake categories, etc.). The database is a carbon copy of a real WordPress database. If data is missing, leave it empty or wait for the user to import it.
+
 ## Development
 
 When starting the dev server, use background mode:
