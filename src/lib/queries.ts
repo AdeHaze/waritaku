@@ -9,15 +9,7 @@ function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
 // Batched version of getCanonicalUrl — single query for all entry IDs
 export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Record<number, string>> {
     if (!entryIds.length) return {};
-    const results = await db.select({
-        entryId: entryTerms.entryId,
-        termId: terms.id,
-        termSlug: terms.slug,
-        taxonomySlug: taxonomies.slug,
-        entryUrlFormat: taxonomies.entryUrlFormat,
-        supports: collections.supports,
-        entryData: entries.data
-    })
+    const results = await db.select()
     .from(entryTerms)
     .innerJoin(terms, eq(entryTerms.termId, terms.id))
     .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
@@ -31,8 +23,17 @@ export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Rec
     // Group by entryId
     const byEntry: Record<number, any[]> = {};
     for (const r of results) {
-        if (!byEntry[r.entryId]) byEntry[r.entryId] = [];
-        byEntry[r.entryId].push(r);
+        const mapped = {
+            entryId: r.entry_terms.entryId,
+            termId: r.terms.id,
+            termSlug: r.terms.slug,
+            taxonomySlug: r.taxonomies.slug,
+            entryUrlFormat: r.taxonomies.entryUrlFormat,
+            supports: r.collections.supports,
+            entryData: r.entries.data
+        };
+        if (!byEntry[mapped.entryId]) byEntry[mapped.entryId] = [];
+        byEntry[mapped.entryId].push(mapped);
     }
 
     const map: Record<number, string> = {};
@@ -77,14 +78,7 @@ export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Rec
 }
 
 export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: string) => {
-    const prefixRes = await db.select({ 
-        termId: terms.id,
-        termSlug: terms.slug, 
-        taxonomySlug: taxonomies.slug,
-        entryUrlFormat: taxonomies.entryUrlFormat,
-        supports: collections.supports,
-        entryData: entries.data
-    })
+    const results = await db.select()
         .from(entryTerms)
         .innerJoin(terms, eq(entryTerms.termId, terms.id))
         .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
@@ -92,19 +86,28 @@ export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: strin
         .innerJoin(collections, eq(entries.collectionId, collections.id))
         .where(and(eq(entryTerms.entryId, entryId), ne(taxonomies.entryUrlFormat, 'none')));
     
-    if (prefixRes.length > 0) {
+    if (results.length > 0) {
+        const prefixRes = results.map((r: any) => ({
+            termId: r.terms.id,
+            termSlug: r.terms.slug,
+            taxonomySlug: r.taxonomies.slug,
+            entryUrlFormat: r.taxonomies.entryUrlFormat,
+            supports: r.collections.supports,
+            entryData: r.entries.data
+        }));
+
         const formatPrefix = (match: any) => match.entryUrlFormat === 'long' ? `${match.taxonomySlug}/${match.termSlug}` : match.termSlug;
 
         const parsedData = safeJsonParse(prefixRes[0].entryData, {} as any);
         const termOverride = parsedData.primaryTermId;
         if (termOverride) {
-            const overrideMatch = prefixRes.find(r => r.termId === termOverride || r.termId.toString() === termOverride.toString());
+            const overrideMatch = prefixRes.find((r: any) => r.termId === termOverride || r.termId.toString() === termOverride.toString());
             if (overrideMatch) return `${formatPrefix(overrideMatch)}/${entrySlug}`;
         }
         
         const override = parsedData.primaryTaxonomyOverride;
         if (override) {
-            const overrideMatch = prefixRes.find(r => r.taxonomySlug === override);
+            const overrideMatch = prefixRes.find((r: any) => r.taxonomySlug === override);
             if (overrideMatch) return `${formatPrefix(overrideMatch)}/${entrySlug}`;
         }
 
