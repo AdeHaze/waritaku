@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -90,7 +90,12 @@ export const taxonomies = sqliteTable('taxonomies', {
   allowedCollections: text('allowed_collections').notNull().default('[]'), // JSON array of collection slugs
   isRouted: integer('is_routed', { mode: 'boolean' }).notNull().default(false), // e.g., creates an archive page for terms
   prefixEntryUrl: integer('prefix_entry_url', { mode: 'boolean' }).notNull().default(false), // e.g., /category/article-slug
-  allowIndexing: integer('allow_indexing', { mode: 'boolean' }).notNull().default(true), // SEO robots indexing
+  entryUrlFormat: text('entry_url_format').notNull().default('default'), // 'long', 'short', 'none', 'default' (fallback to prefixEntryUrl)
+  allowIndexing: integer('allow_indexing', { mode: 'boolean' }).notNull().default(true), // SEO robots indexing for term pages
+  omitTaxonomySlug: integer('omit_taxonomy_slug', { mode: 'boolean' }).notNull().default(false), // false = /taxonomy/term, true = /term
+  umbrellaViewMode: text('umbrella_view_mode').notNull().default('child_terms'), // 'child_terms' or 'all_entries'
+  umbrellaItemsPerPage: integer('umbrella_items_per_page').notNull().default(0), // 0 = fetch all, > 0 = pagination limit
+  umbrellaAllowIndexing: integer('umbrella_allow_indexing', { mode: 'boolean' }).notNull().default(true), // SEO robots indexing for umbrella page
 });
 
 export const terms = sqliteTable('terms', {
@@ -98,10 +103,11 @@ export const terms = sqliteTable('terms', {
   taxonomyId: integer('taxonomy_id').references(() => taxonomies.id, { onDelete: 'cascade' }).notNull(),
   parentId: integer('parent_id'), // Hierarchical term support
   name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
+  slug: text('slug').notNull(),
 }, (t) => ({
   taxonomyIdx: index('terms_taxonomy_idx').on(t.taxonomyId),
   parentIdx: index('terms_parent_idx').on(t.parentId),
+  slugUnique: uniqueIndex('terms_slug_unique').on(t.slug),
 }));
 
 export const entryTerms = sqliteTable('entry_terms', {
