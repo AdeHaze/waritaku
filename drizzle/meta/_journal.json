@@ -176,6 +176,13 @@
       "when": 1786027885865,
       "tag": "0024_legal_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1786201090298,
+      "tag": "0025_lean_scarecrow",
+      "breakpoints": true
     }
   ]
 }

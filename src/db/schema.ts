@@ -70,6 +70,7 @@ export const entries = sqliteTable('entries', {
   statusIdx: index('entries_status_idx').on(t.status),
   collectionIdx: index('entries_collection_idx').on(t.collectionId),
   authorIdx: index('entries_author_idx').on(t.authorId),
+  compositeSortIdx: index('entries_collection_status_published_idx').on(t.collectionId, t.status, t.publishedAt),
 }));
 
 export const entryRevisions = sqliteTable('entry_revisions', {

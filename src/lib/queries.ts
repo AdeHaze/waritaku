@@ -15,10 +15,7 @@ export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Rec
     .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
     .innerJoin(entries, eq(entries.id, entryTerms.entryId))
     .innerJoin(collections, eq(entries.collectionId, collections.id))
-    .where(and(
-        inArray(entryTerms.entryId, entryIds),
-        ne(taxonomies.entryUrlFormat, 'none')
-    ));
+    .where(inArray(entryTerms.entryId, entryIds));
     
     // Group by entryId
     const byEntry: Record<number, any[]> = {};
@@ -32,6 +29,7 @@ export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Rec
             supports: r.collections.supports,
             entryData: r.entries.data
         };
+        if (mapped.entryUrlFormat === 'none') continue; // Manual filter to bypass Drizzle Cloudflare bug
         if (!byEntry[mapped.entryId]) byEntry[mapped.entryId] = [];
         byEntry[mapped.entryId].push(mapped);
     }
@@ -40,6 +38,7 @@ export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Rec
     for (const entryIdStr of Object.keys(byEntry)) {
         const entryId = parseInt(entryIdStr, 10);
         const rows = byEntry[entryId];
+        if (!rows || rows.length === 0) continue;
         const formatPrefix = (match: any) => match.entryUrlFormat === 'long' ? `${match.taxonomySlug}/${match.termSlug}` : match.termSlug;
 
         const parsedData = safeJsonParse(rows[0].entryData, {} as any);
@@ -84,7 +83,7 @@ export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: strin
         .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
         .innerJoin(entries, eq(entries.id, entryTerms.entryId))
         .innerJoin(collections, eq(entries.collectionId, collections.id))
-        .where(and(eq(entryTerms.entryId, entryId), ne(taxonomies.entryUrlFormat, 'none')));
+        .where(eq(entryTerms.entryId, entryId));
     
     if (results.length > 0) {
         const prefixRes = results.map((r: any) => ({
@@ -94,7 +93,9 @@ export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: strin
             entryUrlFormat: r.taxonomies.entryUrlFormat,
             supports: r.collections.supports,
             entryData: r.entries.data
-        }));
+        })).filter((r: any) => r.entryUrlFormat !== 'none');
+
+        if (prefixRes.length === 0) return entrySlug;
 
         const formatPrefix = (match: any) => match.entryUrlFormat === 'long' ? `${match.taxonomySlug}/${match.termSlug}` : match.termSlug;
 
