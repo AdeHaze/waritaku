@@ -20,11 +20,6 @@ export default defineConfig({
   vite: {
     resolve: {
       dedupe: ['react', 'react-dom'],
-      alias: {
-        'crypto': path.resolve(__dirname, 'src/utils/dummy.ts'),
-        'node:stream': path.resolve(__dirname, 'src/utils/dummy.ts'),
-        'stream': path.resolve(__dirname, 'src/utils/dummy.ts')
-      }
     },
     optimizeDeps: {
       exclude: ['diff']
