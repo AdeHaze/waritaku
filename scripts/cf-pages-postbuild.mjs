@@ -21,43 +21,29 @@ if (fs.existsSync('dist/client')) {
   console.log('✓ Moved client assets to dist root');
 }
 
-// Fix Astro's auto-generated wrangler.json instead of deleting it!
-// Cloudflare Pages CI creates a redirect cache pointing to this file. If we delete it, CI crashes.
-// If we leave it with absolute paths, CI rejects it. So we rewrite it with valid relative paths,
-// and we merge in the bindings from the root wrangler.jsonc.
+// Remove Astro's auto-generated wrangler configs to unlock Cloudflare Dashboard bindings!
+// If Cloudflare Pages detects wrangler.json or .wrangler/deploy/config.json, it locks 
+// the Cloudflare Dashboard and forces you to use the file for bindings.
+// By deleting these, we allow you to configure D1 and R2 directly in the Cloudflare Dashboard.
 const generatedWrangler = 'dist/server/wrangler.json';
-const rootWrangler = 'wrangler.jsonc';
+const deployConfig = '.wrangler/deploy/config.json';
+const rootWranglerDeploy = '.wrangler';
 
 if (fs.existsSync(generatedWrangler)) {
-  const config = JSON.parse(fs.readFileSync(generatedWrangler, 'utf8'));
-  let rootConfig = {};
-  
-  if (fs.existsSync(rootWrangler)) {
-    // Basic comment stripping for JSONC
-    const rawContent = fs.readFileSync(rootWrangler, 'utf8');
-    const strippedContent = rawContent.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-    try {
-      rootConfig = JSON.parse(strippedContent);
-    } catch (e) {
-      console.warn('Could not parse root wrangler.jsonc, proceeding without it.');
-    }
+  fs.unlinkSync(generatedWrangler);
+  console.log('✓ Deleted dist/server/wrangler.json to unlock Dashboard bindings');
+}
+
+if (fs.existsSync(deployConfig)) {
+  fs.unlinkSync(deployConfig);
+  console.log('✓ Deleted .wrangler/deploy/config.json to unlock Dashboard bindings');
+}
+
+// Clean up the .wrangler directory if it's empty
+if (fs.existsSync(rootWranglerDeploy)) {
+  try {
+    fs.rmSync(rootWranglerDeploy, { recursive: true, force: true });
+  } catch (e) {
+    // Ignore errors
   }
-
-  const newConfig = {
-    name: rootConfig.name || 'waritaku',
-    pages_build_output_dir: '..',
-    compatibility_date: rootConfig.compatibility_date || config.compatibility_date || '2026-07-26',
-    compatibility_flags: rootConfig.compatibility_flags || ['nodejs_compat', 'global_fetch_strictly_public'],
-  };
-
-  // Merge any bindings from the root config
-  const bindingsToCopy = ['d1_databases', 'r2_buckets', 'kv_namespaces', 'services', 'ai', 'vectorize'];
-  for (const bindingType of bindingsToCopy) {
-    if (rootConfig[bindingType]) {
-      newConfig[bindingType] = rootConfig[bindingType];
-    }
-  }
-
-  fs.writeFileSync(generatedWrangler, JSON.stringify(newConfig, null, 2));
-  console.log('✓ Fixed Astro-generated wrangler.json and merged root bindings');
 }
