@@ -3,7 +3,7 @@ import { entries, collections, terms, taxonomies } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 
 import { getDb } from '../lib/db';
-import { getCanonicalUrl } from '../lib/queries';
+import { getCanonicalUrls } from '../lib/queries';
 
 export const GET: APIRoute = async ({ request }) => {
     const siteUrl = new URL(request.url).origin;
@@ -34,10 +34,14 @@ export const GET: APIRoute = async ({ request }) => {
     // 1. Homepage
     xml += `  <url>\n    <loc>${siteUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
 
-    // 2. Entries (Articles, Pages, etc)
+    // 2. Entries (Articles, Pages, etc) — batch-fetch canonical URLs
+    const entryIds = publishedEntries.map((e: any) => e.id);
+    const canonicalMap = await getCanonicalUrls(db, entryIds);
+
     for (const entry of publishedEntries) {
         xml += `  <url>\n`;
-        const urlPath = await getCanonicalUrl(db, entry.id, entry.slug);
+        const prefix = canonicalMap[entry.id];
+        const urlPath = prefix ? `${prefix}/${entry.slug}` : entry.slug;
         xml += `    <loc>${siteUrl}/${urlPath}</loc>\n`;
         const date = entry.updatedAt || entry.publishedAt;
         if (date) {
