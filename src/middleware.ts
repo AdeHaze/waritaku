@@ -100,39 +100,43 @@ export const onRequest = defineMiddleware(async (context, next) => {
         }
     }
     
-    const response = await next();
+    try {
+        const response = await next();
 
-    // --- 3. Security headers ---
-    // CSP: 'unsafe-inline' needed for Astro is:inline scripts; frame-src allows embeds (YouTube, Twitter, Vimeo, Spotify, SoundCloud)
-    response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://platform.twitter.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self'; connect-src 'self'; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://platform.twitter.com https://twitter.com https://x.com");
-    response.headers.set('X-Content-Type-Options', 'nosniff');
-    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-    if (url.pathname.startsWith('/admin')) {
-        response.headers.set('X-Frame-Options', 'DENY');
-    }
-
-    // --- 4. 404 Logging Engine ---
-    if (response.status === 404 && db && enable404Tracking) {
-        // Skip logging for Vite internal files during dev to prevent noise
-        if (!url.pathname.startsWith('/@') && !url.pathname.startsWith('/node_modules') && url.pathname !== '/favicon.ico') {
-             // We can't use waitUntil safely here in local dev without the context runtime, so we just await it if needed
-             // But to keep it fast, we can just fire and forget the Promise in Node/Vite, or use ctx.waitUntil on Edge.
-             const logPromise = db.insert(notFoundLogs)
-                  .values({ url: url.pathname, hits: 1 })
-                  .onConflictDoUpdate({
-                      target: notFoundLogs.url,
-                      set: { hits: sql`${notFoundLogs.hits} + 1`, lastSeen: new Date().toISOString() }
-                  }).execute();
-                  
-             const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
-             if (ctx && ctx.waitUntil) {
-                 ctx.waitUntil(logPromise);
-             } else {
-                 logPromise.catch(console.error); // Fire and forget in local dev
-             }
+        // --- 3. Security headers ---
+        // CSP: 'unsafe-inline' needed for Astro is:inline scripts; frame-src allows embeds (YouTube, Twitter, Vimeo, Spotify, SoundCloud)
+        response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://platform.twitter.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self'; connect-src 'self'; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://platform.twitter.com https://twitter.com https://x.com");
+        response.headers.set('X-Content-Type-Options', 'nosniff');
+        response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        if (url.pathname.startsWith('/admin')) {
+            response.headers.set('X-Frame-Options', 'DENY');
         }
-    }
 
-    return response;
+        // --- 4. 404 Logging Engine ---
+        if (response.status === 404 && db && enable404Tracking) {
+            // Skip logging for Vite internal files during dev to prevent noise
+            if (!url.pathname.startsWith('/@') && !url.pathname.startsWith('/node_modules') && url.pathname !== '/favicon.ico') {
+                 // We can't use waitUntil safely here in local dev without the context runtime, so we just await it if needed
+                 // But to keep it fast, we can just fire and forget the Promise in Node/Vite, or use ctx.waitUntil on Edge.
+                 const logPromise = db.insert(notFoundLogs)
+                      .values({ url: url.pathname, hits: 1 })
+                      .onConflictDoUpdate({
+                          target: notFoundLogs.url,
+                          set: { hits: sql`${notFoundLogs.hits} + 1`, lastSeen: new Date().toISOString() }
+                      }).execute();
+                      
+                 const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
+                 if (ctx && ctx.waitUntil) {
+                     ctx.waitUntil(logPromise);
+                 } else {
+                     logPromise.catch(console.error); // Fire and forget in local dev
+                 }
+            }
+        }
+
+        return response;
+    } catch (e: any) {
+        return new Response(`Error: ${e.message}\nStack: ${e.stack}`, { status: 500, headers: { 'Content-Type': 'text/plain' } });
+    }
 });
