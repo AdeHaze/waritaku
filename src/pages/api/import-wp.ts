@@ -89,7 +89,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
                             id: e.id,
                             collectionId: collObj.id,
                             slug: finalSlug,
-                            status: e.status === 'publish' ? 'published' : e.status,
+                            status: e.status,
                             authorId: validUserIds.has(Number(e.authorId)) ? Number(e.authorId) : null,
                             data: JSON.stringify(dataObj),
                             createdAt: e.publishedAt || new Date().toISOString(),
