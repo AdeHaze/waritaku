@@ -131,7 +131,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
     
     try {
-        const response = await next();
+        const raw = await next();
+
+        // Response.redirect() and some Astro internals return responses with immutable
+        // headers. Wrap in a new Response so we can always set security headers safely.
+        const response = new Response(raw.body, {
+            status: raw.status,
+            statusText: raw.statusText,
+            headers: new Headers(raw.headers),
+        });
 
         // --- 3. Security headers ---
         // CSP: 'unsafe-inline' needed for Astro is:inline scripts; frame-src allows embeds (YouTube, Twitter, Vimeo, Spotify, SoundCloud)
