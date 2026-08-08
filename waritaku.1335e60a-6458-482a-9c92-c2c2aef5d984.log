@@ -1,0 +1,89 @@
+2026-08-08T06:02:27.345224Z	Cloning repository...
+2026-08-08T06:02:28.571662Z	From https://github.com/AdeHaze/waritaku
+2026-08-08T06:02:28.572067Z	 * branch            1ec3d8c4281bd4b4e0cfff29e37aee4a29218fbd -> FETCH_HEAD
+2026-08-08T06:02:28.57215Z	
+2026-08-08T06:02:28.61676Z	HEAD is now at 1ec3d8c generated wrangler.json
+2026-08-08T06:02:28.617154Z	
+2026-08-08T06:02:28.677742Z	
+2026-08-08T06:02:28.67809Z	Using v2 root directory strategy
+2026-08-08T06:02:28.691712Z	Success: Finished cloning repository files
+2026-08-08T06:02:31.54805Z	Checking for configuration in a Wrangler configuration file (BETA)
+2026-08-08T06:02:31.548543Z	
+2026-08-08T06:02:31.550221Z	Found wrangler.json file. Reading build configuration...
+2026-08-08T06:02:31.562264Z	pages_build_output_dir: dist
+2026-08-08T06:02:31.562555Z	Build environment variables: (none found)
+2026-08-08T06:02:31.774873Z	Successfully read the Wrangler configuration file.
+2026-08-08T06:02:32.168079Z	Detected the following tools from environment: npm@10.9.2, nodejs@22.16.0
+2026-08-08T06:02:32.168528Z	Installing project dependencies: npm clean-install --progress=false
+2026-08-08T06:02:42.869408Z	npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.hirok.io
+2026-08-08T06:02:42.941625Z	npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.hirok.io
+2026-08-08T06:03:12.075509Z	
+2026-08-08T06:03:12.075818Z	added 748 packages, and audited 749 packages in 39s
+2026-08-08T06:03:12.07588Z	
+2026-08-08T06:03:12.075932Z	243 packages are looking for funding
+2026-08-08T06:03:12.075986Z	  run `npm fund` for details
+2026-08-08T06:03:12.185941Z	
+2026-08-08T06:03:12.186273Z	15 vulnerabilities (10 moderate, 5 high)
+2026-08-08T06:03:12.18637Z	
+2026-08-08T06:03:12.186447Z	To address issues that do not require attention, run:
+2026-08-08T06:03:12.18651Z	  npm audit fix
+2026-08-08T06:03:12.186581Z	
+2026-08-08T06:03:12.186628Z	To address all issues (including breaking changes), run:
+2026-08-08T06:03:12.186663Z	  npm audit fix --force
+2026-08-08T06:03:12.186693Z	
+2026-08-08T06:03:12.186736Z	Run `npm audit` for details.
+2026-08-08T06:03:12.29973Z	Executing user command: npm run build
+2026-08-08T06:03:13.504617Z	
+2026-08-08T06:03:13.504887Z	> temp-astro@0.0.1 build
+2026-08-08T06:03:13.504935Z	> astro build && node scripts/cf-pages-postbuild.mjs
+2026-08-08T06:03:13.504976Z	
+2026-08-08T06:03:18.767613Z	[2m06:03:18[22m [34m[@astrojs/cloudflare][39m Enabling image processing with Cloudflare Images for production with the "IMAGES" Images binding.
+2026-08-08T06:03:18.768078Z	[2m06:03:18[22m [34m[@astrojs/cloudflare][39m Enabling sessions with Cloudflare KV with the "SESSION" KV binding.
+2026-08-08T06:03:19.53929Z	[2m06:03:19[22m [34m[types][39m Generated [2m580ms[22m
+2026-08-08T06:03:19.539696Z	[2m06:03:19[22m [34m[build][39m output: [34m"server"[39m
+2026-08-08T06:03:19.539811Z	[2m06:03:19[22m [34m[build][39m mode: [34m"server"[39m
+2026-08-08T06:03:19.539879Z	[2m06:03:19[22m [34m[build][39m directory: [34m/opt/buildhome/repo/dist/[39m
+2026-08-08T06:03:19.539954Z	[2m06:03:19[22m [34m[build][39m adapter: [32m@astrojs/cloudflare[39m
+2026-08-08T06:03:19.540028Z	[2m06:03:19[22m [34m[build][39m Collecting build info...
+2026-08-08T06:03:19.541561Z	[2m06:03:19[22m [34m[build][39m [32m✓ Completed in 776ms.[39m
+2026-08-08T06:03:19.543227Z	[2m06:03:19[22m [34m[build][39m Building server entrypoints...
+2026-08-08T06:03:20.19931Z	[2m06:03:20[22m [34m[vite][39m [32m✓ built in 567ms[39m
+2026-08-08T06:03:21.852441Z	[2m06:03:21[22m [34m[vite][39m [32m✓ built in 1.65s[39m
+2026-08-08T06:03:22.586049Z	[33m[1m06:03:22[22m [WARN] [vite][39m [33m[plugin builtin:vite-reporter] 
+2026-08-08T06:03:22.586566Z	(!) Some chunks are larger than 500 kB after minification. Consider:
+2026-08-08T06:03:22.586746Z	- Using dynamic import() to code-split the application
+2026-08-08T06:03:22.586861Z	- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+2026-08-08T06:03:22.586997Z	- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+2026-08-08T06:03:22.587077Z	[2m06:03:22[22m [34m[vite][39m [32m✓ built in 726ms[39m
+2026-08-08T06:03:22.608751Z	[2m06:03:22[22m [34m[build][39m Rearranging server assets...
+2026-08-08T06:03:24.483234Z	[2m06:03:24[22m [34m[build][39m [32m✓ Completed in 4.94s.[39m
+2026-08-08T06:03:24.486593Z	[2m06:03:24[22m [34m[@astrojs/cloudflare][39m Injected immutable Cache-Control for /_astro/* into _headers.
+2026-08-08T06:03:24.48703Z	[2m06:03:24[22m [34m[build][39m Server built in [1m5.72s[22m
+2026-08-08T06:03:24.48723Z	[2m06:03:24[22m [34m[build][39m [1mComplete![22m
+2026-08-08T06:03:24.61843Z	✓ Generated dist/_worker.js for Cloudflare Pages compatibility
+2026-08-08T06:03:24.6195Z	✓ Moved client assets to dist root
+2026-08-08T06:03:24.619665Z	✓ Fixed Astro-generated wrangler.json to ensure nodejs_compat is applied
+2026-08-08T06:03:24.640678Z	Finished
+2026-08-08T06:03:25.364259Z	Checking for configuration in a Wrangler configuration file (BETA)
+2026-08-08T06:03:25.364735Z	
+2026-08-08T06:03:25.368816Z	Using redirected Wrangler configuration.
+2026-08-08T06:03:25.368983Z	 - Configuration being used: "../../../buildhome/repo/dist/server/wrangler.json"
+2026-08-08T06:03:25.369289Z	 - Original user's configuration: "../../../buildhome/repo/wrangler.jsonc"
+2026-08-08T06:03:25.369753Z	 - Deploy configuration file: "../../../buildhome/repo/.wrangler/deploy/config.json"
+2026-08-08T06:03:25.36988Z	Found wrangler.json file. Reading build configuration...
+2026-08-08T06:03:25.545575Z	[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mProcessing ../../../buildhome/repo/dist/server/wrangler.json configuration:[0m
+2026-08-08T06:03:25.545889Z	
+2026-08-08T06:03:25.545954Z	    - Unexpected fields found in dev field: "enable_containers","generate_types"
+2026-08-08T06:03:25.546008Z	    - Unexpected fields found in top-level field: "definedEnvironments","exports","ai_search_namespaces","ai_search","agent_memory","secrets_store_secrets","artifacts","unsafe_hello_world","flagship","worker_loaders","ratelimits","vpc_services","vpc_networks","python_modules","previews"
+2026-08-08T06:03:25.546052Z	
+2026-08-08T06:03:25.546098Z	
+2026-08-08T06:03:25.617091Z	
+2026-08-08T06:03:25.623551Z	[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mProcessing ../../../buildhome/repo/dist/server/wrangler.json configuration:[0m
+2026-08-08T06:03:25.6243Z	
+2026-08-08T06:03:25.624412Z	    - "kv_namespaces[0]" bindings should have a string "id" field but got {"binding":"SESSION"}.
+2026-08-08T06:03:25.624497Z	    - The name 'ASSETS' is reserved in Pages projects. Please use a different name for your Assets binding.
+2026-08-08T06:03:25.62457Z	
+2026-08-08T06:03:25.624636Z	
+2026-08-08T06:03:25.683023Z	🪵  Logs were written to "/root/.config/.wrangler/logs/wrangler-2026-08-08_06-03-25_182.log"
+2026-08-08T06:03:25.793217Z	Failed: unable to read the Wrangler configuration file with code: 1
+2026-08-08T06:03:26.588262Z	Failed: an internal error occurred. If this continues, contact support: https://cfl.re/3WgEyrH

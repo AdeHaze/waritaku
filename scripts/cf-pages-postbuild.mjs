@@ -28,11 +28,11 @@ if (fs.existsSync('dist/client')) {
 const generatedWrangler = 'dist/server/wrangler.json';
 if (fs.existsSync(generatedWrangler)) {
   const config = JSON.parse(fs.readFileSync(generatedWrangler, 'utf8'));
-  config.pages_build_output_dir = '..'; // dist/
-  if (!config.compatibility_flags) config.compatibility_flags = [];
-  if (!config.compatibility_flags.includes('nodejs_compat')) {
-    config.compatibility_flags.push('nodejs_compat');
-  }
-  fs.writeFileSync(generatedWrangler, JSON.stringify(config, null, 2));
-  console.log('✓ Fixed Astro-generated wrangler.json to ensure nodejs_compat is applied');
+  const newConfig = {
+    pages_build_output_dir: '..',
+    compatibility_date: config.compatibility_date || '2026-07-26',
+    compatibility_flags: ['nodejs_compat', 'global_fetch_strictly_public']
+  };
+  fs.writeFileSync(generatedWrangler, JSON.stringify(newConfig, null, 2));
+  console.log('✓ Fixed Astro-generated wrangler.json to ensure strict Cloudflare Pages validation passes');
 }
