@@ -3,7 +3,7 @@ import LayoutFrontPage from '../layouts/LayoutFrontPage.astro';
 import BlockRenderer from '../components/BlockRenderer.astro';
 import { entries, collections, users, taxonomies, terms, entryTerms, settings } from '../db/schema';
 import { desc, eq, and, sql, inArray } from 'drizzle-orm';
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 import { getDb } from '../lib/db';
 import { getCanonicalUrl } from '../lib/queries';
 

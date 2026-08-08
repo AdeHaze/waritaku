@@ -4,7 +4,7 @@ import BlockRenderer from '../components/BlockRenderer.astro';
 import { getDb } from '../lib/db';
 import { collections, entries, settings, entryTerms, terms, users, taxonomies } from '../db/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 import { getCanonicalUrl } from '../lib/queries';
 
 export const prerender = false;

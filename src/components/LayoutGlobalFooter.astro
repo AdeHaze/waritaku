@@ -1,7 +1,7 @@
 ---
 import { settings } from '../db/schema';
 import { inArray } from 'drizzle-orm';
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 import { getDb } from '../lib/db';
 
 let { footerStyle = 'default' } = Astro.props;

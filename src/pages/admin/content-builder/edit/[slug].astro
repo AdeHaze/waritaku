@@ -3,7 +3,7 @@ import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import { getDb } from '../../../../lib/db';
 import { collections, taxonomies } from '../../../../db/schema';
 import { eq } from 'drizzle-orm';
-import { env } from 'cloudflare:workers';
+const env = Astro.locals?.runtime?.env;
 import SchemaBuilder from '../../../../components/admin/SchemaBuilder';
 
 const user = Astro.locals.user;

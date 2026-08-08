@@ -1,7 +1,7 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 import { StorageAdapter } from '../../lib/storage';
 
 

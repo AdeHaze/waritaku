@@ -6,7 +6,7 @@ import Pagination from '../components/Pagination.astro';
 import ViewToggle from '../components/ViewToggle.astro';
 import BlockRenderer from '../components/BlockRenderer.astro';
 import ModularTemplateRenderer from '../components/ModularTemplateRenderer.astro';
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 import { getDb } from '../lib/db';
 import { resolveRouteData } from '../lib/queries';
 import { settings, entries, collections, users, taxonomies, terms, entryTerms } from '../db/schema';

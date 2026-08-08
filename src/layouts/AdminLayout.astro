@@ -5,7 +5,7 @@ import DisplaySettings from "../components/DisplaySettings.astro";
 import ThemeInjector from "../components/ThemeInjector.astro";
 import { settings, collections, taxonomies } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 
 interface Props {
   title: string;

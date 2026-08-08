@@ -3,7 +3,7 @@ import { verifySessionCookie } from './lib/auth';
 import { getDb } from './lib/db';
 import { redirects, notFoundLogs, settings } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { env } from 'cloudflare:workers';
+
 import { useTranslation } from './i18n';
 
 // Simple in-memory settings cache with 60s TTL
@@ -12,6 +12,7 @@ const SETTINGS_CACHE_TTL = 60_000; // 60 seconds
 
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
+    const env = (context.locals as any).runtime?.env;
     const db = getDb(env);
 
     let enableRedirections = true;

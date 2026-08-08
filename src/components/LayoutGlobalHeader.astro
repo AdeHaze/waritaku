@@ -2,7 +2,7 @@
 import LayoutGlobalNavbar from './LayoutGlobalNavbar.astro';
 import { settings } from '../db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 import { getDb } from '../lib/db';
 
 let { headerStyle = 'default' } = Astro.props;

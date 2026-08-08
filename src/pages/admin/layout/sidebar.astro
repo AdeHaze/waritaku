@@ -2,7 +2,7 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { settings, terms, taxonomies } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
-import { env } from "cloudflare:workers";
+const env = Astro.locals?.runtime?.env;
 import { getDb } from '../../../lib/db';
 
 import SidebarSettings from '../../../components/admin/SidebarSettings';

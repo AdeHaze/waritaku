@@ -3,7 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { entries, terms, collections, taxonomies, users as usersTable, settings } from '../../db/schema';
 import { desc, sql, eq, and } from 'drizzle-orm';
-import { env } from 'cloudflare:workers';
+const env = Astro.locals?.runtime?.env;
 import { getDb } from '../../lib/db';
 import DashboardCalendarAnalytics from '../../components/admin/DashboardCalendarAnalytics';
 
