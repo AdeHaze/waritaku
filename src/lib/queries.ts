@@ -348,11 +348,18 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             // Count total entries in this taxonomy
             const countQuery = await db.select({ count: sql<number>`count(distinct ${entries.id})` })
                 .from(entries)
-                .innerJoin(entryTerms, eq(entries.id, entryTerms.entryId))
-                .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                .from(entries)
                 .where(and(
-                    eq(terms.taxonomyId, taxonomy.id),
-                    eq(entries.status, 'published')
+                    eq(entries.status, 'published'),
+                    exists(
+                        db.select({ id: sql`1` })
+                        .from(entryTerms)
+                        .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                        .where(and(
+                            eq(terms.taxonomyId, taxonomy.id),
+                            eq(entryTerms.entryId, entries.id)
+                        ))
+                    )
                 ));
             const totalItems = Number(countQuery[0]?.count || 0);
             const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -362,14 +369,20 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 author: users
             })
             .from(entries)
-            .innerJoin(entryTerms, eq(entries.id, entryTerms.entryId))
-            .innerJoin(terms, eq(entryTerms.termId, terms.id))
+            .from(entries)
             .leftJoin(users, eq(entries.authorId, users.id))
             .where(and(
-                eq(terms.taxonomyId, taxonomy.id),
-                eq(entries.status, 'published')
+                eq(entries.status, 'published'),
+                exists(
+                    db.select({ id: sql`1` })
+                    .from(entryTerms)
+                    .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                    .where(and(
+                        eq(terms.taxonomyId, taxonomy.id),
+                        eq(entryTerms.entryId, entries.id)
+                    ))
+                )
             ))
-            .groupBy(entries.id)
             .orderBy(desc(entries.publishedAt))
             .limit(pageSize)
             .offset((currentPage - 1) * pageSize);
@@ -576,15 +589,21 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                         publishedAt: entries.publishedAt,
                     })
                     .from(entries)
-                    .innerJoin(entryTerms, eq(entries.id, entryTerms.entryId))
+                    .from(entries)
                     .where(
                         and(
-                            inArray(entryTerms.termId, termIdsToMatch),
                             ne(entries.id, entry.id),
-                            eq(entries.status, 'published')
+                            eq(entries.status, 'published'),
+                            exists(
+                                db.select({ id: sql`1` })
+                                .from(entryTerms)
+                                .where(and(
+                                    inArray(entryTerms.termId, termIdsToMatch),
+                                    eq(entryTerms.entryId, entries.id)
+                                ))
+                            )
                         )
                     )
-                    .groupBy(entries.id)
                     .limit(4)
                     .orderBy(desc(entries.publishedAt));
                     
