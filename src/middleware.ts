@@ -74,7 +74,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
                 return context.redirect('/admin/login', 302);
             }
         } else {
-            const payload = await verifySessionCookie(sessionCookie);
+            const payload = await verifySessionCookie(sessionCookie, env?.JWT_SECRET);
             if (payload) {
                 context.locals.user = {
                     userId: payload.userId,

@@ -72,7 +72,7 @@ if (Astro.request.method === 'POST') {
                     role: user.role,
                     name: user.name,
                     email: user.email
-                });
+                }, env?.JWT_SECRET);
                 Astro.cookies.set('session', token, { path: '/', httpOnly: true, secure: true, sameSite: 'lax', maxAge: 60 * 60 * 24 });
                 return Astro.redirect('/admin');
             } else {

@@ -1,11 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-const secretKey = process.env.JWT_SECRET;
-if (!secretKey) {
-  throw new Error('JWT_SECRET environment variable is required. Set it via `wrangler secret put JWT_SECRET`.');
-}
-const JWT_SECRET = new TextEncoder().encode(secretKey);
-
 export interface SessionPayload {
   userId: number;
   role: string;
@@ -13,7 +7,9 @@ export interface SessionPayload {
   email: string;
 }
 
-export async function createSessionCookie(payload: SessionPayload): Promise<string> {
+export async function createSessionCookie(payload: SessionPayload, secretKey: string): Promise<string> {
+  if (!secretKey) throw new Error('JWT_SECRET is missing');
+  const JWT_SECRET = new TextEncoder().encode(secretKey);
   const jwt = await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -23,7 +19,9 @@ export async function createSessionCookie(payload: SessionPayload): Promise<stri
   return jwt;
 }
 
-export async function verifySessionCookie(token: string): Promise<SessionPayload | null> {
+export async function verifySessionCookie(token: string, secretKey: string): Promise<SessionPayload | null> {
+  if (!secretKey) return null;
+  const JWT_SECRET = new TextEncoder().encode(secretKey);
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload as unknown as SessionPayload;
