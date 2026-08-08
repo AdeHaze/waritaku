@@ -29,6 +29,7 @@ const generatedWrangler = 'dist/server/wrangler.json';
 if (fs.existsSync(generatedWrangler)) {
   const config = JSON.parse(fs.readFileSync(generatedWrangler, 'utf8'));
   const newConfig = {
+    name: 'waritaku',
     pages_build_output_dir: '..',
     compatibility_date: config.compatibility_date || '2026-07-26',
     compatibility_flags: ['nodejs_compat', 'global_fetch_strictly_public']
