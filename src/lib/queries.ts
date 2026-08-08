@@ -138,35 +138,43 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
     const pagesCol = await getCollection('pages');
 
     // 0. Check Date Archive (e.g., 2025/03 or 2025/03/15) — WIB (UTC+7) aware
-    const dateMatch = slug.match(/^(\d{4})\/(\d{2})(?:\/(\d{2}))?$/);
+    const dateMatch = slug.match(/^(\d{4})(?:\/(\d{1,2}))?(?:\/(\d{1,2}))?$/);
     if (dateMatch && articlesCol) {
         const year = dateMatch[1];
         const month = dateMatch[2];
         const day = dateMatch[3];
 
-        const monthNamesIndo = [
-            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-        ];
-        const monthName = monthNamesIndo[parseInt(month, 10) - 1] || month;
-
-        const archiveTitle = day 
-            ? `Arsip: ${day} ${monthName} ${year}`
-            : `Arsip: ${monthName} ${year}`;
+        let archiveTitle = `Arsip: ${year}`;
+        if (month) {
+            const monthNamesIndo = [
+                'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+            ];
+            const monthName = monthNamesIndo[parseInt(month, 10) - 1] || month;
+            archiveTitle = day 
+                ? `Arsip: ${day} ${monthName} ${year}`
+                : `Arsip: ${monthName} ${year}`;
+        }
 
         // Compute UTC bounds for the WIB date range
         const pad = (s: string, n: number) => String(s).padStart(n, '0');
-        const isoStart = `${year}-${pad(month,2)}-${pad(day || '01',2)}T00:00:00.000+07:00`;
+        const m = month ? pad(month, 2) : '01';
+        const d = day ? pad(day, 2) : '01';
+        const isoStart = `${year}-${m}-${d}T00:00:00.000+07:00`;
         const utcStart = new Date(isoStart).toISOString();
         
         let utcEnd: string;
         if (day) {
-            const isoEnd = `${year}-${pad(month,2)}-${pad(day,2)}T23:59:59.999+07:00`;
+            const isoEnd = `${year}-${m}-${d}T23:59:59.999+07:00`;
             utcEnd = new Date(isoEnd).toISOString();
-        } else {
+        } else if (month) {
             const nextMonth = parseInt(month) === 12 ? 1 : parseInt(month) + 1;
             const nextYear = parseInt(month) === 12 ? parseInt(year) + 1 : parseInt(year);
             const isoEnd = `${nextYear}-${pad(String(nextMonth),2)}-01T00:00:00.000+07:00`;
+            utcEnd = new Date(new Date(isoEnd).getTime() - 1).toISOString();
+        } else {
+            const nextYear = parseInt(year) + 1;
+            const isoEnd = `${nextYear}-01-01T00:00:00.000+07:00`;
             utcEnd = new Date(new Date(isoEnd).getTime() - 1).toISOString();
         }
 
@@ -349,7 +357,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             const totalItems = Number(countQuery[0]?.count || 0);
             const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-            const articlesResult = await db.selectDistinct({
+            const articlesResult = await db.select({
                 entry: entries,
                 author: users
             })
@@ -361,6 +369,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 eq(terms.taxonomyId, taxonomy.id),
                 eq(entries.status, 'published')
             ))
+            .groupBy(entries.id)
             .orderBy(desc(entries.publishedAt))
             .limit(pageSize)
             .offset((currentPage - 1) * pageSize);
@@ -684,7 +693,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         } else {
             countQuery = countQuery.where(
                 and(
-                    eq(entries.collectionId, articlesCol?.id),
+                    eq(entries.collectionId, articlesCol ? articlesCol.id : 0),
                     eq(entries.status, 'published')
                 )
             ) as any;
@@ -694,7 +703,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         const totalItems = countResult[0]?.count || 0;
         const totalPages = Math.ceil(totalItems / pageSize);
 
-        let articlesQuery = db.selectDistinct({
+        let articlesQuery = db.select({
             entry: entries,
             author: users
         })
@@ -713,7 +722,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         } else {
             articlesQuery = articlesQuery.where(
                 and(
-                    eq(entries.collectionId, articlesCol?.id),
+                    eq(entries.collectionId, articlesCol ? articlesCol.id : 0),
                     eq(entries.status, 'published')
                 )
             ) as any;
