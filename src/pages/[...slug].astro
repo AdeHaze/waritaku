@@ -13,11 +13,16 @@ import { settings, entries, collections, users, taxonomies, terms, entryTerms } 
 import { eq, and, or, desc, sql, inArray, exists } from 'drizzle-orm';
 
 import { parseEmbeds } from '../utils/embedParser';
+import IndexPage from './index.astro';
 
 let rawSlug = Astro.params.slug as string;
-if (!rawSlug) return Astro.redirect('/404');
+let isHomepageFallback = false;
 
-rawSlug = rawSlug.replace(/\/$/, '');
+if (!rawSlug) {
+    isHomepageFallback = true;
+} else {
+    rawSlug = rawSlug.replace(/\/$/, '');
+}
 
 let currentPage = 1;
 const pageMatch = rawSlug.match(/^(.*?)\/page\/(\d+)$/i);
@@ -48,7 +53,7 @@ let footerStyle = 'default';
 let layoutBlocks: any[] = [];
 let blockData: Record<string, any> = {};
 
-if (env && env.DB && slug) {
+if (!isHomepageFallback && env && env.DB && slug) {
   const db = getDb(env);
   const sortTermBy = Astro.url.searchParams.get('sort') || 'popular';
   const resolved = await resolveRouteData(db, slug, currentPage, pageSize, sortTermBy);
@@ -273,7 +278,7 @@ if (env && env.DB && slug) {
   }
 }
 
-if (!data || !pageType) {
+if (!isHomepageFallback && (!data || !pageType)) {
   return Astro.redirect('/404');
 }
 
@@ -510,7 +515,7 @@ if (!showPasswordPrompt && acceptHeader.includes('text/markdown') && (pageType =
 
 Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
 ---
-
+{isHomepageFallback ? <IndexPage /> : (
 <LayoutArticlePage 
     title={pageTitle} 
     metaDescription={data.metaDescription} 
@@ -699,3 +704,4 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
         )
     )}
 </LayoutArticlePage>
+)}
