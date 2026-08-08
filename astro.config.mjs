@@ -20,6 +20,11 @@ export default defineConfig({
     optimizeDeps: {
       exclude: ['diff']
     },
+    build: {
+      rollupOptions: {
+        external: ['crypto']
+      }
+    },
     plugins: [
       tailwindcss(),
       {
