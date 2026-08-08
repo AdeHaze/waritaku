@@ -13,7 +13,12 @@ const SETTINGS_CACHE_TTL = 60_000; // 60 seconds
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
     const env = (context.locals as any).runtime?.env;
-    const db = getDb(env);
+    let db;
+    try {
+        db = getDb(env);
+    } catch (err: any) {
+        return new Response(`Initialization Error: ${err.message}. Env keys available: ${env ? JSON.stringify(Object.keys(env)) : 'none'}`, { status: 500, headers: { 'Content-Type': 'text/plain' }});
+    }
 
     let enableRedirections = true;
     let enable404Tracking = true;
