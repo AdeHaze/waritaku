@@ -44,9 +44,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     
     const uniqueFilename = `${Date.now()}-${randomHex}.${extension}`;
 
-    // Get the R2 Bucket binding from locals context
-    // In Astro Cloudflare adapter, bindings are attached to locals.runtime.env
-    const env = (locals as any).runtime?.env;
+    // Get the R2 Bucket binding
+    // In Astro Cloudflare adapter v6+, bindings are from cloudflare:workers
+    const { env } = await import('cloudflare:workers');
     if (env && env.UPLOADS) {
         await StorageAdapter.uploadFile(env, uniqueFilename, arrayBuffer, {
             httpMetadata: {

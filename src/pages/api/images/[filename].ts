@@ -8,7 +8,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
   }
 
   try {
-    const env = (locals as any).runtime?.env;
+    const { env } = await import('cloudflare:workers');
     if (env && env.UPLOADS) {
         const object = await StorageAdapter.getFile(env, filename);
         

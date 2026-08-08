@@ -21,7 +21,14 @@ export default defineConfig({
     resolve: {
       dedupe: ['react', 'react-dom'],
       alias: {
-        'crypto': path.resolve(__dirname, 'src/utils/crypto-polyfill.ts')
+        'crypto': path.resolve(__dirname, 'src/utils/crypto-polyfill.ts'),
+        'path': 'path-browserify',
+        'node:path': 'path-browserify',
+        'url': path.resolve(__dirname, 'src/utils/dummy-fs.ts'),
+        'node:url': path.resolve(__dirname, 'src/utils/dummy-fs.ts'),
+        'fs': path.resolve(__dirname, 'src/utils/dummy-fs.ts'),
+        'node:fs': path.resolve(__dirname, 'src/utils/dummy-fs.ts'),
+        'postcss': path.resolve(__dirname, 'src/utils/dummy-postcss.ts')
       }
     },
     optimizeDeps: {

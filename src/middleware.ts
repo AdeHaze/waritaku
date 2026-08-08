@@ -10,9 +10,10 @@ import { useTranslation } from './i18n';
 let settingsCache: { config: any; timestamp: number } | null = null;
 const SETTINGS_CACHE_TTL = 60_000; // 60 seconds
 
+import { env } from 'cloudflare:workers';
+
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
-    const env = (context.locals as any).runtime?.env;
     let db;
     try {
         db = getDb(env);
