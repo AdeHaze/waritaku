@@ -91,7 +91,7 @@ if (isConfigured && layoutBlocks.length > 0) {
         const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, isRandom = false, tagSlug } = options;
         if (!articlesColId) return [];
         
-        let query = db.selectDistinct({
+        let query = db.select({
             entry: entries,
             author: users
         })

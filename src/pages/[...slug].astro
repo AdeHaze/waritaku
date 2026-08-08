@@ -115,7 +115,7 @@ if (env && env.DB && slug) {
                   
                   if (!targetColId) return [];
                   
-                  let query = db.selectDistinct({
+                  let query = db.select({
                       entry: entries,
                       author: users
                   })
@@ -191,9 +191,9 @@ if (env && env.DB && slug) {
                   query = query.where(conditions) as any;
 
                   if (isRandom) {
-                      query = query.orderBy(sql`RANDOM()`) as any;
+                      query = query.groupBy(entries.id).orderBy(sql`RANDOM()`) as any;
                   } else {
-                      query = query.orderBy(desc(entries.publishedAt)) as any;
+                      query = query.groupBy(entries.id).orderBy(desc(entries.publishedAt)) as any;
                   }
 
                   const result = await query.limit(limit).offset(offset);

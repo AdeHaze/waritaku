@@ -84,7 +84,7 @@ if (env && (env as any).DB) {
         const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, isRandom = false, tagSlug } = options;
         if (!articlesColId) return [];
         
-        let query = db.selectDistinct({
+        let query = db.select({
             entry: entries,
             author: users
         })

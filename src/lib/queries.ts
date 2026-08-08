@@ -569,7 +569,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 }
                 
                 if (termIdsToMatch.length > 0) {
-                    const relatedQuery = await db.selectDistinct({
+                    const relatedQuery = await db.select({
                         id: entries.id,
                         slug: entries.slug,
                         data: entries.data,
@@ -584,6 +584,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                             eq(entries.status, 'published')
                         )
                     )
+                    .groupBy(entries.id)
                     .limit(4)
                     .orderBy(desc(entries.publishedAt));
                     

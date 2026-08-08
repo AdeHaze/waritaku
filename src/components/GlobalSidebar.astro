@@ -105,18 +105,21 @@ const processedWidgets = await Promise.all(widgets.map(async (widget: any) => {
         if (db) {
             const articlesCol = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
             if (articlesCol.length > 0) {
-                let query = db.selectDistinct({ entry: entries }).from(entries);
+                let query = db.select({ entry: entries }).from(entries);
                 let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCol[0].id));
                 if (widget.categoryId && widget.categoryId !== 'all') {
                     query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
                     conditions = and(conditions, eq(entryTerms.termId, parseInt(widget.categoryId)));
                 }
+                
+                query = query.where(conditions) as any;
                 let result: any[];
                 if (widget.randomize) {
-                    result = await query.where(conditions).orderBy(sql`RANDOM()`).limit(widget.limit || 5);
+                    result = await query.groupBy(entries.id).orderBy(sql`RANDOM()`).limit(widget.limit || 5);
                 } else {
-                    result = await query.where(conditions).orderBy(desc(entries.publishedAt)).limit(widget.limit || 5);
+                    result = await query.groupBy(entries.id).orderBy(desc(entries.publishedAt)).limit(widget.limit || 5);
                 }
+                
                 // Batch-fetch the primary category term for all results
                 const entryIds = result.map((r: any) => r.entry.id);
                 let categoryMap: Record<number, string> = {};
