@@ -39,11 +39,11 @@ if (fs.existsSync(deployConfig)) {
   console.log('✓ Deleted .wrangler/deploy/config.json to unlock Dashboard bindings');
 }
 
-// Clean up the .wrangler directory if it's empty
-if (fs.existsSync(rootWranglerDeploy)) {
+// Safe cleanup of only the .wrangler/deploy folder to not destroy the local DB
+if (fs.existsSync('.wrangler/deploy')) {
   try {
-    fs.rmSync(rootWranglerDeploy, { recursive: true, force: true });
+    fs.rmdirSync('.wrangler/deploy');
   } catch (e) {
-    // Ignore errors
+    // Ignore errors if not empty
   }
 }
