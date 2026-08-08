@@ -3,6 +3,7 @@ import TaxonomySelector from './TaxonomySelector';
 import BlockBuilder from './BlockBuilder';
 import Editor from '../Editor';
 import RevisionDiff from './RevisionDiff';
+import { optimizeImage } from '../../utils/imageOptimizer';
 
 interface FieldSchema {
     name: string;
@@ -35,6 +36,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
     const [revisions, setRevisions] = useState<any[]>([]);
     const [selectedRevisions, setSelectedRevisions] = useState<number[]>([]);
     const [diffRevision, setDiffRevision] = useState<any>(null);
+    const [uploadingField, setUploadingField] = useState<string | null>(null);
     
     let supportsRevisions = false;
     try {
@@ -114,6 +116,36 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
         } catch(e) { 
             return []; 
         }
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingField(fieldName);
+        
+        try {
+            // Compress image client-side before sending to server
+            const optimizedFile = await optimizeImage(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.8 });
+            
+            const data = new FormData();
+            data.append('file', optimizedFile);
+
+            const res = await fetch('/api/upload', {
+                method: 'POST',
+                body: data,
+            });
+            const json = await res.json();
+            if (res.ok && json.url) {
+                handleChange(fieldName, json.url);
+            } else {
+                alert(`Upload failed: ${json.error}`);
+            }
+        } catch (err: any) {
+            alert(`Upload error: ${err.message}`);
+        }
+        setUploadingField(null);
+        e.target.value = '';
     };
 
     const handleSave = async (e: React.FormEvent) => {
@@ -209,12 +241,27 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                                         type="text"
                                         value={formData[field.name] || ''}
                                         onChange={(e) => handleChange(field.name, e.target.value)}
-                                        placeholder="Image URL"
+                                        placeholder="Image or File URL"
                                         className="flex-1 px-4 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                                     />
+                                    <label className={`cursor-pointer px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center ${uploadingField === field.name ? 'bg-muted text-muted-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'}`}>
+                                        {uploadingField === field.name ? 'Uploading...' : 'Upload File'}
+                                        <input 
+                                            type="file" 
+                                            accept="image/*,application/pdf" 
+                                            className="hidden" 
+                                            onChange={(e) => handleImageUpload(e, field.name)} 
+                                            disabled={uploadingField === field.name}
+                                        />
+                                    </label>
                                 </div>
-                                {formData[field.name] && (
+                                {formData[field.name] && !formData[field.name].endsWith('.pdf') && (
                                     <img src={formData[field.name]} alt="Preview" className="max-h-48 rounded-md border border-border object-cover" />
+                                )}
+                                {formData[field.name] && formData[field.name].endsWith('.pdf') && (
+                                    <div className="p-3 bg-muted rounded-md text-sm break-all">
+                                        📄 PDF Document: <a href={formData[field.name]} target="_blank" className="text-primary hover:underline">{formData[field.name]}</a>
+                                    </div>
                                 )}
                             </div>
                         )}

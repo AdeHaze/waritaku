@@ -15,17 +15,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response(JSON.stringify({ error: 'No file provided' }), { status: 400 });
     }
 
-    // Validate file type (allow only common image formats)
-    const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'avif'];
+    // Validate file type (allow only common image formats and PDF)
+    const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'avif', 'pdf'];
     const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
-        return new Response(JSON.stringify({ error: 'File type not allowed. Accepted: JPG, PNG, WebP, GIF, SVG, AVIF.' }), { status: 400 });
+        return new Response(JSON.stringify({ error: 'File type not allowed. Accepted: JPG, PNG, WebP, GIF, SVG, AVIF, PDF.' }), { status: 400 });
     }
 
     // Map extensions to MIME types
     const MIME_MAP: Record<string, string> = {
         jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-        webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml', avif: 'image/avif'
+        webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml', avif: 'image/avif',
+        pdf: 'application/pdf'
     };
 
     // Validate file size (10 MB max)

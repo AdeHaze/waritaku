@@ -78,22 +78,54 @@ waritaku/
 4. **WordPress Migration (Manual)**:
    If you didn't use the Setup Wizard, you can find the complete **WordPress Migration Guide** in the CMS documentation at `http://localhost:4321/admin/docs` after logging in.
 
-## Pushing to Production
+## Deploying to Cloudflare (Production)
 
-Once you're happy with your local environment, you can push your database and media to Cloudflare.
+Deploying a dynamic SSR site with a live database requires a few specific steps in your Cloudflare Dashboard. If you simply connect your GitHub repository without configuring the database bindings, your live site will crash.
 
-1. **Pushing the Database (D1)**:
-   Export your local SQLite database and execute it on your live remote database:
-   ```bash
-   npx wrangler d1 export DB --local --output=local-dump.sql
-   npx wrangler d1 execute DB --remote --file=local-dump.sql
-   ```
+### 1. Create your Production Database & Storage
+First, create the live D1 database and R2 bucket using Wrangler in your terminal:
+```bash
+# Create the live D1 database
+npx wrangler d1 create waritaku-prod
 
-2. **Pushing Media (R2)**:
-   Run the automated R2 Sync utility to recursively upload all your images:
-   ```bash
-   npm run push:media
-   ```
+# Create the live R2 bucket for uploads
+npx wrangler r2 bucket create waritaku-uploads
+```
+
+### 2. Configure Cloudflare Pages
+Connect your GitHub repository in the Cloudflare Dashboard to create a new Pages project.
+1. **Framework Preset**: Select `Astro` (Build command: `npm run build`, Output directory: `dist`).
+2. **Environment Variables**: Add `NODE_VERSION` with the value `20`.
+3. **Save and Deploy**: The first deploy will fail or 500 error — this is expected because the database isn't bound yet!
+
+### 3. Bind the Database and Bucket
+1. Go to your Pages project in the Cloudflare Dashboard → **Settings** → **Functions** (or **Bindings**).
+2. Under **D1 database bindings**, click Add binding. 
+   - Variable name: `DB`
+   - D1 database: select your `waritaku-prod` database.
+3. Under **R2 bucket bindings**, click Add binding.
+   - Variable name: `UPLOADS`
+   - R2 bucket: select your `waritaku-uploads` bucket.
+4. Retry the deployment in Cloudflare.
+
+### 4. Push your Local Data to Production
+Your live database is currently empty! You need to push your local database structure and data to the live server.
+Because WordPress data dumps can be massive (20MB+), standard Wrangler upload commands will fail with a `SQLITE_TOOBIG` error. We have provided a safe chunking script to handle this.
+
+```bash
+# 1. Export your local database to a dump file
+sqlite3 local.db .dump > local-dump.sql
+
+# 2. Run the chunking upload script
+node scripts/push_d1_chunks.mjs
+```
+*(If the script pauses, ensure you update `push_d1_chunks.mjs` to target your specific production database name).*
+
+### 5. Push your Media
+Run the automated R2 Sync utility to recursively upload all your local images to your live bucket:
+```bash
+npm run push:media
+```
 
 ## Development Commands
 

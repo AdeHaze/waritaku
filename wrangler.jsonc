@@ -17,8 +17,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "waritaku_db",
-			"database_id": "waritaku-local-dev",
+			"database_name": "waritaku-d1",
+			"database_id": "57c02531-4715-44fe-ba8c-cbaf4176345f",
 			"migrations_dir": "drizzle"
 		}
 	],
