@@ -20,6 +20,9 @@ export default defineConfig({
   vite: {
     resolve: {
       dedupe: ['react', 'react-dom'],
+      alias: {
+        'crypto': path.resolve(__dirname, 'src/utils/crypto-polyfill.ts')
+      }
     },
     optimizeDeps: {
       exclude: ['diff']
