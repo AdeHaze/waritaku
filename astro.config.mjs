@@ -5,6 +5,10 @@ import tailwindcss from '@tailwindcss/vite';
 import cloudflare from '@astrojs/cloudflare';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // https://astro.build/config
 export default defineConfig({
@@ -16,14 +20,14 @@ export default defineConfig({
   vite: {
     resolve: {
       dedupe: ['react', 'react-dom'],
+      alias: {
+        'crypto': path.resolve(__dirname, 'src/utils/dummy.ts'),
+        'node:stream': path.resolve(__dirname, 'src/utils/dummy.ts'),
+        'stream': path.resolve(__dirname, 'src/utils/dummy.ts')
+      }
     },
     optimizeDeps: {
       exclude: ['diff']
-    },
-    build: {
-      rollupOptions: {
-        external: ['crypto']
-      }
     },
     plugins: [
       tailwindcss(),
