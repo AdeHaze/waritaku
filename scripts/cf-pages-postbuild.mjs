@@ -32,7 +32,14 @@ if (fs.existsSync(generatedWrangler)) {
     name: 'waritaku',
     pages_build_output_dir: '..',
     compatibility_date: config.compatibility_date || '2026-07-26',
-    compatibility_flags: ['nodejs_compat', 'global_fetch_strictly_public']
+    compatibility_flags: ['nodejs_compat', 'global_fetch_strictly_public'],
+    d1_databases: [
+      {
+        binding: "DB",
+        database_name: "waritaku-d1",
+        database_id: "57c02531-4715-44fe-ba8c-cbaf4176345f"
+      }
+    ]
   };
   fs.writeFileSync(generatedWrangler, JSON.stringify(newConfig, null, 2));
   console.log('✓ Fixed Astro-generated wrangler.json to ensure strict Cloudflare Pages validation passes');
