@@ -3,8 +3,22 @@ import { verifySessionCookie } from './lib/auth';
 import { getDb } from './lib/db';
 import { redirects, notFoundLogs, settings } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { getCachedPage, renderAndCache, isBypassRequest } from './lib/render-cache';
 
 import { useTranslation } from './i18n';
+
+// Paths that must never be served from the R2 render cache.
+// Static file extensions are matched by the dot check further below.
+const CACHE_BYPASS_PREFIXES = ['/admin', '/api', '/uploads', '/@', '/node_modules'];
+
+function isPublicHtmlPath(pathname: string): boolean {
+    // Skip any path that belongs to a bypass prefix
+    if (CACHE_BYPASS_PREFIXES.some(p => pathname.startsWith(p))) return false;
+    // Skip static assets (anything with a file extension)
+    const lastSegment = pathname.split('/').pop() ?? '';
+    if (lastSegment.includes('.')) return false;
+    return true;
+}
 
 // Simple in-memory settings cache with 60s TTL
 let settingsCache: { config: any; timestamp: number } | null = null;
@@ -14,6 +28,22 @@ import { env } from 'cloudflare:workers';
 
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
+
+    // --- R2 Render Cache short-circuit ---
+    // Runs before any D1 query. Visitor read traffic for public HTML pages
+    // is served entirely from R2 + Cloudflare edge cache.
+    if (isPublicHtmlPath(url.pathname) && !isBypassRequest(context.request)) {
+        const cached = await getCachedPage(env, url.pathname);
+        if (cached) {
+            // Apply security headers to cached responses too
+            cached.headers.set('X-Content-Type-Options', 'nosniff');
+            cached.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+            cached.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+            return cached;
+        }
+    }
+    // Cache MISS (or non-cacheable path) — fall through to the normal SSR path below.
+
     let db;
     try {
         db = getDb(env);
@@ -113,12 +143,24 @@ export const onRequest = defineMiddleware(async (context, next) => {
             response.headers.set('X-Frame-Options', 'DENY');
         }
 
+        // --- R2 lazy cache population ---
+        // On a cache MISS, if SSR returned a 200 HTML page for a public path,
+        // write the rendered HTML to R2 in the background so the next request
+        // is served from cache with zero D1 queries.
+        const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
+        if (
+            response.status === 200 &&
+            (response.headers.get('Content-Type') ?? '').includes('text/html') &&
+            isPublicHtmlPath(url.pathname) &&
+            !isBypassRequest(context.request)
+        ) {
+            renderAndCache(env, url.pathname, ctx);
+        }
+
         // --- 4. 404 Logging Engine ---
         if (response.status === 404 && db && enable404Tracking) {
             // Skip logging for Vite internal files during dev to prevent noise
             if (!url.pathname.startsWith('/@') && !url.pathname.startsWith('/node_modules') && url.pathname !== '/favicon.ico') {
-                 // We can't use waitUntil safely here in local dev without the context runtime, so we just await it if needed
-                 // But to keep it fast, we can just fire and forget the Promise in Node/Vite, or use ctx.waitUntil on Edge.
                  const logPromise = db.insert(notFoundLogs)
                       .values({ url: url.pathname, hits: 1 })
                       .onConflictDoUpdate({
@@ -126,7 +168,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
                           set: { hits: sql`${notFoundLogs.hits} + 1`, lastSeen: new Date().toISOString() }
                       }).execute();
                       
-                 const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
                  if (ctx && ctx.waitUntil) {
                      ctx.waitUntil(logPromise);
                  } else {
