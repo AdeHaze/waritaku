@@ -6,11 +6,6 @@
 	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 
 	"name": "waritaku",
-	"main": "@astrojs/cloudflare/entrypoints/server",
-	"assets": {
-		"directory": "./dist",
-		"binding": "ASSETS"
-	},
 	"observability": {
 		"enabled": true
 	},
