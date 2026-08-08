@@ -5,7 +5,7 @@ import { getDb } from '../lib/db';
 import { collections, entries, settings, entryTerms, terms, users, taxonomies } from '../db/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
-import { getCanonicalUrl } from '../lib/queries';
+import { getCanonicalUrl, getCanonicalUrls } from '../lib/queries';
 
 export const prerender = false;
 
@@ -140,13 +140,17 @@ if (isConfigured && layoutBlocks.length > 0) {
 
         const result = await query.limit(limit).offset(offset);
         
-        return await Promise.all(result.map(async r => {
+        const entryIdsForCategory = result.map((r: any) => r.entry.id);
+        const canonicalMap = await getCanonicalUrls(db, entryIdsForCategory);
+        
+        return result.map((r: any) => {
             const data = JSON.parse(r.entry.data || '{}');
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
             
-            const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
+            const prefixSlug = canonicalMap[r.entry.id];
+            const canonicalUrl = prefixSlug ? `${prefixSlug}/${r.entry.slug}` : r.entry.slug;
 
             return {
                 id: r.entry.id,
@@ -160,7 +164,7 @@ if (isConfigured && layoutBlocks.length > 0) {
                 authorId: r.author?.id || 1,
                 excerpt: excerpt
             };
-        }));
+        });
     };
 
     const promises = layoutBlocks.map(async (block) => {

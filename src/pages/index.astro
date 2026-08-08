@@ -5,7 +5,7 @@ import { entries, collections, users, taxonomies, terms, entryTerms, settings } 
 import { desc, eq, and, sql, inArray } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
-import { getCanonicalUrl } from '../lib/queries';
+import { getCanonicalUrl, getCanonicalUrls } from '../lib/queries';
 
 let layoutBlocks: any[] = [];
 let blockData: Record<string, any> = {};
@@ -160,6 +160,8 @@ if (env && (env as any).DB) {
         // Only batch-fetch categories when no specific filter is active
         const categoryMap: Record<number, { name: string, slug: string }[]> = {};
         const entryIdsForCategory = result.map((r: any) => r.entry.id);
+        const canonicalMap = await getCanonicalUrls(db, entryIdsForCategory);
+        
         if (!hasActiveFilter && entryIdsForCategory.length > 0) {
             const termResults = await db.select({
                 entryId: entryTerms.entryId,
@@ -180,13 +182,15 @@ if (env && (env as any).DB) {
             }
         }
         
-        return await Promise.all(result.map(async r => {
+        return result.map((r: any) => {
             const data = JSON.parse(r.entry.data || '{}');
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
             
-            const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
+            const prefixSlug = canonicalMap[r.entry.id];
+            const canonicalUrl = prefixSlug ? `${prefixSlug}/${r.entry.slug}` : r.entry.slug;
+            
             let cats = hasActiveFilter
                 ? [{ name: filterCategoryName, slug: filterCategorySlug }]
                 : (categoryMap[r.entry.id] || []);
@@ -213,7 +217,7 @@ if (env && (env as any).DB) {
                 authorId: r.author?.id || 1,
                 excerpt: excerpt
             };
-        }));
+        });
     };
 
     const promises = layoutBlocks.map(async (block) => {
