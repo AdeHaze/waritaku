@@ -6,6 +6,7 @@
 	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 
 	"name": "waritaku",
+	"pages_build_output_dir": "dist",
 	"observability": {
 		"enabled": true
 	},

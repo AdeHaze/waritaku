@@ -1,0 +1,176 @@
+2026-08-08T05:51:22.705656Z	Cloning repository...
+2026-08-08T05:51:23.628279Z	From https://github.com/AdeHaze/waritaku
+2026-08-08T05:51:23.628558Z	 * branch            786c2842e005b0a51896bf22e2182e35bf941660 -> FETCH_HEAD
+2026-08-08T05:51:23.628617Z	
+2026-08-08T05:51:23.658271Z	HEAD is now at 786c284 Cloudflare Pages SSR
+2026-08-08T05:51:23.658693Z	
+2026-08-08T05:51:23.883579Z	
+2026-08-08T05:51:23.884004Z	Using v2 root directory strategy
+2026-08-08T05:51:23.896938Z	Success: Finished cloning repository files
+2026-08-08T05:51:25.522664Z	Checking for configuration in a Wrangler configuration file (BETA)
+2026-08-08T05:51:25.523706Z	
+2026-08-08T05:51:25.523811Z	Found wrangler.json file. Reading build configuration...
+2026-08-08T05:51:25.689281Z	A Wrangler configuration file was found but it does not appear to be valid. Did you mean to use wrangler.toml to configure Pages? If so, then make sure the file is valid and contains the `pages_build_output_dir` property. Skipping file and continuing.
+2026-08-08T05:51:25.917959Z	Detected the following tools from environment: npm@10.9.2, nodejs@22.16.0
+2026-08-08T05:51:25.918368Z	Installing project dependencies: npm clean-install --progress=false
+2026-08-08T05:51:31.882606Z	npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.hirok.io
+2026-08-08T05:51:31.933994Z	npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.hirok.io
+2026-08-08T05:51:49.366253Z	
+2026-08-08T05:51:49.366535Z	added 748 packages, and audited 749 packages in 23s
+2026-08-08T05:51:49.3666Z	
+2026-08-08T05:51:49.366642Z	243 packages are looking for funding
+2026-08-08T05:51:49.366712Z	  run `npm fund` for details
+2026-08-08T05:51:49.450276Z	
+2026-08-08T05:51:49.450663Z	15 vulnerabilities (10 moderate, 5 high)
+2026-08-08T05:51:49.450739Z	
+2026-08-08T05:51:49.450786Z	To address issues that do not require attention, run:
+2026-08-08T05:51:49.450855Z	  npm audit fix
+2026-08-08T05:51:49.450916Z	
+2026-08-08T05:51:49.450948Z	To address all issues (including breaking changes), run:
+2026-08-08T05:51:49.450982Z	  npm audit fix --force
+2026-08-08T05:51:49.451015Z	
+2026-08-08T05:51:49.451046Z	Run `npm audit` for details.
+2026-08-08T05:51:49.54252Z	Executing user command: npm run build
+2026-08-08T05:51:49.896672Z	
+2026-08-08T05:51:49.897043Z	> temp-astro@0.0.1 build
+2026-08-08T05:51:49.897144Z	> astro build && node scripts/cf-pages-postbuild.mjs
+2026-08-08T05:51:49.897205Z	
+2026-08-08T05:51:52.682043Z	[2m05:51:52[22m [34m[@astrojs/cloudflare][39m Enabling image processing with Cloudflare Images for production with the "IMAGES" Images binding.
+2026-08-08T05:51:52.68242Z	[2m05:51:52[22m [34m[@astrojs/cloudflare][39m Enabling sessions with Cloudflare KV with the "SESSION" KV binding.
+2026-08-08T05:51:53.174072Z	[2m05:51:53[22m [34m[types][39m Generated [2m386ms[22m
+2026-08-08T05:51:53.174639Z	[2m05:51:53[22m [34m[build][39m output: [34m"server"[39m
+2026-08-08T05:51:53.174732Z	[2m05:51:53[22m [34m[build][39m mode: [34m"server"[39m
+2026-08-08T05:51:53.174828Z	[2m05:51:53[22m [34m[build][39m directory: [34m/opt/buildhome/repo/dist/[39m
+2026-08-08T05:51:53.174974Z	[2m05:51:53[22m [34m[build][39m adapter: [32m@astrojs/cloudflare[39m
+2026-08-08T05:51:53.175059Z	[2m05:51:53[22m [34m[build][39m Collecting build info...
+2026-08-08T05:51:53.175533Z	[2m05:51:53[22m [34m[build][39m [32m✓ Completed in 496ms.[39m
+2026-08-08T05:51:53.177532Z	[2m05:51:53[22m [34m[build][39m Building server entrypoints...
+2026-08-08T05:51:53.627848Z	[2m05:51:53[22m [34m[vite][39m [32m✓ built in 407ms[39m
+2026-08-08T05:51:54.830518Z	[2m05:51:54[22m [34m[vite][39m [32m✓ built in 1.20s[39m
+2026-08-08T05:51:55.344876Z	[33m[1m05:51:55[22m [WARN] [vite][39m [33m[plugin builtin:vite-reporter] 
+2026-08-08T05:51:55.345198Z	(!) Some chunks are larger than 500 kB after minification. Consider:
+2026-08-08T05:51:55.345268Z	- Using dynamic import() to code-split the application
+2026-08-08T05:51:55.345326Z	- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+2026-08-08T05:51:55.345383Z	- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+2026-08-08T05:51:55.34544Z	[2m05:51:55[22m [34m[vite][39m [32m✓ built in 508ms[39m
+2026-08-08T05:51:55.357952Z	[2m05:51:55[22m [34m[build][39m Rearranging server assets...
+2026-08-08T05:51:55.86501Z	[2m05:51:55[22m [34m[build][39m [32m✓ Completed in 2.69s.[39m
+2026-08-08T05:51:55.866981Z	[2m05:51:55[22m [34m[@astrojs/cloudflare][39m Injected immutable Cache-Control for /_astro/* into _headers.
+2026-08-08T05:51:55.867526Z	[2m05:51:55[22m [34m[build][39m Server built in [1m3.19s[22m
+2026-08-08T05:51:55.867791Z	[2m05:51:55[22m [34m[build][39m [1mComplete![22m
+2026-08-08T05:51:55.957009Z	✓ Generated dist/_worker.js for Cloudflare Pages compatibility
+2026-08-08T05:51:55.957469Z	✓ Moved client assets to dist root
+2026-08-08T05:51:55.975646Z	Finished
+2026-08-08T05:51:56.476644Z	Checking for configuration in a Wrangler configuration file (BETA)
+2026-08-08T05:51:56.477014Z	
+2026-08-08T05:51:56.478885Z	Using redirected Wrangler configuration.
+2026-08-08T05:51:56.478991Z	 - Configuration being used: "../../../buildhome/repo/dist/server/wrangler.json"
+2026-08-08T05:51:56.479048Z	 - Original user's configuration: "../../../buildhome/repo/wrangler.jsonc"
+2026-08-08T05:51:56.479119Z	 - Deploy configuration file: "../../../buildhome/repo/.wrangler/deploy/config.json"
+2026-08-08T05:51:56.479166Z	Found wrangler.json file. Reading build configuration...
+2026-08-08T05:51:56.606348Z	A Wrangler configuration file was found but it does not appear to be valid. Did you mean to use wrangler.toml to configure Pages? If so, then make sure the file is valid and contains the `pages_build_output_dir` property. Skipping file and continuing.
+2026-08-08T05:51:56.606965Z	Found _worker.js in output directory. Uploading.
+2026-08-08T05:51:56.611408Z	 ⛅️ wrangler 3.114.17
+2026-08-08T05:51:56.611511Z	-------------------
+2026-08-08T05:51:57.086415Z	Using redirected Wrangler configuration.
+2026-08-08T05:51:57.086852Z	 - Configuration being used: "../../../buildhome/repo/dist/server/wrangler.json"
+2026-08-08T05:51:57.086961Z	 - Original user's configuration: "../../../buildhome/repo/wrangler.jsonc"
+2026-08-08T05:51:57.087035Z	 - Deploy configuration file: "../../../buildhome/repo/.wrangler/deploy/config.json"
+2026-08-08T05:51:57.388826Z	[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mThe package "node:stream" wasn't found on the file system but is built into node.[0m
+2026-08-08T05:51:57.389491Z	
+2026-08-08T05:51:57.389595Z	  Your Worker may throw errors at runtime unless you enable the "nodejs_compat" compatibility flag. Refer to [4mhttps://developers.cloudflare.com/workers/runtime-apis/nodejs/[0m for more details. Imported from:
+2026-08-08T05:51:57.389675Z	   - server/entry.mjs
+2026-08-08T05:51:57.389735Z	
+2026-08-08T05:51:57.389785Z	
+2026-08-08T05:51:57.39175Z	[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mBuild failed with 4 errors:[0m
+2026-08-08T05:51:57.391871Z	
+2026-08-08T05:51:57.391945Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "crypto"[0m
+2026-08-08T05:51:57.392009Z	  
+2026-08-08T05:51:57.392123Z	      server/chunks/bcryptjs_RB47AfZI.mjs:3:23:
+2026-08-08T05:51:57.392182Z	  [37m      3 │ import nodeCrypto from [32m"crypto"[37m;
+2026-08-08T05:51:57.392231Z	          ╵                        [32m~~~~~~~~[0m
+2026-08-08T05:51:57.392278Z	  
+2026-08-08T05:51:57.392359Z	    The package "crypto" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+2026-08-08T05:51:57.392432Z	  
+2026-08-08T05:51:57.392498Z	  
+2026-08-08T05:51:57.392565Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "path"[0m
+2026-08-08T05:51:57.392624Z	  
+2026-08-08T05:51:57.392679Z	      server/chunks/sanitize_BNJHPL0A.mjs:4:21:
+2026-08-08T05:51:57.39272Z	  [37m      4 │ import * as m$2 from [32m"path"[37m;
+2026-08-08T05:51:57.392759Z	          ╵                      [32m~~~~~~[0m
+2026-08-08T05:51:57.392789Z	  
+2026-08-08T05:51:57.392903Z	    The package "path" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+2026-08-08T05:51:57.392941Z	  
+2026-08-08T05:51:57.39297Z	  
+2026-08-08T05:51:57.393006Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "url"[0m
+2026-08-08T05:51:57.393056Z	  
+2026-08-08T05:51:57.393107Z	      server/chunks/sanitize_BNJHPL0A.mjs:5:21:
+2026-08-08T05:51:57.393166Z	  [37m      5 │ import * as m$1 from [32m"url"[37m;
+2026-08-08T05:51:57.393213Z	          ╵                      [32m~~~~~[0m
+2026-08-08T05:51:57.393262Z	  
+2026-08-08T05:51:57.393345Z	    The package "url" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+2026-08-08T05:51:57.393423Z	  
+2026-08-08T05:51:57.393485Z	  
+2026-08-08T05:51:57.393545Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "fs"[0m
+2026-08-08T05:51:57.393609Z	  
+2026-08-08T05:51:57.393672Z	      server/chunks/sanitize_BNJHPL0A.mjs:6:19:
+2026-08-08T05:51:57.393733Z	  [37m      6 │ import * as m from [32m"fs"[37m;
+2026-08-08T05:51:57.393805Z	          ╵                    [32m~~~~[0m
+2026-08-08T05:51:57.393869Z	  
+2026-08-08T05:51:57.393929Z	    The package "fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+2026-08-08T05:51:57.393986Z	  
+2026-08-08T05:51:57.394018Z	  
+2026-08-08T05:51:57.394051Z	
+2026-08-08T05:51:57.39408Z	
+2026-08-08T05:51:57.397542Z	
+2026-08-08T05:51:57.401116Z	[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mBuild failed with 4 errors:[0m
+2026-08-08T05:51:57.401822Z	
+2026-08-08T05:51:57.402067Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "crypto"[0m
+2026-08-08T05:51:57.402442Z	  
+2026-08-08T05:51:57.402799Z	      server/chunks/bcryptjs_RB47AfZI.mjs:3:23:
+2026-08-08T05:51:57.403066Z	  [37m      3 │ import nodeCrypto from [32m"crypto"[37m;
+2026-08-08T05:51:57.403121Z	          ╵                        [32m~~~~~~~~[0m
+2026-08-08T05:51:57.403171Z	  
+2026-08-08T05:51:57.403213Z	    The package "crypto" wasn't found on the file system but is built into node.
+2026-08-08T05:51:57.40326Z	    - Add the "nodejs_compat" compatibility flag to your project.
+2026-08-08T05:51:57.403294Z	    
+2026-08-08T05:51:57.403348Z	  
+2026-08-08T05:51:57.403382Z	  
+2026-08-08T05:51:57.403413Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "path"[0m
+2026-08-08T05:51:57.403445Z	  
+2026-08-08T05:51:57.403476Z	      server/chunks/sanitize_BNJHPL0A.mjs:4:21:
+2026-08-08T05:51:57.403512Z	  [37m      4 │ import * as m$2 from [32m"path"[37m;
+2026-08-08T05:51:57.403545Z	          ╵                      [32m~~~~~~[0m
+2026-08-08T05:51:57.403577Z	  
+2026-08-08T05:51:57.403608Z	    The package "path" wasn't found on the file system but is built into node.
+2026-08-08T05:51:57.403642Z	    - Add the "nodejs_compat" compatibility flag to your project.
+2026-08-08T05:51:57.403673Z	    
+2026-08-08T05:51:57.403703Z	  
+2026-08-08T05:51:57.403733Z	  
+2026-08-08T05:51:57.403772Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "url"[0m
+2026-08-08T05:51:57.403804Z	  
+2026-08-08T05:51:57.403834Z	      server/chunks/sanitize_BNJHPL0A.mjs:5:21:
+2026-08-08T05:51:57.403871Z	  [37m      5 │ import * as m$1 from [32m"url"[37m;
+2026-08-08T05:51:57.4039Z	          ╵                      [32m~~~~~[0m
+2026-08-08T05:51:57.403938Z	  
+2026-08-08T05:51:57.403968Z	    The package "url" wasn't found on the file system but is built into node.
+2026-08-08T05:51:57.404012Z	    - Add the "nodejs_compat" compatibility flag to your project.
+2026-08-08T05:51:57.404064Z	    
+2026-08-08T05:51:57.404102Z	  
+2026-08-08T05:51:57.404132Z	  
+2026-08-08T05:51:57.404173Z	  [31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "fs"[0m
+2026-08-08T05:51:57.404217Z	  
+2026-08-08T05:51:57.404247Z	      server/chunks/sanitize_BNJHPL0A.mjs:6:19:
+2026-08-08T05:51:57.404278Z	  [37m      6 │ import * as m from [32m"fs"[37m;
+2026-08-08T05:51:57.404334Z	          ╵                    [32m~~~~[0m
+2026-08-08T05:51:57.404389Z	  
+2026-08-08T05:51:57.404441Z	    The package "fs" wasn't found on the file system but is built into node.
+2026-08-08T05:51:57.404492Z	    - Add the "nodejs_compat" compatibility flag to your project.
+2026-08-08T05:51:57.404543Z	    
+2026-08-08T05:51:57.404589Z	  
+2026-08-08T05:51:57.404641Z	  
+2026-08-08T05:51:57.404694Z	
+2026-08-08T05:51:57.404744Z	
+2026-08-08T05:51:57.408872Z	🪵  Logs were written to "/root/.config/.wrangler/logs/wrangler-2026-08-08_05-51-56_985.log"
+2026-08-08T05:51:57.476502Z	Failed building Pages Functions.
+2026-08-08T05:51:58.159363Z	Failed: generating Pages Functions failed. Check the logs above for more information. If this continues for an unknown reason, contact support: https://cfl.re/3WgEyrH

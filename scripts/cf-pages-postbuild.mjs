@@ -20,3 +20,11 @@ if (fs.existsSync('dist/client')) {
   fs.rmdirSync('dist/client');
   console.log('✓ Moved client assets to dist root');
 }
+
+// Delete Astro's auto-generated wrangler.json so Cloudflare Pages uses our root wrangler.jsonc
+// (If Cloudflare sees this file, it might skip our config and ignore nodejs_compat!)
+const generatedWrangler = 'dist/server/wrangler.json';
+if (fs.existsSync(generatedWrangler)) {
+  fs.unlinkSync(generatedWrangler);
+  console.log('✓ Deleted Astro-generated wrangler.json to ensure nodejs_compat is applied');
+}
