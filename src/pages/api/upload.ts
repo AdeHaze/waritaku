@@ -1,4 +1,5 @@
 import { StorageAdapter } from '../../lib/storage';
+import { getMediaUrl } from '../../lib/media';
 import type { APIRoute } from 'astro';
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -54,10 +55,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
             },
         });
         
-        // Return the public URL for the uploaded file
-        // For now, we will serve this through our own Astro API endpoint
-        const url = `/api/images/${uniqueFilename}`;
-        
+        // Return the public URL for the uploaded file.
+        // In production, this uses the configured R2 custom domain (PUBLIC_MEDIA_BASE_URL).
+        // In local dev, it falls back to the /api/images/ Worker proxy route.
+        const url = getMediaUrl(uniqueFilename);
+
         return new Response(JSON.stringify({ url, success: true }), { status: 200 });
     } else {
         return new Response(JSON.stringify({ error: 'R2 bucket not configured' }), { status: 500 });
