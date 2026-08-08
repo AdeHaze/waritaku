@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, inArray, gte, lte, ne } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray, gte, lte, ne, exists } from 'drizzle-orm';
 import { entries, collections, users, terms, taxonomies, entryTerms, settings } from '../db/schema';
 
 function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
@@ -588,7 +588,6 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                         data: entries.data,
                         publishedAt: entries.publishedAt,
                     })
-                    .from(entries)
                     .from(entries)
                     .where(
                         and(
