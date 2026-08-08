@@ -4,7 +4,7 @@ import { getDb } from '../../../../lib/db';
 import { generateUniqueSlug } from '../../../../lib/slug';
 import { taxonomies, terms } from '../../../../db/schema';
 import { eq, desc, asc, like, and, or, sql } from 'drizzle-orm';
-const env = Astro.locals?.runtime?.env;
+import { env } from 'cloudflare:workers';
 
 const user = Astro.locals.user;
 if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {

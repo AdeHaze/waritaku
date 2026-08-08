@@ -3,7 +3,7 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { users, passwordResets } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
-const env = Astro.locals?.runtime?.env;
+import { env } from 'cloudflare:workers';
 import { getDb } from '../../../lib/db';
 
 import { hashPassword } from '../../../lib/auth';

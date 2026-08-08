@@ -4,7 +4,7 @@ import GlobalSidebar from '../../components/GlobalSidebar.astro';
 import Pagination from '../../components/Pagination.astro';
 import { users, entries, collections } from '../../db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
-const env = Astro.locals?.runtime?.env;
+import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
 
 

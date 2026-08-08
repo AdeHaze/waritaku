@@ -4,7 +4,7 @@ import Layout from '../layouts/Layout.astro';
 import GlobalSidebar from '../components/GlobalSidebar.astro';
 import { entries as articlesTable, users, collections } from '../db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
-const env = Astro.locals?.runtime?.env;
+import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
 import { getCanonicalUrl } from '../lib/queries';
 

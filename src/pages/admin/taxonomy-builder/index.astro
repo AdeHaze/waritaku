@@ -2,7 +2,7 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { getDb } from '../../../lib/db';
 import { taxonomies } from '../../../db/schema';
-const env = Astro.locals?.runtime?.env;
+import { env } from 'cloudflare:workers';
 import { Plus, FolderTree, Edit, Trash2 } from 'lucide-react';
 
 const user = Astro.locals.user;

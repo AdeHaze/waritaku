@@ -3,7 +3,7 @@ import AdminLayout from "../../../../layouts/AdminLayout.astro";
 import { getDb } from "../../../../lib/db";
 import { collections, taxonomies } from "../../../../db/schema";
 import { eq } from "drizzle-orm";
-const env = Astro.locals?.runtime?.env;
+import { env } from 'cloudflare:workers';
 import { Save, ArrowLeft } from "lucide-react";
 
 const user = Astro.locals.user;

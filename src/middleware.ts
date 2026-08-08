@@ -18,7 +18,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
     try {
         db = getDb(env);
     } catch (err: any) {
-        return new Response(`Initialization Error: ${err.message}. Env keys available: ${env ? JSON.stringify(Object.keys(env)) : 'none'}`, { status: 500, headers: { 'Content-Type': 'text/plain' }});
+        const errorMsg = `Initialization Error: ${err.message}. Env keys available: ${env ? JSON.stringify(Object.keys(env)) : 'none'}`;
+        const padding = ' '.repeat(512); // Prevent Chrome from hiding small 500 responses
+        return new Response(`${errorMsg}\n\n${padding}`, { status: 500, headers: { 'Content-Type': 'text/plain' }});
     }
 
     let enableRedirections = true;

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Button } from '../../components/ui/button';
 import { users as usersTable, settings } from '../../db/schema';
 import { eq } from 'drizzle-orm';
-const env = Astro.locals?.runtime?.env;
+import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
 
 import { createSessionCookie, hashPassword, verifyPassword } from '../../lib/auth';
