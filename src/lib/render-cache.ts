@@ -10,10 +10,43 @@
  *   /2026/08      -> rendered/2026/08.html
  */
 
+import { getMediaBaseUrl } from './media';
+
 const PRODUCTION_ORIGIN = 'https://waritaku.com';
 const BYPASS_HEADER = 'X-Render-Cache-Bypass';
 const BYPASS_VALUE = '1';
 const CACHE_CONTROL = 'public, max-age=86400, stale-while-revalidate=3600';
+
+/**
+ * Rewrite Worker-proxied image URLs to direct R2 CDN URLs in HTML.
+ *
+ * Pages stored in R2 render cache must not contain /uploads/ or /api/images/
+ * paths — those go through a Worker redirect which defeats the purpose of
+ * caching. This function replaces them with the configured media base URL
+ * so cached HTML is fully self-contained with direct R2 links.
+ *
+ * Handles both relative paths (/uploads/...) and absolute URLs
+ * (https://waritaku.com/uploads/...) inside HTML attribute values.
+ */
+function rewriteMediaUrls(html: string): string {
+    const mediaBase = getMediaBaseUrl();
+    if (!mediaBase) return html; // Local dev: no rewriting
+    const base = mediaBase.replace(/\/$/, '');
+
+    // Absolute URLs — e.g. https://waritaku.com/uploads/2025/07/file.webp
+    html = html.replaceAll(`${PRODUCTION_ORIGIN}/uploads/`, `${base}/`);
+    html = html.replaceAll(`${PRODUCTION_ORIGIN}/api/images/`, `${base}/`);
+
+    // Relative paths inside double-quoted HTML attributes
+    html = html.replaceAll('="/uploads/', `="${base}/`);
+    html = html.replaceAll('="/api/images/', `="${base}/`);
+
+    // Relative paths inside single-quoted HTML attributes
+    html = html.replaceAll("='/uploads/", `='${base}/`);
+    html = html.replaceAll("='/api/images/", `='${base}/`);
+
+    return html;
+}
 
 function pathToKey(pathname: string): string {
     const clean = pathname === '/' ? '/index' : pathname.replace(/\/$/, '');
@@ -62,7 +95,10 @@ export async function renderAndCache(env: any, pathname: string, ctx?: Execution
             const contentType = response.headers.get('Content-Type') || '';
             if (!contentType.includes('text/html')) return;
 
-            const html = await response.arrayBuffer();
+            // Rewrite Worker-proxied image paths to direct R2 CDN URLs
+            // so cached HTML loads images without any redirect hops.
+            const rawHtml = await response.text();
+            const html = rewriteMediaUrls(rawHtml);
             const key = pathToKey(pathname);
 
             await env.RENDER_CACHE.put(key, html, {
