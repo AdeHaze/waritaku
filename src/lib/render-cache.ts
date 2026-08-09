@@ -59,6 +59,7 @@ function pathToKey(pathname: string): string {
  */
 export async function getCachedPage(env: any, pathname: string): Promise<Response | null> {
     if (!env?.RENDER_CACHE) return null;
+    if (import.meta.env.DEV) return null; // Always SSR in local dev
 
     const key = pathToKey(pathname);
     const object = await env.RENDER_CACHE.get(key);
@@ -82,6 +83,7 @@ export async function getCachedPage(env: any, pathname: string): Promise<Respons
  */
 export async function renderAndCache(env: any, pathname: string, ctx?: ExecutionContext): Promise<void> {
     if (!env?.RENDER_CACHE) return;
+    if (import.meta.env.DEV) return; // Never self-fetch production in local dev
 
     const work = async () => {
         try {
@@ -128,6 +130,7 @@ export async function renderAndCache(env: any, pathname: string, ctx?: Execution
  */
 export async function invalidateCachedPage(env: any, pathname: string): Promise<void> {
     if (!env?.RENDER_CACHE) return;
+    if (import.meta.env.DEV) return;
     try {
         await env.RENDER_CACHE.delete(pathToKey(pathname));
     } catch (err) {
