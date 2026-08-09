@@ -10,8 +10,8 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     if (!user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
-    if (user.role !== 'admin' && user.role !== 'superadmin') {
-        return new Response(JSON.stringify({ error: 'Forbidden: requires admin or superadmin role' }), { status: 403 });
+    if (!['superadmin', 'admin', 'editor', 'author'].includes(user.role)) {
+        return new Response(JSON.stringify({ error: 'Forbidden: insufficient role' }), { status: 403 });
     }
 
     const db = getDb(env);
@@ -34,7 +34,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         const body = await request.json() as any;
         
         // Extract standard fields
-        const { slug, status, publishedAt, selectedTerms, ...customData } = body;
+        const { slug, status, publishedAt, selectedTerms, authorId, ...customData } = body;
 
         let initialSlug = slug || entryRes[0].slug;
         let finalSlug = await generateUniqueSlug(db, initialSlug, undefined, entryId);
@@ -72,6 +72,10 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             updatedAt: new Date().toISOString(),
             version: sql`${entries.version} + 1`
         };
+
+        if (authorId && ['superadmin', 'admin', 'editor'].includes(user.role)) {
+            updateFields.authorId = parseInt(authorId, 10);
+        }
         // Restore from trash if setting a non-trashed status
         if (mappedStatus !== 'trashed') {
             updateFields.deletedAt = null;

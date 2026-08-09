@@ -1,12 +1,12 @@
 ---
 import AdminLayout from '../../../../../layouts/AdminLayout.astro';
 import { getDb } from '../../../../../lib/db';
-import { collections, entries, entryTerms, taxonomies, terms } from '../../../../../db/schema';
+import { collections, entries, entryTerms, taxonomies, terms, users } from '../../../../../db/schema';
 import { eq, and, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
 const user = Astro.locals.user;
-if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+if (!user || !['superadmin', 'admin', 'editor', 'author'].includes(user.role)) {
     return Astro.redirect('/admin/login');
 }
 
@@ -47,6 +47,7 @@ const entry = {
     slug: entryRes[0].slug,
     status: entryRes[0].status,
     publishedAt: entryRes[0].publishedAt,
+    authorId: entryRes[0].authorId,
     selectedTerms,
     ...JSON.parse(entryRes[0].data || '{}')
 };
@@ -55,6 +56,9 @@ const entry = {
 const taxQuery = await db.select().from(taxonomies).where(like(taxonomies.allowedCollections, `%"${collection.slug}"%`));
 const allowedTaxonomies = taxQuery.map(t => t.slug);
 const taxonomyMeta = taxQuery.map(t => ({ slug: t.slug, label: t.label, prefixEntryUrl: t.prefixEntryUrl }));
+
+// Fetch all users for author selection
+const allUsersRes = await db.select({ id: users.id, name: users.name, role: users.role }).from(users);
 
 import DynamicEntryEditor from '../../../../../components/admin/DynamicEntryEditor';
 ---
@@ -77,5 +81,5 @@ import DynamicEntryEditor from '../../../../../components/admin/DynamicEntryEdit
     </div>
 
     <!-- The React Root for our Editor -->
-    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} initialEntry={entry} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} supports={collection.supports} />
+    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} initialEntry={entry} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} supports={collection.supports} allUsers={allUsersRes} currentUserRole={user.role} />
 </AdminLayout>

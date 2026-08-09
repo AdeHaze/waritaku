@@ -20,9 +20,11 @@ interface DynamicEntryEditorProps {
     supports?: string;
     taxonomies?: string[];
     taxonomyMeta?: { slug: string; label: string; prefixEntryUrl: boolean }[];
+    allUsers?: { id: number; name: string; role: string; }[];
+    currentUserRole?: string;
 }
 
-export default function DynamicEntryEditor({ collectionSlug, schema, initialEntry, supports, taxonomies = [], taxonomyMeta = [] }: DynamicEntryEditorProps) {
+export default function DynamicEntryEditor({ collectionSlug, schema, initialEntry, supports, taxonomies = [], taxonomyMeta = [], allUsers = [], currentUserRole = '' }: DynamicEntryEditorProps) {
     const defaultPrimaryTermId = React.useMemo(() => {
         try { if (supports) return JSON.parse(supports).defaultPrimaryTermId || null; } catch(e) {}
         return null;
@@ -396,6 +398,22 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                             </div>
                         )}
                         
+                        {['superadmin', 'admin', 'editor'].includes(currentUserRole) && allUsers.length > 0 && (
+                            <div>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-1">Author</label>
+                                <select 
+                                    value={formData.authorId || ''}
+                                    onChange={(e) => handleChange('authorId', parseInt(e.target.value, 10))}
+                                    className="w-full px-3 py-2 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                    <option value="">Select Author...</option>
+                                    {allUsers.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
                         <div>
                             <label className="block text-xs font-semibold text-muted-foreground mb-1">Slug</label>
                             <input 
