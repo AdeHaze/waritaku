@@ -4,6 +4,27 @@ import { eq, inArray } from 'drizzle-orm';
 import { invalidateCachedPage } from './render-cache';
 import { getCanonicalUrl } from './queries';
 
+const PRODUCTION_ORIGIN = 'https://waritaku.com';
+const BYPASS_HEADER = 'X-Render-Cache-Bypass';
+const BYPASS_VALUE = '1';
+
+/** Self-fetch a URL on the production origin to trigger SSR → R2 cache population. */
+async function warmUrl(env: any, pathname: string, ctx?: any): Promise<void> {
+    if (!env?.RENDER_CACHE) return;
+    if (import.meta.env.DEV) return;
+    const url = `${PRODUCTION_ORIGIN}${pathname}`;
+    try {
+        await fetch(url, {
+            headers: {
+                [BYPASS_HEADER]: BYPASS_VALUE,
+                'Cache-Control': 'no-cache',
+            },
+        });
+    } catch (e) {
+        console.error('[cache-invalidation] Warm failed for:', pathname, e);
+    }
+}
+
 export async function invalidateEntryCache(env: any, collectionId: number, entryId: number, entrySlug: string, termIds: number[] = []) {
     if (!env?.RENDER_CACHE) return;
 
@@ -45,8 +66,17 @@ export async function invalidateEntryCache(env: any, collectionId: number, entry
             }
         }
 
-        await invalidateCachedPage(env, Array.from(pathsToInvalidate));
+        // Invalidate each path individually (invalidateCachedPage expects a single string)
+        const paths = Array.from(pathsToInvalidate);
+        for (const path of paths) {
+            await invalidateCachedPage(env, path);
+        }
+
+        // Warm the entry URL into R2 — self-fetch triggers SSR and lazy cache population
+        await warmUrl(env, `/${canonical}`);
+        // Also warm the homepage (it changed — new article, sidebar refresh, etc.)
+        await warmUrl(env, '/');
     } catch (e) {
-        console.error('[cache-invalidation] Error invalidating cache:', e);
+        console.error('[cache-invalidation] Error:', e);
     }
 }
