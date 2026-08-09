@@ -125,13 +125,54 @@ export async function cacheRenderedPage(env: any, pathname: string, response: Re
 }
 
 /**
- * Remove a pre-rendered page from R2 (e.g. on trash or permanent delete).
+ * Purge a URL from Cloudflare's edge cache via the Cache Purge API.
+ *
+ * Required env vars (set as CF Pages secrets):
+ *   CLOUDFLARE_ZONE_ID    — Zone ID from waritaku.com Overview sidebar
+ *   CLOUDFLARE_CACHE_TOKEN — API token with Cache Purge permission only
+ *
+ * If either var is absent this is a silent no-op (e.g. local dev, staging).
+ */
+async function purgeEdgeCache(env: any, pathname: string): Promise<void> {
+    const zoneId   = env?.CLOUDFLARE_ZONE_ID;
+    const apiToken = env?.CLOUDFLARE_CACHE_TOKEN;
+    if (!zoneId || !apiToken) return;
+
+    const url = `https://waritaku.com${pathname}`;
+    try {
+        const res = await fetch(
+            `https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ files: [url] }),
+            }
+        );
+        if (!res.ok) {
+            const text = await res.text();
+            console.error('[render-cache] Edge cache purge failed:', res.status, text);
+        }
+    } catch (err) {
+        console.error('[render-cache] Edge cache purge error:', err);
+    }
+}
+
+/**
+ * Remove a pre-rendered page from R2 and Cloudflare edge cache.
+ * Call this whenever an entry is published, updated, or deleted.
  */
 export async function invalidateCachedPage(env: any, pathname: string): Promise<void> {
     if (!env?.RENDER_CACHE) return;
     if (import.meta.env.DEV) return;
     try {
-        await env.RENDER_CACHE.delete(pathToKey(pathname));
+        // Delete from R2 and purge from Cloudflare edge cache in parallel.
+        await Promise.all([
+            env.RENDER_CACHE.delete(pathToKey(pathname)),
+            purgeEdgeCache(env, pathname),
+        ]);
     } catch (err) {
         console.error('[render-cache] invalidateCachedPage error:', err);
     }
