@@ -5,6 +5,7 @@ import { eq, and, sql, desc, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../lib/slug';
 import { hasPermission } from '../../../../lib/permissions';
+import { invalidateEntryCache } from '../../../../lib/cache-invalidation';
 
 export const GET: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
@@ -133,7 +134,8 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
     }
 };
 
-export const POST: APIRoute = async ({ request, params, locals }) => {
+export const POST: APIRoute = async (ctx) => {
+    const { request, params, locals } = ctx;
     const user = locals.user;
     const permissions = locals.permissions;
     if (!user || !permissions || !hasPermission(permissions, 'entries', 'create')) {
@@ -183,6 +185,13 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
                     termId: parseInt(termId, 10)
                 });
             }
+        }
+
+        // Invalidate Cache (non-blocking)
+        const tIds = selectedTerms && Array.isArray(selectedTerms) ? selectedTerms.map(t => parseInt(t, 10)) : [];
+        ctx?.waitUntil?.(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
+        if (!ctx?.waitUntil) {
+            invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
         }
 
         return new Response(JSON.stringify({ success: true, id: entryId, slug: finalSlug }), {

@@ -5,8 +5,10 @@ import { eq, and, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../../lib/slug';
 import { hasPermission, hasAnyPermission } from '../../../../../lib/permissions';
+import { invalidateEntryCache } from '../../../../../lib/cache-invalidation';
 
-export const PUT: APIRoute = async ({ request, params, locals }) => {
+export const PUT: APIRoute = async (ctx) => {
+    const { request, params, locals } = ctx;
     const user = locals.user;
     const permissions = locals.permissions;
     if (!user || !permissions) {
@@ -116,6 +118,21 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             }
         }
 
+        // Invalidate Cache
+        const tIds = selectedTerms && Array.isArray(selectedTerms) ? selectedTerms.map(t => parseInt(t, 10)) : [];
+        ctx?.waitUntil?.(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
+        if (!ctx?.waitUntil) {
+            invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
+        }
+        
+        // Also invalidate old slug if it changed
+        if (finalSlug !== entryRes[0].slug) {
+            ctx?.waitUntil?.(invalidateEntryCache(env, collectionId, entryId, entryRes[0].slug, []));
+            if (!ctx?.waitUntil) {
+                invalidateEntryCache(env, collectionId, entryId, entryRes[0].slug, []).catch(console.error);
+            }
+        }
+
         return new Response(JSON.stringify({ success: true, id: entryId, slug: finalSlug }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
@@ -125,7 +142,8 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     }
 };
 
-export const DELETE: APIRoute = async ({ request, params, locals }) => {
+export const DELETE: APIRoute = async (ctx) => {
+    const { request, params, locals } = ctx;
     const user = locals.user;
     const permissions = locals.permissions;
     if (!user || !permissions) {
@@ -165,8 +183,20 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
 
         if (permanent) {
             // Hard delete
+            const oldTerms = await db.select({ termId: entryTerms.termId })
+                .from(entryTerms)
+                .where(eq(entryTerms.entryId, entryId));
+            const tIds = oldTerms.map(t => t.termId);
+
             await db.delete(entryTerms).where(eq(entryTerms.entryId, entryId));
             await db.delete(entries).where(and(eq(entries.id, entryId), eq(entries.collectionId, colRes[0].id)));
+            
+            // Invalidate Cache
+            ctx?.waitUntil?.(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
+            if (!ctx?.waitUntil) {
+                invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
+            }
+
             return new Response(JSON.stringify({ success: true, permanent: true }), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }
@@ -179,6 +209,16 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
             deletedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         }).where(and(eq(entries.id, entryId), eq(entries.collectionId, colRes[0].id)));
+
+        // Invalidate Cache
+        const oldTerms = await db.select({ termId: entryTerms.termId })
+            .from(entryTerms)
+            .where(eq(entryTerms.entryId, entryId));
+        const tIds = oldTerms.map(t => t.termId);
+        ctx?.waitUntil?.(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
+        if (!ctx?.waitUntil) {
+            invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
+        }
 
         return new Response(JSON.stringify({ success: true, trashed: true }), {
             status: 200,

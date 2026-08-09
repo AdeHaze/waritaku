@@ -133,12 +133,12 @@ export async function cacheRenderedPage(env: any, pathname: string, response: Re
  *
  * If either var is absent this is a silent no-op (e.g. local dev, staging).
  */
-async function purgeEdgeCache(env: any, pathname: string): Promise<void> {
+async function purgeEdgeCache(env: any, pathnames: string[]): Promise<void> {
     const zoneId   = env?.CLOUDFLARE_ZONE_ID;
     const apiToken = env?.CLOUDFLARE_CACHE_TOKEN;
-    if (!zoneId || !apiToken) return;
+    if (!zoneId || !apiToken || pathnames.length === 0) return;
 
-    const url = `https://waritaku.com${pathname}`;
+    const urls = pathnames.map(p => `https://waritaku.com${p}`);
     try {
         const res = await fetch(
             `https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`,
@@ -148,7 +148,7 @@ async function purgeEdgeCache(env: any, pathname: string): Promise<void> {
                     'Authorization': `Bearer ${apiToken}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ files: [url] }),
+                body: JSON.stringify({ files: urls }),
             }
         );
         if (!res.ok) {
@@ -164,14 +164,19 @@ async function purgeEdgeCache(env: any, pathname: string): Promise<void> {
  * Remove a pre-rendered page from R2 and Cloudflare edge cache.
  * Call this whenever an entry is published, updated, or deleted.
  */
-export async function invalidateCachedPage(env: any, pathname: string): Promise<void> {
+export async function invalidateCachedPage(env: any, pathnames: string | string[]): Promise<void> {
     if (!env?.RENDER_CACHE) return;
     if (import.meta.env.DEV) return;
+    
+    const paths = Array.isArray(pathnames) ? pathnames : [pathnames];
+    if (paths.length === 0) return;
+
     try {
         // Delete from R2 and purge from Cloudflare edge cache in parallel.
+        const r2Deletes = paths.map(p => env.RENDER_CACHE.delete(pathToKey(p)));
         await Promise.all([
-            env.RENDER_CACHE.delete(pathToKey(pathname)),
-            purgeEdgeCache(env, pathname),
+            ...r2Deletes,
+            purgeEdgeCache(env, paths),
         ]);
     } catch (err) {
         console.error('[render-cache] invalidateCachedPage error:', err);
