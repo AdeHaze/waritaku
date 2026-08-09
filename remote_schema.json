@@ -1,0 +1,75 @@
+[
+  {
+    "results": [
+      {
+        "sql": "CREATE TABLE _cf_KV (\n        key TEXT PRIMARY KEY,\n        value BLOB\n      ) WITHOUT ROWID"
+      },
+      {
+        "sql": "CREATE TABLE `article_revisions` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`article_id` integer NOT NULL,\n\t`user_id` integer,\n\t`title` text NOT NULL,\n\t`content` text NOT NULL,\n\t`created_at` text NOT NULL, `featured_image_url` text, `category_id` integer, `custom_schema` text, `tags` text,\n\tFOREIGN KEY (`article_id`) REFERENCES `articles`(`id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action\n)"
+      },
+      {
+        "sql": "CREATE TABLE `collections` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`slug` text NOT NULL,\n\t`label` text NOT NULL,\n\t`label_singular` text NOT NULL,\n\t`description` text,\n\t`icon` text DEFAULT 'FileText' NOT NULL,\n\t`route_prefix` text DEFAULT '/' NOT NULL,\n\t`fields` text DEFAULT '[]' NOT NULL,\n\t`supports` text DEFAULT '{}' NOT NULL\n, `author_id` integer REFERENCES users(id))"
+      },
+      {
+        "sql": "CREATE TABLE \"d1_migrations\"(\n\t\tid         INTEGER PRIMARY KEY AUTOINCREMENT,\n\t\tname       TEXT UNIQUE,\n\t\tapplied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n)"
+      },
+      {
+        "sql": "CREATE TABLE `entries` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`collection_id` integer NOT NULL,\n\t`slug` text NOT NULL,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`author_id` integer,\n\t`data` text DEFAULT '{}' NOT NULL,\n\t`created_at` text NOT NULL,\n\t`updated_at` text NOT NULL,\n\t`published_at` text,\n\t`deleted_at` text,\n\t`version` integer DEFAULT 1 NOT NULL,\n\tFOREIGN KEY (`collection_id`) REFERENCES `collections`(`id`) ON UPDATE no action ON DELETE restrict,\n\tFOREIGN KEY (`author_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action\n)"
+      },
+      {
+        "sql": "CREATE TABLE `entry_revisions` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`entry_id` integer NOT NULL,\n\t`author_id` integer,\n\t`data` text NOT NULL,\n\t`created_at` text NOT NULL,\n\tFOREIGN KEY (`entry_id`) REFERENCES `entries`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`author_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action\n)"
+      },
+      {
+        "sql": "CREATE TABLE `entry_terms` (\n\t`entry_id` integer NOT NULL,\n\t`term_id` integer NOT NULL,\n\tPRIMARY KEY(`entry_id`, `term_id`),\n\tFOREIGN KEY (`entry_id`) REFERENCES `entries`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`term_id`) REFERENCES `terms`(`id`) ON UPDATE no action ON DELETE cascade\n)"
+      },
+      {
+        "sql": "CREATE TABLE `not_found_logs` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`url` text NOT NULL,\n\t`hits` integer DEFAULT 1 NOT NULL,\n\t`last_seen` text NOT NULL\n)"
+      },
+      {
+        "sql": "CREATE TABLE `password_resets` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`user_id` integer NOT NULL,\n\t`token` text NOT NULL,\n\t`expires_at` integer NOT NULL,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n)"
+      },
+      {
+        "sql": "CREATE TABLE `redirects` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`source_url` text NOT NULL,\n\t`target_url` text NOT NULL,\n\t`status_code` integer DEFAULT 301 NOT NULL,\n\t`hits` integer DEFAULT 0 NOT NULL,\n\t`created_at` text NOT NULL\n)"
+      },
+      {
+        "sql": "CREATE TABLE `role_permissions` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`role_id` integer NOT NULL REFERENCES `roles`(`id`) ON DELETE CASCADE,\n\t`resource` text NOT NULL,\n\t`action` text NOT NULL\n)"
+      },
+      {
+        "sql": "CREATE TABLE `roles` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`slug` text NOT NULL UNIQUE,\n\t`label` text NOT NULL,\n\t`description` text,\n\t`is_system` integer DEFAULT false NOT NULL,\n\t`created_at` text NOT NULL\n)"
+      },
+      {
+        "sql": "CREATE TABLE `settings` (\n\t`key` text PRIMARY KEY NOT NULL,\n\t`value` text NOT NULL\n)"
+      },
+      {
+        "sql": "CREATE TABLE sqlite_sequence(name,seq)"
+      },
+      {
+        "sql": "CREATE TABLE `taxonomies` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`slug` text NOT NULL,\n\t`label` text NOT NULL,\n\t`allowed_collections` text DEFAULT '[]' NOT NULL\n, `description` text, `is_routed` integer DEFAULT false NOT NULL, `prefix_entry_url` integer DEFAULT false NOT NULL, `allow_indexing` integer DEFAULT true NOT NULL, omit_taxonomy_slug INTEGER NOT NULL DEFAULT 0, entry_url_format text NOT NULL DEFAULT 'default', umbrella_view_mode TEXT NOT NULL DEFAULT 'child_terms', umbrella_allow_indexing INTEGER NOT NULL DEFAULT 1, umbrella_items_per_page INTEGER NOT NULL DEFAULT 0, `author_id` integer REFERENCES users(id))"
+      },
+      {
+        "sql": "CREATE TABLE `terms` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`taxonomy_id` integer NOT NULL,\n\t`parent_id` integer,\n\t`name` text NOT NULL,\n\t`slug` text NOT NULL, `author_id` integer REFERENCES users(id),\n\tFOREIGN KEY (`taxonomy_id`) REFERENCES `taxonomies`(`id`) ON UPDATE no action ON DELETE cascade\n)"
+      },
+      {
+        "sql": "CREATE TABLE \"users\" (\n\t`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`name` text NOT NULL,\n\t`email` text NOT NULL,\n\t`password_hash` text,\n\t`role` text DEFAULT 'user' NOT NULL,\n\t`created_at` text NOT NULL\n, `slug` text, `bio` text, `avatar_url` text, `social_links` text, `first_name` text, `last_name` text)"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "SIN",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.2032
+      },
+      "duration": 0.2032,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 34377728,
+      "rows_read": 56,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
