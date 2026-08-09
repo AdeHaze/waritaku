@@ -3,7 +3,7 @@ import { verifySessionCookie } from './lib/auth';
 import { getDb } from './lib/db';
 import { redirects, notFoundLogs, settings } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { getCachedPage, renderAndCache, isBypassRequest } from './lib/render-cache';
+import { getCachedPage, cacheRenderedPage, isBypassRequest } from './lib/render-cache';
 
 import { useTranslation } from './i18n';
 
@@ -154,7 +154,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
         // --- R2 lazy cache population ---
         // On a cache MISS, if SSR returned a 200 HTML page for a public path,
         // write the rendered HTML to R2 in the background so the next request
-        // is served from cache with zero D1 queries.
+        // is served from cache with zero D1 queries. The response is cloned
+        // here (body stream tee) — no self-fetch, no second SSR pass.
         const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
         if (
             response.status === 200 &&
@@ -162,7 +163,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
             isPublicHtmlPath(url.pathname) &&
             !isBypassRequest(context.request)
         ) {
-            renderAndCache(env, url.pathname, ctx);
+            const cacheClone = response.clone();
+            cacheRenderedPage(env, url.pathname, cacheClone, ctx);
         }
 
         // --- 4. 404 Logging Engine ---
