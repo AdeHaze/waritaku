@@ -189,8 +189,10 @@ export const POST: APIRoute = async (ctx) => {
 
         // Invalidate Cache (non-blocking)
         const tIds = selectedTerms && Array.isArray(selectedTerms) ? selectedTerms.map(t => parseInt(t, 10)) : [];
-        ctx?.waitUntil?.(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
-        if (!ctx?.waitUntil) {
+        const waitUntil = (ctx.locals as any).cfContext?.waitUntil || (ctx as any).waitUntil;
+        if (waitUntil) {
+            waitUntil(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
+        } else {
             invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
         }
 

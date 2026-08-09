@@ -84,7 +84,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
         if (redirect) {
             // Increment hit counter asynchronously without blocking the response
             const updatePromise = db.update(redirects).set({ hits: sql`${redirects.hits} + 1` }).where(eq(redirects.id, redirect.id)).execute();
-            const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
+            let ctx = (context.locals as any).cfContext;
+            if (!ctx) {
+                try { ctx = (context.locals as any).runtime?.ctx; } catch(e) {}
+            }
+            if (!ctx) {
+                ctx = (context.locals as any).ctx || (context.locals as any).runtime;
+            }
             if (ctx && ctx.waitUntil) {
                 ctx.waitUntil(updatePromise);
             } else {
@@ -158,9 +164,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
         // write the rendered HTML to R2 in the background so the next request
         // is served from cache with zero D1 queries. The response is cloned
         // here (body stream tee) — no self-fetch, no second SSR pass.
-        const ctx = (context.locals as any).runtime?.ctx
-            || (context.locals as any).ctx
-            || (context.locals as any).runtime;
+        let ctx = (context.locals as any).cfContext;
+        if (!ctx) {
+            try { ctx = (context.locals as any).runtime?.ctx; } catch(e) {}
+        }
+        if (!ctx) {
+            ctx = (context.locals as any).ctx || (context.locals as any).runtime;
+        }
         if (
             response.status === 200 &&
             (response.headers.get('Content-Type') ?? '').includes('text/html') &&
