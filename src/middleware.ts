@@ -164,8 +164,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         if (
             response.status === 200 &&
             (response.headers.get('Content-Type') ?? '').includes('text/html') &&
-            isPublicHtmlPath(url.pathname) &&
-            !isBypassRequest(context.request)
+            isPublicHtmlPath(url.pathname)
         ) {
             const cacheClone = response.clone();
             cacheRenderedPage(env, url.pathname, cacheClone, ctx);
