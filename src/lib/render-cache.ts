@@ -14,7 +14,9 @@ import { getMediaBaseUrl } from './media';
 
 const BYPASS_HEADER = 'X-Render-Cache-Bypass';
 const BYPASS_VALUE = '1';
-const CACHE_CONTROL = 'public, max-age=86400, stale-while-revalidate=3600';
+// 1-year TTL (HTTP maximum). Cache freshness is managed by explicit invalidateCachedPage()
+// calls on publish/edit — passive time-based expiry is not relied upon.
+const CACHE_CONTROL = 'public, max-age=31536000, stale-while-revalidate=86400';
 
 /**
  * Rewrite Worker-proxied image URLs to direct R2 CDN URLs in HTML.
@@ -64,8 +66,7 @@ export async function getCachedPage(env: any, pathname: string): Promise<Respons
     const object = await env.RENDER_CACHE.get(key);
     if (!object) return null;
 
-    const body = await object.arrayBuffer();
-    return new Response(body, {
+    return new Response(object.body, {
         status: 200,
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
