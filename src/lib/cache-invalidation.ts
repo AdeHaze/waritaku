@@ -66,16 +66,13 @@ export async function invalidateEntryCache(env: any, collectionId: number, entry
             }
         }
 
-        // Invalidate each path individually (invalidateCachedPage expects a single string)
+        // Invalidate all paths in R2 and Cloudflare edge cache in one go
         const paths = Array.from(pathsToInvalidate);
-        for (const path of paths) {
-            await invalidateCachedPage(env, path);
-        }
+        await invalidateCachedPage(env, paths);
 
-        // Warm the entry URL into R2 — self-fetch triggers SSR and lazy cache population
-        await warmUrl(env, `/${canonical}`);
-        // Also warm the homepage (it changed — new article, sidebar refresh, etc.)
-        await warmUrl(env, '/');
+        // Warm ALL invalidated URLs into R2 - self-fetch triggers SSR and lazy cache population.
+        // We use Promise.all to fetch them concurrently, which is fast and allowed by CF.
+        await Promise.all(paths.map(path => warmUrl(env, path)));
     } catch (e) {
         console.error('[cache-invalidation] Error:', e);
     }
