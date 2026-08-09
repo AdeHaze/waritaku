@@ -1,0 +1,1 @@
+ALTER TABLE `taxonomies` ADD `entry_url_format` text DEFAULT 'default' NOT NULL;
