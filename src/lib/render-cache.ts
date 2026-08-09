@@ -98,7 +98,9 @@ export async function cacheRenderedPage(env: any, pathname: string, response: Re
 
             // Rewrite Worker-proxied image paths to direct R2 CDN URLs
             // so cached HTML loads images without any redirect hops.
-            const rawHtml = await response.clone().text();
+            // The middleware already passes an exclusive .clone() — read the body
+            // directly without double-cloning, which can fail on Workers runtime.
+            const rawHtml = await response.text();
             const html = rewriteMediaUrls(rawHtml);
             const key = pathToKey(pathname);
 
