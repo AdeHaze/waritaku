@@ -101,7 +101,7 @@ if (env && (env as any).DB && query.trim() !== '') {
                             <a href={`/${article.slug}`} class="group flex flex-col gap-3 bg-muted/20 border border-border rounded-xl overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1">
                                 <div class="relative aspect-video w-full overflow-hidden">
                                     <img 
-                                        src={article.featuredImageUrl || getThumbnail(article.content)} 
+                                        src={article.featuredImageUrl || article.featuredImage || article.image || article.heroImage || article.thumbnail || getThumbnail(article.content)} 
                                         alt={article.title} 
                                         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                                         loading="lazy" 
