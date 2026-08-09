@@ -46,6 +46,7 @@ const displayTitle = title
 	? `${title} | ${generalConfig.siteTitle}`
 	: generalConfig.siteTitle;
 const displayDesc = metaDescription || generalConfig.siteDescription;
+const canonicalUrl = new URL(Astro.url.pathname, 'https://waritaku.com').toString();
 ---
 
 <!doctype html>
@@ -57,6 +58,7 @@ const displayDesc = metaDescription || generalConfig.siteDescription;
 		<meta name="generator" content={Astro.generator} />
 		<title>{displayTitle}</title>
 		{displayDesc && <meta name="description" content={displayDesc} />}
+		<link rel="canonical" href={canonicalUrl} />
 		{
 			generalConfig.headerHtml && (
 				<Fragment set:html={sanitizeHtml(generalConfig.headerHtml)} />

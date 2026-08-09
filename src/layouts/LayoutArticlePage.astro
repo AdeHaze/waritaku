@@ -42,6 +42,9 @@ if (env && env.DB) {
 }
 
 const displayTitle = title ? `${title} | ${generalConfig.siteTitle}` : generalConfig.siteTitle;
+const finalCanonicalUrl = canonicalUrl 
+    ? (canonicalUrl.startsWith('http') ? canonicalUrl : new URL(canonicalUrl, 'https://waritaku.com').toString())
+    : new URL(Astro.url.pathname, 'https://waritaku.com').toString();
 ---
 
 <!doctype html>
@@ -53,7 +56,7 @@ const displayTitle = title ? `${title} | ${generalConfig.siteTitle}` : generalCo
 		<meta name="generator" content={Astro.generator} />
 		<title>{displayTitle}</title>
         {metaDescription && <meta name="description" content={metaDescription} />}
-        {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+        <link rel="canonical" href={finalCanonicalUrl} />
         {noindex && <meta name="robots" content="noindex, nofollow" />}
         {schema && <script type="application/ld+json" set:html={schema} />}
         {generalConfig.headerHtml && <Fragment set:html={sanitizeHtml(generalConfig.headerHtml)} />}
