@@ -158,7 +158,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
         // write the rendered HTML to R2 in the background so the next request
         // is served from cache with zero D1 queries. The response is cloned
         // here (body stream tee) — no self-fetch, no second SSR pass.
-        const ctx = (context.locals as any).cfContext || (context.locals as any).runtime?.ctx;
+        const ctx = (context.locals as any).runtime?.ctx
+            || (context.locals as any).ctx
+            || (context.locals as any).runtime;
         if (
             response.status === 200 &&
             (response.headers.get('Content-Type') ?? '').includes('text/html') &&
