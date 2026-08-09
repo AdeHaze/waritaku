@@ -4,7 +4,7 @@ import '../../styles/global.css';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { users as usersTable, settings } from '../../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, or, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
 
@@ -52,7 +52,13 @@ if (Astro.request.method === 'POST') {
     } else if (env && (env as any).DB) {
       const db = getDb(env as any);
       
-      const userResult = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+      const loginInput = email.trim().toLowerCase();
+      const userResult = await db.select().from(usersTable).where(
+          or(
+              eq(sql`lower(${usersTable.email})`, loginInput),
+              eq(sql`lower(${usersTable.slug})`, loginInput)
+          )
+      ).limit(1);
       const user = userResult[0];
 
       if (!user) {
@@ -167,16 +173,16 @@ if (Astro.request.method === 'POST') {
             <form method="POST" class="space-y-5" autocomplete="off">
                 <!-- Email -->
                 <div class="space-y-1.5 input-icon-wrapper">
-                    <label for="email" class="text-xs font-bold tracking-widest uppercase text-muted-foreground/60">Email Address</label>
+                    <label for="email" class="text-xs font-bold tracking-widest uppercase text-muted-foreground/60">Email or Username</label>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted-foreground/40"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                     <input 
-                        type="email" 
+                        type="text" 
                         id="email" 
                         name="email" 
                         required 
                         autocomplete="email"
                         class="flex h-12 w-full rounded-2xl border-2 border-input bg-background/40 px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground/30 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/10 transition-all duration-200"
-                        placeholder="name@waritaku.com"
+                        placeholder="name@waritaku.com or username"
                     />
                 </div>
 
