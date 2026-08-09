@@ -26,7 +26,7 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
     const [search, setSearch] = useState(initialSearch);
     
     // New Filters
-    const [statusFilter, setStatusFilter] = useState('');
+    const [statusFilter, setStatusFilter] = useState('published');
     const [dateFilter, setDateFilter] = useState('');
     const [termFilter, setTermFilter] = useState('');
     const [availableTerms, setAvailableTerms] = useState<any[]>([]);
@@ -103,17 +103,31 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
 
     return (
         <div>
+            {/* Status Tabs */}
+            <div className="flex items-center gap-1 border-b border-border px-4 pt-2 bg-muted/10 overflow-x-auto">
+                {[
+                    { id: 'published', label: 'Published' },
+                    { id: '', label: 'All' },
+                    { id: 'draft', label: 'Draft' },
+                    { id: 'protected', label: 'Protected' },
+                    { id: 'trash', label: 'Trash' }
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => { setStatusFilter(tab.id); setPage(1); }}
+                        className={`px-4 py-2 text-sm font-semibold rounded-t-lg transition-colors border-b-2 -mb-[1px] whitespace-nowrap ${
+                            statusFilter === tab.id 
+                            ? 'border-primary text-primary bg-background' 
+                            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                        }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
             {/* Filter Bar */}
             <div className="p-4 border-b border-border bg-card flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Status:</label>
-                    <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                        <option value="">All</option>
-                        <option value="published">Published</option>
-                        <option value="draft">Draft</option>
-                        <option value="protected">Protected</option>
-                    </select>
-                </div>
                 <div className="flex items-center gap-2">
                     <label className="text-xs font-semibold text-muted-foreground uppercase">Date:</label>
                     <input 
