@@ -72,7 +72,17 @@ if (!isHomepageFallback && env && env.DB && slug) {
   
   if (pageType) {
       // Sidebar and Theme Overrides
-      const configRes = await db.select().from(settings).where(eq(settings.key, 'sidebar_layout_config')).limit(1);
+      const configRes = await db.select().from(settings).where(inArray(settings.key, ['sidebar_layout_config', 'homepage_page_id']));
+      
+      const homepageSetting = configRes.find(s => s.key === 'homepage_page_id');
+      const homepageId = homepageSetting ? parseInt(homepageSetting.value, 10) : null;
+
+      // Strict redirect: If this page is the homepage, enforce the root URL (/)
+      if (pageType === 'page' && data.id === homepageId && !isHomepageFallback) {
+          return Astro.redirect('/', 301);
+      }
+
+      const sidebarSetting = configRes.find(s => s.key === 'sidebar_layout_config');
       
       if (pageType === 'page') {
           headerStyle = data.headerStyle || 'default';
@@ -87,9 +97,9 @@ if (!isHomepageFallback && env && env.DB && slug) {
           if (pageOverride && pageOverride.override) {
               showLeftSidebar = pageOverride.showLeft;
               showRightSidebar = pageOverride.showRight;
-          } else if (configRes.length > 0) {
+          } else if (sidebarSetting) {
               try {
-                  const layoutConfig = JSON.parse(configRes[0].value);
+                  const layoutConfig = JSON.parse(sidebarSetting.value);
                   showLeftSidebar = layoutConfig.left?.showOnArticles ?? false;
                   showRightSidebar = layoutConfig.right?.showOnArticles ?? true;
               } catch(e) {}
@@ -266,9 +276,9 @@ if (!isHomepageFallback && env && env.DB && slug) {
           }
       } else {
           // Article or Category Global Sidebars
-          if (configRes.length > 0) {
+          if (sidebarSetting) {
               try {
-                  const layoutConfig = JSON.parse(configRes[0].value);
+                  const layoutConfig = JSON.parse(sidebarSetting.value);
                   const ctx = pageType === 'category' ? 'category' : 'article';
                   showLeftSidebar = layoutConfig.left?.[`showOn${ctx.charAt(0).toUpperCase() + ctx.slice(1)}s`] ?? false;
                   showRightSidebar = layoutConfig.right?.[`showOn${ctx.charAt(0).toUpperCase() + ctx.slice(1)}s`] ?? true;
