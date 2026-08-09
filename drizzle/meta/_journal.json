@@ -190,6 +190,13 @@
       "when": 1786300000000,
       "tag": "0028_lita_liz_nero_tina",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1786400000000,
+      "tag": "0029_takamiya_rion",
+      "breakpoints": true
     }
   ]
 }

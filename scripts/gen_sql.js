@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const superadminRes = ['entries', 'media', 'taxonomies', 'taxonomy_terms', 'users', 'settings', 'content_builder', 'taxonomy_builder', 'layout', 'redirects', 'system'];
+const superadminRes = ['entries', 'media', 'taxonomies', 'taxonomy_terms', 'users', 'roles', 'settings', 'content_builder', 'taxonomy_builder', 'layout', 'redirects', 'system'];
 const adminRes = ['entries', 'media', 'taxonomies', 'taxonomy_terms', 'users', 'taxonomy_builder', 'redirects'];
 const editorRes = ['entries', 'media', 'taxonomies', 'taxonomy_terms'];
 const actions = ['read', 'create', 'edit_own', 'edit_others', 'delete_own', 'delete_others'];
