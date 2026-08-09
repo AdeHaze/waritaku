@@ -12,7 +12,6 @@
 
 import { getMediaBaseUrl } from './media';
 
-const PRODUCTION_ORIGIN = 'https://waritaku.com';
 const BYPASS_HEADER = 'X-Render-Cache-Bypass';
 const BYPASS_VALUE = '1';
 const CACHE_CONTROL = 'public, max-age=86400, stale-while-revalidate=3600';
@@ -34,8 +33,8 @@ function rewriteMediaUrls(html: string): string {
     const base = mediaBase.replace(/\/$/, '');
 
     // Absolute URLs — e.g. https://waritaku.com/uploads/2025/07/file.webp
-    html = html.replaceAll(`${PRODUCTION_ORIGIN}/uploads/`, `${base}/`);
-    html = html.replaceAll(`${PRODUCTION_ORIGIN}/api/images/`, `${base}/`);
+    html = html.replaceAll(`https://waritaku.com/uploads/`, `${base}/`);
+    html = html.replaceAll(`https://waritaku.com/api/images/`, `${base}/`);
 
     // Relative paths inside double-quoted HTML attributes
     html = html.replaceAll('="/uploads/', `="${base}/`);
@@ -78,28 +77,27 @@ export async function getCachedPage(env: any, pathname: string): Promise<Respons
 }
 
 /**
- * Fetch the given path from the production origin and write the HTML to R2.
+ * Store an already-rendered HTML response in R2.
+ *
+ * The middleware calls this after a successful SSR render. It receives the
+ * actual Response object (cloned) — there is NO self-fetch, so no second
+ * SSR pass and no second round of D1 queries.
+ *
  * Pass the Worker execution context (ctx) to run this in waitUntil (non-blocking).
  */
-export async function renderAndCache(env: any, pathname: string, ctx?: ExecutionContext): Promise<void> {
+export async function cacheRenderedPage(env: any, pathname: string, response: Response, ctx?: ExecutionContext): Promise<void> {
     if (!env?.RENDER_CACHE) return;
-    if (import.meta.env.DEV) return; // Never self-fetch production in local dev
+    if (import.meta.env.DEV) return; // Never cache in local dev
 
     const work = async () => {
         try {
-            const url = PRODUCTION_ORIGIN + pathname;
-            const response = await fetch(url, {
-                headers: { [BYPASS_HEADER]: BYPASS_VALUE },
-                redirect: 'manual',
-            });
-
             if (response.status !== 200) return;
             const contentType = response.headers.get('Content-Type') || '';
             if (!contentType.includes('text/html')) return;
 
             // Rewrite Worker-proxied image paths to direct R2 CDN URLs
             // so cached HTML loads images without any redirect hops.
-            const rawHtml = await response.text();
+            const rawHtml = await response.clone().text();
             const html = rewriteMediaUrls(rawHtml);
             const key = pathToKey(pathname);
 
@@ -114,7 +112,7 @@ export async function renderAndCache(env: any, pathname: string, ctx?: Execution
                 },
             });
         } catch (err) {
-            console.error('[render-cache] renderAndCache error:', err);
+            console.error('[render-cache] cacheRenderedPage error:', err);
         }
     };
 
