@@ -7,9 +7,11 @@ import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
 
 import { hashPassword } from '../../lib/auth';
+import { hasPermission } from '../../lib/permissions';
 
 const sessionUser = Astro.locals.user;
-if (!sessionUser) return Astro.redirect('/admin');
+const permissions = Astro.locals.permissions;
+if (!sessionUser || !permissions) return Astro.redirect('/admin');
 
 let db = null;
 if (env && env.DB) {
@@ -22,7 +24,7 @@ let currentUser: any = null;
 
 let targetUserId = sessionUser.userId;
 const targetIdParam = Astro.url.searchParams.get('id');
-if (targetIdParam && sessionUser.role === 'superadmin') {
+if (targetIdParam && hasPermission(permissions, 'users', 'edit_others')) {
     targetUserId = parseInt(targetIdParam, 10) || sessionUser.userId;
 }
 

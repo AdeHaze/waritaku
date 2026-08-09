@@ -4,10 +4,12 @@ import { collections, entries, terms, entryTerms, users } from '../../../../db/s
 import { eq, and, sql, desc, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../lib/slug';
+import { hasPermission } from '../../../../lib/permissions';
 
 export const GET: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
-    if (!user) {
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'entries', 'read')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
@@ -133,7 +135,8 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
 
 export const POST: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
-    if (!user) {
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'entries', 'create')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 

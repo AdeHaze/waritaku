@@ -5,8 +5,11 @@ import { collections, entries, entryTerms, taxonomies, terms, users } from '../.
 import { eq, and, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
+import { hasAnyPermission, hasPermission } from '../../../../../lib/permissions';
+
 const user = Astro.locals.user;
-if (!user || !['superadmin', 'admin', 'editor', 'author'].includes(user.role)) {
+const permissions = Astro.locals.permissions;
+if (!user || !permissions || !hasAnyPermission(permissions, 'entries', ['edit_own', 'edit_others'])) {
     return Astro.redirect('/admin/login');
 }
 
@@ -81,5 +84,5 @@ import DynamicEntryEditor from '../../../../../components/admin/DynamicEntryEdit
     </div>
 
     <!-- The React Root for our Editor -->
-    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} initialEntry={entry} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} supports={collection.supports} allUsers={allUsersRes} currentUserRole={user.role} />
+    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} initialEntry={entry} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} supports={collection.supports} allUsers={allUsersRes} canChangeAuthor={hasPermission(permissions, 'entries', 'edit_others')} />
 </AdminLayout>

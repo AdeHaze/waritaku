@@ -4,7 +4,7 @@ import { getDb } from './lib/db';
 import { redirects, notFoundLogs, settings } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { getCachedPage, cacheRenderedPage, isBypassRequest } from './lib/render-cache';
-
+import { loadUserPermissions } from './lib/permissions';
 import { useTranslation } from './i18n';
 
 // Paths that must never be served from the R2 render cache.
@@ -120,6 +120,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
                     name: payload.name,
                     email: payload.email
                 };
+                // Load permission set for this role (single DB query, cached by role)
+                context.locals.permissions = await loadUserPermissions(db, payload.role);
             } else {
                 context.cookies.delete('session', { path: '/' });
                 if (url.pathname.startsWith('/api')) {

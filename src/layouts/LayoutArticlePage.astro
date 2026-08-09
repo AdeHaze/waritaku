@@ -25,6 +25,7 @@ const { title, metaDescription, schema, headerStyle = 'default', footerStyle = '
 
 let generalConfig = {
     siteTitle: 'Waritaku',
+    siteUrl: 'https://waritaku.com',
     faviconUrl: '/favicon.svg',
     language: 'id',
     headerHtml: '',
@@ -43,8 +44,8 @@ if (env && env.DB) {
 
 const displayTitle = title ? `${title} | ${generalConfig.siteTitle}` : generalConfig.siteTitle;
 const finalCanonicalUrl = canonicalUrl 
-    ? (canonicalUrl.startsWith('http') ? canonicalUrl : new URL(canonicalUrl, 'https://waritaku.com').toString())
-    : new URL(Astro.url.pathname, 'https://waritaku.com').toString();
+    ? (canonicalUrl.startsWith('http') ? canonicalUrl : new URL(canonicalUrl, generalConfig.siteUrl).toString())
+    : new URL(Astro.url.pathname, generalConfig.siteUrl).toString();
 ---
 
 <!doctype html>

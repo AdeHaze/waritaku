@@ -6,8 +6,11 @@ import { taxonomies, terms } from '../../../../db/schema';
 import { eq, desc, asc, like, and, or, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
+import { hasPermission } from '../../../../lib/permissions';
+
 const user = Astro.locals.user;
-if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+const permissions = Astro.locals.permissions;
+if (!user || !permissions || !hasPermission(permissions, 'taxonomies', 'read')) {
     return Astro.redirect('/admin/login');
 }
 
@@ -19,6 +22,10 @@ if (taxRes.length === 0) {
     return Astro.redirect('/404');
 }
 const taxonomy = taxRes[0];
+
+const canCreate = hasPermission(permissions, 'taxonomies', 'create');
+const canEdit = hasPermission(permissions, 'taxonomies', 'edit_others') || hasPermission(permissions, 'taxonomies', 'edit_own');
+const canDelete = hasPermission(permissions, 'taxonomies', 'delete_others') || hasPermission(permissions, 'taxonomies', 'delete_own');
 
 const url = new URL(Astro.request.url);
 let message = url.searchParams.get('message') || '';
@@ -38,6 +45,7 @@ if (Astro.request.method === 'POST') {
         const action = formData.get('action');
 
         if (action === 'create') {
+            if (!canCreate) throw new Error("Forbidden: You do not have permission to create terms.");
             const name = formData?.get('name') as string;
             const slug = formData?.get('slug') as string;
 
@@ -50,6 +58,7 @@ if (Astro.request.method === 'POST') {
 
                 await db.insert(terms).values({
                     taxonomyId: taxonomy.id,
+                    authorId: user.userId,
                     name,
                     slug: finalSlug
                 });
@@ -60,13 +69,27 @@ if (Astro.request.method === 'POST') {
             }
         } else if (action === 'delete') {
             const termId = parseInt(formData?.get('termId') as string, 10);
-            await db.delete(terms).where(eq(terms.id, termId));
+            const termRes = await db.select().from(terms).where(eq(terms.id, termId)).limit(1);
+            if (termRes.length > 0) {
+                const termAuthor = termRes[0].authorId;
+                const isOwner = termAuthor === user.userId;
+                const canDelete = isOwner ? hasPermission(permissions, 'taxonomies', 'delete_own') : hasPermission(permissions, 'taxonomies', 'delete_others');
+                if (!canDelete) throw new Error("Forbidden: You do not have permission to delete this term.");
+                await db.delete(terms).where(eq(terms.id, termId));
+            }
             const u = new URL(Astro.request.url);
             u.searchParams.set('message', 'Term deleted successfully.');
             u.searchParams.set('type', 'success');
             return Astro.redirect(u.pathname + u.search, 303);
         } else if (action === 'update') {
             const termId = parseInt(formData?.get('termId') as string, 10);
+            const termRes = await db.select().from(terms).where(eq(terms.id, termId)).limit(1);
+            if (termRes.length > 0) {
+                const termAuthor = termRes[0].authorId;
+                const isOwner = termAuthor === user.userId;
+                const canEdit = isOwner ? hasPermission(permissions, 'taxonomies', 'edit_own') : hasPermission(permissions, 'taxonomies', 'edit_others');
+                if (!canEdit) throw new Error("Forbidden: You do not have permission to edit this term.");
+            }
             const newName = (formData?.get('name') as string)?.trim();
             const newSlug = (formData?.get('slug') as string)?.trim();
             if (!newName) {
@@ -199,23 +222,29 @@ const paginationPages = Array.from({ length: Math.min(7, totalPages) }, (_, i) =
                 <div class="p-4 border-b border-border bg-muted/20">
                     <h2 class="font-semibold">Add New Term</h2>
                 </div>
-                <form method="POST" class="p-6 space-y-4">
-                    <input type="hidden" name="action" value="create" />
-                    
-                    <div>
-                        <label class="block text-xs font-semibold text-muted-foreground mb-1">Name <span class="text-red-500">*</span></label>
-                        <input type="text" name="name" required class="w-full px-3 py-2 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary" />
-                    </div>
+                {canCreate ? (
+                    <form method="POST" class="p-6 space-y-4">
+                        <input type="hidden" name="action" value="create" />
+                        
+                        <div>
+                            <label class="block text-xs font-semibold text-muted-foreground mb-1">Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="name" required class="w-full px-3 py-2 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary" />
+                        </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold text-muted-foreground mb-1">Slug</label>
-                        <input type="text" name="slug" placeholder="Auto-generated if empty" class="w-full px-3 py-2 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary" />
-                    </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-muted-foreground mb-1">Slug</label>
+                            <input type="text" name="slug" placeholder="Auto-generated if empty" class="w-full px-3 py-2 text-sm bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary" />
+                        </div>
 
-                    <button type="submit" class="w-full py-2 bg-primary text-primary-foreground font-bold rounded hover:bg-primary/90 transition-colors">
-                        Add Term
-                    </button>
-                </form>
+                        <button type="submit" class="w-full py-2 bg-primary text-primary-foreground font-bold rounded hover:bg-primary/90 transition-colors">
+                            Add Term
+                        </button>
+                    </form>
+                ) : (
+                    <div class="p-6 text-sm text-muted-foreground bg-muted/5">
+                        You do not have permission to create terms.
+                    </div>
+                )}
             </div>
         </div>
 
@@ -280,7 +309,13 @@ const paginationPages = Array.from({ length: Math.min(7, totalPages) }, (_, i) =
                                     </td>
                                 </tr>
                             ) : (
-                                allTerms.map((term, i) => (
+                                allTerms.map((term, i) => {
+                                    const isOwner = term.authorId === user.userId;
+                                    const canEditTerm = isOwner ? hasPermission(permissions, 'taxonomies', 'edit_own') : hasPermission(permissions, 'taxonomies', 'edit_others');
+                                    const canDeleteTerm = isOwner ? hasPermission(permissions, 'taxonomies', 'delete_own') : hasPermission(permissions, 'taxonomies', 'delete_others');
+
+                                    return (
+                                    <>
                                     <tr class="hover:bg-muted/10 transition-colors group">
                                         <td class="px-6 py-4 text-muted-foreground text-xs font-mono">
                                             {(page - 1) * limit + i + 1}
@@ -293,16 +328,20 @@ const paginationPages = Array.from({ length: Math.min(7, totalPages) }, (_, i) =
                                         </td>
                                         <td class="px-6 py-4 text-right">
                                             <div class="flex items-center justify-end gap-1">
-                                                <button type="button" onclick="this.closest('tr').classList.add('hidden'); this.closest('tr').nextElementSibling.classList.remove('hidden');" class="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="Edit">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                                                </button>
-                                                <form method="POST" class="inline-block" onsubmit={`return confirm('Delete "${term.name}"?');`}>
-                                                    <input type="hidden" name="action" value="delete" />
-                                                    <input type="hidden" name="termId" value={term.id} />
-                                                    <button type="submit" class="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Delete">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                                {canEditTerm && (
+                                                    <button type="button" onclick="this.closest('tr').classList.add('hidden'); this.closest('tr').nextElementSibling.classList.remove('hidden');" class="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="Edit">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                                                     </button>
-                                                </form>
+                                                )}
+                                                {canDeleteTerm && (
+                                                    <form method="POST" class="inline-block" onsubmit={`return confirm('Delete "${term.name}"?');`}>
+                                                        <input type="hidden" name="action" value="delete" />
+                                                        <input type="hidden" name="termId" value={term.id} />
+                                                        <button type="submit" class="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Delete">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                                        </button>
+                                                    </form>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -329,7 +368,9 @@ const paginationPages = Array.from({ length: Math.min(7, totalPages) }, (_, i) =
                                             </form>
                                         </td>
                                     </tr>
-                                ))
+                                    </>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

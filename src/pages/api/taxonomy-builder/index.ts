@@ -2,11 +2,13 @@ import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { taxonomies } from '../../../db/schema';
 import { env } from 'cloudflare:workers';
+import { hasPermission } from '../../../lib/permissions';
 
 export const GET: APIRoute = async ({ locals }) => {
     const user = locals.user;
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-        return new Response('Unauthorized', { status: 401 });
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'taxonomy_builder', 'read')) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
     try {
@@ -23,8 +25,9 @@ export const GET: APIRoute = async ({ locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
     const user = locals.user;
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-        return new Response('Unauthorized', { status: 401 });
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'taxonomy_builder', 'create')) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
     try {
@@ -56,6 +59,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         }
 
         const newTaxonomy = await db.insert(taxonomies).values({
+            authorId: user.userId,
             label: body.label,
             slug: body.slug,
             description: body.description || '',

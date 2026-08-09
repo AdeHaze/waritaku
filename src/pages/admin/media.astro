@@ -5,8 +5,11 @@ import { env } from 'cloudflare:workers';
 import { StorageAdapter } from '../../lib/storage';
 
 
+import { hasPermission, hasAnyPermission } from '../../lib/permissions';
+
 const user = Astro.locals.user;
-if (!user || (user.role !== 'superadmin' && user.role !== 'admin' && user.role !== 'editor')) {
+const permissions = Astro.locals.permissions;
+if (!user || !permissions || !hasPermission(permissions, 'media', 'read')) {
     return Astro.redirect('/admin');
 }
 
@@ -22,8 +25,12 @@ if (env && env.UPLOADS) {
             const key = data.get('key') as string;
             
             if (action === 'delete' && key) {
-                await StorageAdapter.deleteFile(env, key);
-                success = 'File deleted successfully.';
+                if (hasAnyPermission(permissions, 'media', ['delete_own', 'delete_others'])) {
+                    await StorageAdapter.deleteFile(env, key);
+                    success = 'File deleted successfully.';
+                } else {
+                    error = 'Permission denied to delete media.';
+                }
             }
         } catch (e: any) {
             error = e.message;

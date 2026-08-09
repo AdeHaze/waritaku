@@ -19,6 +19,7 @@ const { title, metaDescription } = Astro.props;
 
 let generalConfig = {
 	siteTitle: "Waritaku",
+	siteUrl: "https://waritaku.com",
 	siteDescription: "Membahas Pop Kultur",
 	faviconUrl: "/favicon.svg",
 	language: "id",
@@ -46,7 +47,11 @@ const displayTitle = title
 	? `${title} | ${generalConfig.siteTitle}`
 	: generalConfig.siteTitle;
 const displayDesc = metaDescription || generalConfig.siteDescription;
-const canonicalUrl = new URL(Astro.url.pathname, 'https://waritaku.com').toString();
+let cleanPath = Astro.url.pathname;
+if (cleanPath.length > 1 && cleanPath.endsWith('/')) {
+    cleanPath = cleanPath.slice(0, -1);
+}
+const canonicalUrl = new URL(cleanPath, generalConfig.siteUrl).toString();
 ---
 
 <!doctype html>

@@ -3,10 +3,12 @@ import type { APIRoute } from 'astro';
 import { getDb } from '../../../../lib/db';
 import { taxonomies, terms, entryTerms } from '../../../../db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { hasPermission } from '../../../../lib/permissions';
 
 export const GET: APIRoute = async ({ params, locals }) => {
     const user = locals.user;
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'taxonomy_builder', 'read')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 

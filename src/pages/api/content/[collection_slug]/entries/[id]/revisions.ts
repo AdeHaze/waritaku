@@ -3,13 +3,15 @@ import { getDb } from '../../../../../../lib/db';
 import { entries, entryRevisions, users } from '../../../../../../db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { hasPermission, hasAnyPermission } from '../../../../../../lib/permissions';
 
 export const GET: APIRoute = async ({ params, locals }) => {
     const user = locals.user;
-    if (!user) {
+    const permissions = locals.permissions;
+    if (!user || !permissions) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
-    if (user.role !== 'admin' && user.role !== 'superadmin') {
+    if (!hasPermission(permissions, 'entries', 'read')) {
         return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
     }
 
@@ -40,10 +42,11 @@ export const GET: APIRoute = async ({ params, locals }) => {
 
 export const DELETE: APIRoute = async ({ params, request, locals }) => {
     const user = locals.user;
-    if (!user) {
+    const permissions = locals.permissions;
+    if (!user || !permissions) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
-    if (user.role !== 'admin' && user.role !== 'superadmin') {
+    if (!hasAnyPermission(permissions, 'entries', ['edit_own', 'edit_others'])) {
         return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
     }
 

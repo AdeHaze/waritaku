@@ -1,11 +1,13 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import pkg from '../../../package.json';
+import { hasPermission } from '../../lib/permissions';
 
 const user = Astro.locals.user;
+const permissions = Astro.locals.permissions;
 
 // Role gate: only admin or superadmin may access
-if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+if (!permissions || !hasPermission(permissions, 'system', 'read')) {
     return Astro.redirect('/admin', 302);
 }
 

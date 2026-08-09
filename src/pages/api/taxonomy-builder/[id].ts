@@ -1,21 +1,33 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
-import { taxonomies } from '../../../db/schema';
+import { taxonomies, collections } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { hasAnyPermission } from '../../../lib/permissions';
 
 export const PUT: APIRoute = async ({ params, request, locals }) => {
     const user = locals.user;
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-        return new Response('Unauthorized', { status: 401 });
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasAnyPermission(permissions, 'taxonomy_builder', ['edit_own', 'edit_others'])) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
     try {
         const id = parseInt(params.id || '0', 10);
         if (!id) return new Response('Invalid ID', { status: 400 });
 
-        const body = await request.json() as any;
         const db = getDb(env);
+
+        const existing = await db.select().from(taxonomies).where(eq(taxonomies.id, id)).limit(1);
+        if (existing.length === 0) return new Response('Not found', { status: 404 });
+        
+        const isOwner = existing[0].authorId === user.userId;
+        const canEdit = isOwner ? hasPermission(permissions, 'taxonomy_builder', 'edit_own') : hasPermission(permissions, 'taxonomy_builder', 'edit_others');
+        if (!canEdit) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+        }
+
+        const body = await request.json() as any;
 
         let allowedStr = '[]';
         if (Array.isArray(body.allowedCollections)) {
@@ -59,7 +71,6 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
         // Sync collections.supports.taxonomies
         try {
             const allowed = JSON.parse(allowedStr || '[]');
-            const { collections } = await import('../../../db/schema');
             const allCollections = await db.select().from(collections);
             
             for (const col of allCollections) {
@@ -103,8 +114,9 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
 
 export const DELETE: APIRoute = async ({ params, locals }) => {
     const user = locals.user;
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
-        return new Response('Unauthorized', { status: 401 });
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasAnyPermission(permissions, 'taxonomy_builder', ['delete_own', 'delete_others'])) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
     try {
@@ -112,6 +124,15 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
         if (!id) return new Response('Invalid ID', { status: 400 });
 
         const db = getDb(env);
+
+        const existing = await db.select().from(taxonomies).where(eq(taxonomies.id, id)).limit(1);
+        if (existing.length === 0) return new Response('Not found', { status: 404 });
+        
+        const isOwner = existing[0].authorId === user.userId;
+        const canDelete = isOwner ? hasPermission(permissions, 'taxonomy_builder', 'delete_own') : hasPermission(permissions, 'taxonomy_builder', 'delete_others');
+        if (!canDelete) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+        }
         
         await db.delete(taxonomies).where(eq(taxonomies.id, id));
 

@@ -92,10 +92,11 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
             if (res.ok) {
                 fetchData();
             } else {
-                alert('Failed to delete');
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || 'Failed to delete entry.');
             }
-        } catch(e) {
-            alert('Error deleting entry');
+        } catch(e: any) {
+            alert(e.message || 'Error deleting entry.');
         }
     };
 

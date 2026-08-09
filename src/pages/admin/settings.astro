@@ -5,12 +5,14 @@ import { eq, and } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
 import { getRegisteredLanguages } from '../../i18n';
+import { hasPermission } from '../../lib/permissions';
 
 const availableLanguagePacks = getRegisteredLanguages();
 
 
 const user = Astro.locals.user;
-if (!user || user.role !== 'superadmin') {
+const permissions = Astro.locals.permissions;
+if (!permissions || !hasPermission(permissions, 'settings', 'read')) {
     return Astro.redirect('/admin/login');
 }
 
@@ -25,6 +27,7 @@ let isError = false;
 // Default config
 let generalConfig = {
     siteTitle: 'Waritaku',
+    siteUrl: 'https://waritaku.com',
     tagline: '',
     siteDescription: '',
     logoUrl: 'https://waritaku.com/wp-content/uploads/2022/12/Logo_Waritaku_With_Tagline_7_Desktop.png',
@@ -60,6 +63,7 @@ if (Astro.request.method === 'POST') {
         
         const newConfig = {
             siteTitle: formData.get('siteTitle') as string || 'Waritaku',
+            siteUrl: formData.get('siteUrl') as string || 'https://waritaku.com',
             tagline: formData.get('tagline') as string || '',
             siteDescription: formData.get('siteDescription') as string || '',
             copyright: formData.get('copyright') as string || '',
@@ -154,6 +158,12 @@ if (Astro.request.method === 'POST') {
                         <label class="text-sm font-semibold">Site Tagline</label>
                         <input type="text" name="tagline" value={generalConfig.tagline} class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
                         <p class="text-[11px] text-muted-foreground">A short description or motto (appears in footer).</p>
+                    </div>
+
+                    <div class="space-y-2 md:col-span-2">
+                        <label class="text-sm font-semibold">Site URL</label>
+                        <input type="url" name="siteUrl" value={generalConfig.siteUrl} required class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono" />
+                        <p class="text-[11px] text-muted-foreground">The primary URL of your site (e.g. https://waritaku.com or https://www.waritaku.com). Used for canonical URLs.</p>
                     </div>
 
                     <div class="space-y-2 md:col-span-2">

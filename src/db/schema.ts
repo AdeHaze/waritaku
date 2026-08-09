@@ -6,7 +6,7 @@ export const users = sqliteTable('users', {
   slug: text('slug').unique(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash'),
-  role: text('role').notNull().default('user'), // admin, editor, author, contributor, user
+  role: text('role').notNull().default('user'), // references roles.slug
   firstName: text('first_name'),
   lastName: text('last_name'),
   bio: text('bio'),
@@ -14,6 +14,26 @@ export const users = sqliteTable('users', {
   socialLinks: text('social_links'), // JSON string
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
 });
+
+// ── Role-Based Access Control ─────────────────────────────────────────────────
+
+export const roles = sqliteTable('roles', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  slug: text('slug').notNull().unique(),  // e.g. 'admin', 'editor', 'writer'
+  label: text('label').notNull(),
+  description: text('description'),
+  isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false), // protects superadmin/admin from deletion
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const rolePermissions = sqliteTable('role_permissions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  roleId: integer('role_id').references(() => roles.id, { onDelete: 'cascade' }).notNull(),
+  resource: text('resource').notNull(), // e.g. 'entries', 'media', 'taxonomies'
+  action: text('action').notNull(),     // e.g. 'read', 'create', 'edit_own', 'edit_others', 'delete_own', 'delete_others'
+}, (t) => ({
+  roleResourceIdx: index('role_permissions_role_resource_idx').on(t.roleId, t.resource),
+}));
 
 
 
@@ -52,6 +72,7 @@ export const collections = sqliteTable('collections', {
   routePrefix: text('route_prefix').notNull().default('/'), // e.g. '/' or '/blog'
   fields: text('fields').notNull().default('[]'), // JSON array defining the visual schema
   supports: text('supports').notNull().default('{}'), // JSON object (drafts, revisions, etc)
+  authorId: integer('author_id').references(() => users.id, { onDelete: 'set null' }), // NULL = system-owned
 });
 
 export const entries = sqliteTable('entries', {
@@ -97,12 +118,14 @@ export const taxonomies = sqliteTable('taxonomies', {
   umbrellaViewMode: text('umbrella_view_mode').notNull().default('child_terms'), // 'child_terms' or 'all_entries'
   umbrellaItemsPerPage: integer('umbrella_items_per_page').notNull().default(0), // 0 = fetch all, > 0 = pagination limit
   umbrellaAllowIndexing: integer('umbrella_allow_indexing', { mode: 'boolean' }).notNull().default(true), // SEO robots indexing for umbrella page
+  authorId: integer('author_id').references(() => users.id, { onDelete: 'set null' }), // NULL = system-owned
 });
 
 export const terms = sqliteTable('terms', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   taxonomyId: integer('taxonomy_id').references(() => taxonomies.id, { onDelete: 'cascade' }).notNull(),
   parentId: integer('parent_id'), // Hierarchical term support
+  authorId: integer('author_id').references(() => users.id, { onDelete: 'set null' }), // NULL = system-owned
   name: text('name').notNull(),
   slug: text('slug').notNull(),
 }, (t) => ({

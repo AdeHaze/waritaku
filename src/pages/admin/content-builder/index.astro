@@ -3,9 +3,11 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { getDb } from "../../../lib/db";
 import { collections } from "../../../db/schema";
 import { env } from 'cloudflare:workers';
+import { hasPermission } from "../../../lib/permissions";
 
 const user = Astro.locals.user;
-if (!user || user.role !== "superadmin") {
+const permissions = Astro.locals.permissions;
+if (!permissions || !hasPermission(permissions, 'content_builder', 'read')) {
     return Astro.redirect("/admin/login");
 }
 
@@ -46,7 +48,12 @@ const collectionsList = await db.select().from(collections);
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {
-            collectionsList.map((col) => (
+            collectionsList.map((col) => {
+                const isOwner = col.authorId === user.userId;
+                const canEdit = isOwner ? hasPermission(permissions, 'content_builder', 'edit_own') : hasPermission(permissions, 'content_builder', 'edit_others');
+                const canDelete = isOwner ? hasPermission(permissions, 'content_builder', 'delete_own') : hasPermission(permissions, 'content_builder', 'delete_others');
+
+                return (
                 <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col hover:border-primary/50 transition-colors">
                     <div class="p-6 flex-1">
                         <div class="flex items-center justify-between mb-4">
@@ -90,24 +97,28 @@ const collectionsList = await db.select().from(collections);
                             {JSON.parse(col.fields || "[]").length} fields
                         </span>
                         <div class="flex items-center gap-3">
-                            <button
-                                type="button"
-                                class="text-sm font-semibold text-destructive hover:underline btn-delete"
-                                data-slug={col.slug}
-                                data-name={col.label}
-                            >
-                                Delete
-                            </button>
-                            <a
-                                href={`/admin/content-builder/edit/${col.slug}`}
-                                class="text-sm font-semibold text-primary hover:underline"
-                            >
-                                Edit Schema &rarr;
-                            </a>
+                            {canDelete && (
+                                <button
+                                    type="button"
+                                    class="text-sm font-semibold text-destructive hover:underline btn-delete"
+                                    data-slug={col.slug}
+                                    data-name={col.label}
+                                >
+                                    Delete
+                                </button>
+                            )}
+                            {canEdit && (
+                                <a
+                                    href={`/admin/content-builder/edit/${col.slug}`}
+                                    class="text-sm font-semibold text-primary hover:underline"
+                                >
+                                    Edit Schema &rarr;
+                                </a>
+                            )}
                         </div>
                     </div>
                 </div>
-            ))
+            )})
         }
     </div>
 

@@ -21,10 +21,10 @@ interface DynamicEntryEditorProps {
     taxonomies?: string[];
     taxonomyMeta?: { slug: string; label: string; prefixEntryUrl: boolean }[];
     allUsers?: { id: number; name: string; role: string; }[];
-    currentUserRole?: string;
+    canChangeAuthor?: boolean;
 }
 
-export default function DynamicEntryEditor({ collectionSlug, schema, initialEntry, supports, taxonomies = [], taxonomyMeta = [], allUsers = [], currentUserRole = '' }: DynamicEntryEditorProps) {
+export default function DynamicEntryEditor({ collectionSlug, schema, initialEntry, supports, taxonomies = [], taxonomyMeta = [], allUsers = [], canChangeAuthor = false }: DynamicEntryEditorProps) {
     const defaultPrimaryTermId = React.useMemo(() => {
         try { if (supports) return JSON.parse(supports).defaultPrimaryTermId || null; } catch(e) {}
         return null;
@@ -398,7 +398,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                             </div>
                         )}
                         
-                        {['superadmin', 'admin', 'editor'].includes(currentUserRole) && allUsers.length > 0 && (
+                        {canChangeAuthor && allUsers.length > 0 && (
                             <div>
                                 <label className="block text-xs font-semibold text-muted-foreground mb-1">Author</label>
                                 <select 

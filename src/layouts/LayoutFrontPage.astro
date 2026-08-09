@@ -23,6 +23,7 @@ const { title, metaDescription, schema, headerStyle = 'default', footerStyle = '
 
 let generalConfig = {
     siteTitle: 'Waritaku',
+    siteUrl: 'https://waritaku.com',
     tagline: '',
     faviconUrl: '/favicon.svg',
     language: 'id',
@@ -46,7 +47,11 @@ if (title && title !== 'Home') {
 } else if (generalConfig.tagline) {
     displayTitle = `${generalConfig.siteTitle} | ${generalConfig.tagline}`;
 }
-const canonicalUrl = new URL(Astro.url.pathname, 'https://waritaku.com').toString();
+let cleanPath = Astro.url.pathname;
+if (cleanPath.length > 1 && cleanPath.endsWith('/')) {
+    cleanPath = cleanPath.slice(0, -1);
+}
+const canonicalUrl = new URL(cleanPath, generalConfig.siteUrl).toString();
 ---
 
 <!doctype html>

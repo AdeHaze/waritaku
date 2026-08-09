@@ -3,11 +3,14 @@ import { getDb } from '../../../lib/db';
 import { taxonomies, terms } from '../../../db/schema';
 import { env } from 'cloudflare:workers';
 
+import { hasPermission } from '../../../lib/permissions';
+
 export const GET: APIRoute = async ({ locals }) => {
     // We allow fetching all taxonomies/terms for Block Builder UI.
     // It's used by authors/editors dynamically.
     const user = locals.user;
-    if (!user || !['superadmin', 'admin', 'editor', 'author'].includes(user.role)) {
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'taxonomies', 'read')) {
         return new Response('Unauthorized', { status: 401 });
     }
 

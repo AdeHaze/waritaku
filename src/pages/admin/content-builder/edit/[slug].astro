@@ -5,12 +5,10 @@ import { collections, taxonomies } from '../../../../db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import SchemaBuilder from '../../../../components/admin/SchemaBuilder';
+import { hasPermission } from '../../../../lib/permissions';
 
 const user = Astro.locals.user;
-if (!user || user.role !== 'superadmin') {
-    return Astro.redirect('/admin/login');
-}
-
+const permissions = Astro.locals.permissions;
 const { slug } = Astro.params;
 const db = getDb(env);
 
@@ -19,6 +17,14 @@ if (colRes.length === 0) {
     return Astro.redirect('/404');
 }
 const collection = colRes[0];
+
+const isOwner = collection.authorId === user?.userId;
+const canEdit = isOwner ? hasPermission(permissions, 'content_builder', 'edit_own') : hasPermission(permissions, 'content_builder', 'edit_others');
+if (!permissions || !canEdit) {
+    return Astro.redirect('/admin/login');
+}
+
+
 
 const allTaxonomies = await db.select().from(taxonomies);
 const availableTaxonomies = allTaxonomies.map(t => ({ slug: t.slug, name: t.label }));

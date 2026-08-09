@@ -1,12 +1,11 @@
 import type { APIRoute } from 'astro';
-import { entries, collections, terms, taxonomies } from '../db/schema';
+import { entries, collections, terms, taxonomies, settings } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 
 import { getDb } from '../lib/db';
 import { getCanonicalUrls } from '../lib/queries';
 
 export const GET: APIRoute = async ({ request }) => {
-    const siteUrl = new URL(request.url).origin;
     
     // Fallback if env is missing during build time
     if (!env || !env.DB) {
@@ -16,6 +15,15 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     const db = getDb(env);
+
+    let siteUrl = new URL(request.url).origin;
+    const settingsRec = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
+    if (settingsRec.length > 0) {
+        try {
+            const parsed = JSON.parse(settingsRec[0].value);
+            if (parsed.siteUrl) siteUrl = parsed.siteUrl;
+        } catch(e) {}
+    }
 
     const [publishedEntries, allTerms] = await Promise.all([
         db.select({ 

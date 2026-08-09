@@ -5,8 +5,11 @@ import { taxonomies } from '../../../db/schema';
 import { env } from 'cloudflare:workers';
 import { Plus, FolderTree, Edit, Trash2 } from 'lucide-react';
 
+import { hasPermission } from '../../../lib/permissions';
+
 const user = Astro.locals.user;
-if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+const permissions = Astro.locals.permissions;
+if (!user || !permissions || !hasPermission(permissions, 'taxonomy_builder', 'read')) {
     return Astro.redirect('/admin/login');
 }
 
@@ -54,6 +57,11 @@ const allTaxonomies = await db.select().from(taxonomies);
                             {allTaxonomies.map(tax => {
                                 let allowed = [];
                                 try { allowed = JSON.parse(tax.allowedCollections); } catch(e) {}
+                                
+                                const isOwner = tax.authorId === user.userId;
+                                const canEdit = isOwner ? hasPermission(permissions, 'taxonomy_builder', 'edit_own') : hasPermission(permissions, 'taxonomy_builder', 'edit_others');
+                                const canDelete = isOwner ? hasPermission(permissions, 'taxonomy_builder', 'delete_own') : hasPermission(permissions, 'taxonomy_builder', 'delete_others');
+
                                 return (
                                     <tr class="hover:bg-muted/30 transition-colors group">
                                         <td class="px-6 py-4">
@@ -96,12 +104,16 @@ const allTaxonomies = await db.select().from(taxonomies);
                                                 <a href={`/admin/taxonomies/${tax.slug}`} class="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors tooltip-trigger" title="Manage Terms">
                                                     <FolderTree size={16} />
                                                 </a>
-                                                <a href={`/admin/taxonomy-builder/edit/${tax.id}`} class="p-2 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-colors">
-                                                    <Edit size={16} />
-                                                </a>
-                                                <button type="button" class="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors btn-delete" data-id={tax.id} data-name={tax.label}>
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                {canEdit && (
+                                                    <a href={`/admin/taxonomy-builder/edit/${tax.id}`} class="p-2 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-md transition-colors">
+                                                        <Edit size={16} />
+                                                    </a>
+                                                )}
+                                                {canDelete && (
+                                                    <button type="button" class="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors btn-delete" data-id={tax.id} data-name={tax.label}>
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

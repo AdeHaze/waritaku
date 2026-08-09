@@ -4,6 +4,7 @@ import { taxonomies, terms } from '../../../../db/schema';
 import { eq, desc, asc, like, and, or, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../lib/slug';
+import { hasPermission } from '../../../../lib/permissions';
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
     const user = locals.user;
@@ -71,6 +72,11 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     const { taxonomy_slug } = params;
 
     try {
+        const permissions = locals.permissions;
+        if (!permissions || !hasPermission(permissions, 'taxonomies', 'create')) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+        }
+
         const taxRes = await db.select().from(taxonomies).where(eq(taxonomies.slug, taxonomy_slug as string)).limit(1);
         if (taxRes.length === 0) {
             return new Response(JSON.stringify({ error: 'Taxonomy not found' }), { status: 404 });
@@ -83,6 +89,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
 
         const inserted = await db.insert(terms).values({
             taxonomyId: taxRes[0].id,
+            authorId: user.userId,
             name: body.name,
             slug: finalSlug
         }).returning({ id: terms.id });

@@ -4,9 +4,12 @@ import { collections } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
+import { hasPermission } from '../../../lib/permissions';
+
 export const PUT: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
-    if (!user || user.role !== 'superadmin') {
+    const permissions = locals.permissions;
+    if (!user || !permissions) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
@@ -14,6 +17,14 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     const { slug } = params;
     
     try {
+        const colRes = await db.select().from(collections).where(eq(collections.slug, slug as string)).limit(1);
+        if (colRes.length === 0) return new Response('Not found', { status: 404 });
+        
+        const isOwner = colRes[0].authorId === user.userId;
+        const canEdit = isOwner ? hasPermission(permissions, 'content_builder', 'edit_own') : hasPermission(permissions, 'content_builder', 'edit_others');
+        if (!canEdit) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+        }
         const body = await request.json() as any;
         const updateData: any = {};
         
@@ -60,7 +71,8 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
 export const DELETE: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
-    if (!user || user.role !== 'superadmin') {
+    const permissions = locals.permissions;
+    if (!user || !permissions) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
@@ -68,17 +80,22 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     const { slug } = params;
     
     try {
+        const colRes = await db.select().from(collections).where(eq(collections.slug, slug as string)).limit(1);
+        if (colRes.length === 0) return new Response('Not found', { status: 404 });
+        
+        const isOwner = colRes[0].authorId === user.userId;
+        const canDelete = isOwner ? hasPermission(permissions, 'content_builder', 'delete_own') : hasPermission(permissions, 'content_builder', 'delete_others');
+        if (!canDelete) {
+            return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+        }
+        
         const url = new URL(request.url);
         const force = url.searchParams.get('force') === 'true';
 
         if (force) {
-            // Find collection id first
-            const col = await db.select().from(collections).where(eq(collections.slug, slug as string)).get();
-            if (col) {
-                // Delete all entries linked to this collection
-                const { entries } = await import('../../../db/schema');
-                await db.delete(entries).where(eq(entries.collectionId, col.id));
-            }
+            // Delete all entries linked to this collection
+            const { entries } = await import('../../../db/schema');
+            await db.delete(entries).where(eq(entries.collectionId, colRes[0].id));
         }
 
         await db.delete(collections).where(eq(collections.slug, slug as string));

@@ -3,9 +3,11 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getDb } from '../../lib/db';
 import { sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
+import { hasPermission } from '../../lib/permissions';
 
 const user = Astro.locals.user;
-if (!user || user.role !== 'superadmin') {
+const permissions = Astro.locals.permissions;
+if (!permissions || !hasPermission(permissions, 'system', 'read')) {
     return Astro.redirect('/admin');
 }
 

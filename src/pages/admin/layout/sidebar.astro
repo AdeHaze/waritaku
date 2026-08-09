@@ -6,9 +6,11 @@ import { env } from 'cloudflare:workers';
 import { getDb } from '../../../lib/db';
 
 import SidebarSettings from '../../../components/admin/SidebarSettings';
+import { hasPermission } from '../../../lib/permissions';
 
 const user = Astro.locals.user;
-if (!user || user.role !== 'superadmin') {
+const permissions = Astro.locals.permissions;
+if (!permissions || !hasPermission(permissions, 'layout', 'read')) {
     return Astro.redirect('/admin/login');
 }
 

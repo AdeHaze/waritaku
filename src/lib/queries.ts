@@ -785,7 +785,8 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         // Extend data with taxonomy context for SEO/indexing
         const archiveData = {
             ...data,
-            taxonomy: taxonomyData
+            taxonomy: taxonomyData,
+            canonicalUrl: (taxonomyData?.omitTaxonomySlug || data.slug === 'all') ? `/${data.slug}` : `/${taxonomyData.slug}/${data.slug}`
         };
 
         return { pageType: 'category' as const, data: archiveData, categoryArticles, totalPages, articleBottomHtml: '' };

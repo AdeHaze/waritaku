@@ -5,12 +5,10 @@ import { collections, taxonomies } from "../../../../db/schema";
 import { eq } from "drizzle-orm";
 import { env } from 'cloudflare:workers';
 import { Save, ArrowLeft } from "lucide-react";
+import { hasAnyPermission } from '../../../../lib/permissions';
 
 const user = Astro.locals.user;
-if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
-    return Astro.redirect("/admin/login");
-}
-
+const permissions = Astro.locals.permissions;
 const id = parseInt(Astro.params.id || "0", 10);
 if (!id) return Astro.redirect("/404");
 
@@ -25,8 +23,14 @@ const taxRes = await db
 if (taxRes.length === 0) {
     return Astro.redirect("/404");
 }
-
 const taxonomy = taxRes[0];
+
+const isOwner = taxonomy.authorId === user?.userId;
+const canEdit = isOwner ? hasPermission(permissions, 'taxonomy_builder', 'edit_own') : hasPermission(permissions, 'taxonomy_builder', 'edit_others');
+if (!permissions || !canEdit) {
+    return Astro.redirect('/admin/login');
+}
+
 let allowed = [];
 try {
     allowed = JSON.parse(taxonomy.allowedCollections);

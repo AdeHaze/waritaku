@@ -532,7 +532,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
     schema={schemaString} 
     headerStyle={headerStyle} 
     footerStyle={footerStyle} 
-    canonicalUrl={Astro.url.origin + (data.canonicalUrl ? data.canonicalUrl : `/${data.slug}`)}
+    canonicalUrl={data.canonicalUrl ? data.canonicalUrl : `/${data.slug}`}
     noindex={pageType === 'taxonomy_archive' ? (data.taxonomy?.umbrellaAllowIndexing === false || data.taxonomy?.umbrellaAllowIndexing === 0) : (data.taxonomy?.allowIndexing === false || data.taxonomy?.allowIndexing === 0)}
 >
     {(pageType === 'category' || pageType === 'collection_archive') && (

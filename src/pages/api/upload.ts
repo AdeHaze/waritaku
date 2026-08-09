@@ -1,10 +1,12 @@
 import { StorageAdapter } from '../../lib/storage';
 import { getMediaUrl } from '../../lib/media';
 import type { APIRoute } from 'astro';
+import { hasPermission } from '../../lib/permissions';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const user = locals.user;
-  if (!user) {
+  const permissions = locals.permissions;
+  if (!user || !permissions || !hasPermission(permissions, 'media', 'create')) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 

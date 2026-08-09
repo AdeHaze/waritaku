@@ -2,10 +2,12 @@ import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { collections } from '../../../db/schema';
 import { env } from 'cloudflare:workers';
+import { hasPermission } from '../../../lib/permissions';
 
 export const GET: APIRoute = async ({ locals }) => {
     const user = locals.user;
-    if (!user || user.role !== 'superadmin') {
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'content_builder', 'read')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
@@ -21,7 +23,8 @@ export const GET: APIRoute = async ({ locals }) => {
 
 export const POST: APIRoute = async ({ request, locals }) => {
     const user = locals.user;
-    if (!user || user.role !== 'superadmin') {
+    const permissions = locals.permissions;
+    if (!user || !permissions || !hasPermission(permissions, 'content_builder', 'create')) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
@@ -35,6 +38,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         }
 
         const inserted = await db.insert(collections).values({
+            authorId: user.userId,
             slug: body.slug,
             label: body.label,
             labelSingular: body.labelSingular,

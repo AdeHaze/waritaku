@@ -4,13 +4,15 @@ import { collections, entries, entryTerms, entryRevisions } from '../../../../..
 import { eq, and, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../../lib/slug';
+import { hasPermission, hasAnyPermission } from '../../../../../lib/permissions';
 
 export const PUT: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
-    if (!user) {
+    const permissions = locals.permissions;
+    if (!user || !permissions) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
-    if (!['superadmin', 'admin', 'editor', 'author'].includes(user.role)) {
+    if (!hasAnyPermission(permissions, 'entries', ['edit_own', 'edit_others'])) {
         return new Response(JSON.stringify({ error: 'Forbidden: insufficient role' }), { status: 403 });
     }
 
@@ -29,6 +31,16 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         const entryRes = await db.select().from(entries).where(and(eq(entries.id, entryId), eq(entries.collectionId, collectionId))).limit(1);
         if (entryRes.length === 0) {
             return new Response(JSON.stringify({ error: 'Entry not found in this collection' }), { status: 404 });
+        }
+
+        const entry = entryRes[0];
+        
+        // Ownership check
+        if (entry.authorId !== user.userId && !hasPermission(permissions, 'entries', 'edit_others')) {
+            return new Response(JSON.stringify({ error: 'Forbidden: cannot edit others entries' }), { status: 403 });
+        }
+        if (entry.authorId === user.userId && !hasPermission(permissions, 'entries', 'edit_own')) {
+            return new Response(JSON.stringify({ error: 'Forbidden: cannot edit own entries' }), { status: 403 });
         }
 
         const body = await request.json() as any;
@@ -73,9 +85,17 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             version: sql`${entries.version} + 1`
         };
 
-        if (authorId && ['superadmin', 'admin', 'editor'].includes(user.role)) {
-            updateFields.authorId = parseInt(authorId, 10);
+        // If authorId is provided and different from the current, check permissions
+        let finalAuthorId = entryRes[0].authorId;
+        if (authorId && parseInt(authorId, 10) !== finalAuthorId) {
+            if (hasPermission(permissions, 'entries', 'edit_others')) {
+                finalAuthorId = parseInt(authorId, 10);
+            } else {
+                 return new Response(JSON.stringify({ error: 'Forbidden: cannot change author' }), { status: 403 });
+            }
         }
+        updateFields.authorId = finalAuthorId;
+
         // Restore from trash if setting a non-trashed status
         if (mappedStatus !== 'trashed') {
             updateFields.deletedAt = null;
@@ -105,13 +125,14 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     }
 };
 
-export const DELETE: APIRoute = async ({ params, request, locals }) => {
+export const DELETE: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
-    if (!user) {
+    const permissions = locals.permissions;
+    if (!user || !permissions) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
-    if (user.role !== 'admin' && user.role !== 'superadmin') {
-        return new Response(JSON.stringify({ error: 'Forbidden: requires admin or superadmin role' }), { status: 403 });
+    if (!hasAnyPermission(permissions, 'entries', ['delete_own', 'delete_others'])) {
+        return new Response(JSON.stringify({ error: 'Forbidden: insufficient role' }), { status: 403 });
     }
 
     const db = getDb(env);
@@ -122,6 +143,20 @@ export const DELETE: APIRoute = async ({ params, request, locals }) => {
         const colRes = await db.select().from(collections).where(eq(collections.slug, collection_slug as string)).limit(1);
         if (colRes.length === 0) {
             return new Response(JSON.stringify({ error: 'Collection not found' }), { status: 404 });
+        }
+
+        const entryRes = await db.select().from(entries).where(and(eq(entries.id, entryId), eq(entries.collectionId, colRes[0].id))).limit(1);
+        if (entryRes.length === 0) {
+            return new Response(JSON.stringify({ error: 'Entry not found' }), { status: 404 });
+        }
+        const entry = entryRes[0];
+
+        // Ownership check
+        if (entry.authorId !== user.userId && !hasPermission(permissions, 'entries', 'delete_others')) {
+            return new Response(JSON.stringify({ error: 'Forbidden: cannot delete others entries' }), { status: 403 });
+        }
+        if (entry.authorId === user.userId && !hasPermission(permissions, 'entries', 'delete_own')) {
+            return new Response(JSON.stringify({ error: 'Forbidden: cannot delete own entries' }), { status: 403 });
         }
 
         // Check for permanent deletion flag
