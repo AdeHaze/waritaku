@@ -13,37 +13,40 @@ The system uses Astro for server-side rendering and React for admin interfaces. 
 - **Taxonomy URL System**: Taxonomy archives support long format (`/taxonomy/term`) and short format (`/term`). Each taxonomy sets `entryUrlFormat` (long / short / none). Per-entry `primaryTermId` overrides the collection's taxonomy priority. The entry editor shows a live canonical URL preview.
 - **Adapter Pattern**: `src/lib/db.ts` (database adapter) and `src/lib/storage.ts` (storage adapter) prevent vendor lock-in. Swap D1→PostgreSQL or R2→S3 by editing one file.
 - **Media CDN Layer**: `src/lib/media.ts` centralizes media URLs. In production, `PUBLIC_MEDIA_BASE_URL` points to the R2 custom domain (for example, `https://r2.waritaku.com`). Media URLs redirect to the CDN with a 301. In local dev, the variable is empty and `/api/images/` serves as the proxy.
-- **R2 Render Cache**: Public HTML pages are served from an R2 bucket (`RENDER_CACHE` binding). On the first view, the page renders through SSR and writes the HTML to R2 in the background. Later views read the HTML from R2 with zero D1 queries. Admin and API paths bypass the cache.
+- **R2 Render Cache**: Public HTML pages are served from an R2 bucket (`RENDER_CACHE` binding). On the first view, the page renders through SSR and writes the HTML to R2 in the background. Later views read the HTML from R2 with zero D1 queries. Admin and API paths bypass the cache. Cached pages use a one-year TTL; `invalidateCachedPage()` handles freshness on publish.
+- **Cache Invalidation**: `src/lib/cache-invalidation.ts` runs on entry publish/update. It deletes stale pages from R2 and purges Cloudflare's edge cache in parallel. It also self-fetches the new entry URL so the article renders into R2 immediately — no waiting for a visitor.
+- **Date Archive Modes**: A settings toggle controls date archives (`/2026`, `/2026/08`, `/2026/08/10`). Four modes: `date` (all levels), `month` (year + month), `year` (year only), `off` (all date URLs return 404). When Off, date archive queries are skipped entirely and the calendar widget is hidden.
 - **Articles & Pages**: Rich content editing using the React TipTap WYSIWYG editor, custom image alignment, WordPress shortcodes (`[caption]` → `<figure>`, `[faq]` → `<details>`), auto Table of Contents, embed parsing, and revision history with atomic `version` increments.
 - **Categories & Tags**: Hierarchical taxonomies with search, sorting, and pagination (50/page) for taxonomies with 10k+ terms. Search matches both name and slug.
 - **Block Builder**: Pages and the front page assemble from layout blocks (heroes, category blocks, article grids). Each block selects a content source (`collectionId`) and applies taxonomy filters with AND/OR matching.
-- **Users & Roles**: Six-tier role architecture (`superadmin`, `admin`, `editor`, `author`, `contributor`, `user`). Astro middleware validates JWT session tokens for every `/admin` and `/api` request. Mutating API endpoints enforce roles server-side.
-- **SEO & Discoverability**: Automated XML sitemap generation (`/sitemap.xml`) with batched canonical URL lookups, dynamic JSON-LD Schema (`NewsArticle`, `WebSite`, `CollectionPage`, `BreadcrumbList`), markdown content delivery (`Accept: text/markdown` via Turndown), and RFC 9727 API Catalog support (`/.well-known/api-catalog`). Date archives are timezone-aware (Asia/Jakarta UTC+7).
+- **Role-Based Access Control**: Granular `resource:action` permissions (`roles` + `role_permissions` tables). Actions include `read`, `create`, `edit_own`, `edit_others`, `delete_own`, `delete_others`. The admin nav, admin pages, and API routes all enforce permissions. `src/lib/permissions.ts` loads the permission set per session.
+- **SEO & Discoverability**: Automated XML sitemap generation (`/sitemap.xml`) with batched canonical URL lookups, dynamic JSON-LD Schema (`NewsArticle`, `WebSite`, `CollectionPage`, `BreadcrumbList`), Open Graph + Twitter Card meta tags (title capped at 60 chars, description at 200), author meta, `ads.txt`, `robots.txt`, markdown content delivery (`Accept: text/markdown` via Turndown), and RFC 9727 API Catalog support (`/.well-known/api-catalog`). Date archives are timezone-aware (Asia/Jakarta UTC+7).
+- **LLM Discovery**: `llms.txt` and `llms-full.txt` serve the site as plain text for AI crawlers. `llms.txt` lists recent articles; `llms-full.txt` contains up to 200 articles with HTML stripped. Both are generated from D1 on request.
 - **Internationalization**: `src/i18n/` holds language packs (Indonesian + English). The middleware sets `Astro.locals.t` on every request. Any page can call the translation helper without imports.
-- **Security**: Web Crypto PBKDF2 password hashing (plus WordPress `$wp$2y$` bcrypt and legacy phpass handling), `JWT_SECRET` required with no fallback, login rate limiting (5 attempts / 60s), `sanitize-html` on all user-editable output, soft-delete with trash/restore, security headers (CSP, nosniff, HSTS, X-Frame-Options), and fully parameterized Drizzle queries.
+- **Security**: Web Crypto PBKDF2 password hashing (plus WordPress `$wp$2y$` bcrypt and legacy phpass handling), `JWT_SECRET` required with no fallback, login rate limiting (5 attempts / 60s), `sanitize-html` on all user-editable output, soft-delete with trash/restore, security headers (CSP, nosniff, HSTS, X-Frame-Options), and fully parameterized Drizzle queries. The CSP allows Twitter embeds, Google AdSense (pagead2, doubleclick, fundingchoices, SODAR traffic quality), and the Cloudflare Insights beacon.
 
 ## Project Structure
 
 ```text
 waritaku/
-├── public/              # Static frontend assets
+├── public/              # Static assets (ads.txt, robots.txt, favicon, local uploads)
 ├── local_uploads/       # Local media upload folder (dev only)
 ├── src/
 │   ├── assets/          # Raw image and icon assets
 │   ├── components/      # React and Astro components (admin + frontend)
 │   ├── db/              # Drizzle ORM database schemas
 │   ├── i18n/            # Internationalization strings (en/id)
-│   ├── layouts/         # Page layout templates
-│   ├── lib/             # Adapters (db, storage), media helper, slug engine, render cache
-│   ├── middleware.ts    # R2 cache short-circuit, auth guard, redirect engine, security headers
+│   ├── layouts/         # Page layout templates (OG/Twitter meta, author, canonical)
+│   ├── lib/             # Adapters (db, storage), media, slug engine, render cache, permissions, cache invalidation
+│   ├── middleware.ts    # R2 cache short-circuit (markdown-aware), auth, redirects, security headers, RBAC load
 │   ├── pages/           # Astro routes and API endpoints
 │   │   ├── admin/       # CMS admin dashboard and system docs
 │   │   ├── api/         # API endpoints (content, uploads, taxonomies, import, images)
 │   │   └── uploads/     # Legacy WordPress image paths (redirect to CDN)
 │   ├── styles/          # Global CSS definitions and Tailwind setup
-│   └── utils/           # Helper utilities (sanitize, embed parsing)
+│   └── utils/           # Helper utilities (sanitize, embed parsing, getThumbnail)
 ├── drizzle/             # Drizzle migration journal + SQL files
-├── scripts/             # Setup wizard, WP import, R2 sync
+├── scripts/             # Setup wizard, WP import, R2 sync, pre-warm, permission seed
 ├── astro.config.mjs     # Astro and Vite configuration
 ├── drizzle.config.ts    # Drizzle ORM configuration
 └── package.json         # Project dependencies
@@ -144,6 +147,7 @@ npm run push:media
 | `npm run dev --remote` | Starts dev server using remote Cloudflare D1 database |
 | `npm run build` | Builds production output to `./dist/` |
 | `npm run check` | Runs Astro type-checking (`astro check`) |
+| `node scripts/prewarm.mjs` | Warms the R2 render cache for all published entries + categories |
 
 ## Development Rules
 
