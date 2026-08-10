@@ -394,6 +394,27 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             const categoryArticles = [];
             const entryIds = articlesResult.map((r: any) => r.entry.id);
             const canonicalMap = await getCanonicalUrls(db, entryIds);
+            
+            const categoryMap: any = {};
+            if (entryIds.length > 0) {
+                const catTermRows = await db.select({
+                    entryId: entryTerms.entryId,
+                    id: terms.id,
+                    name: terms.name,
+                    slug: terms.slug
+                })
+                .from(entryTerms)
+                .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+                .where(and(
+                    eq(taxonomies.slug, 'categories'),
+                    sql`${entryTerms.entryId} IN (${sql.join(entryIds.map((id: any) => sql`${id}`), sql`, `)})`
+                ));
+                for (const row of catTermRows) {
+                    if (!categoryMap[row.entryId]) categoryMap[row.entryId] = [];
+                    categoryMap[row.entryId].push(row);
+                }
+            }
 
             for (const r of articlesResult) {
                 const data = safeJsonParse(r.entry.data, {});
@@ -404,6 +425,13 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 const prefixSlug = canonicalMap[r.entry.id];
                 const canonicalPath = prefixSlug ? `/${prefixSlug}/${r.entry.slug}` : `/${r.entry.slug}`;
                 
+                let categoryName = taxonomy.label || 'Article';
+                const cats = categoryMap[r.entry.id] || [];
+                if (cats.length > 0) {
+                    const primary = data.primaryTermId ? cats.find((c: any) => c.id === data.primaryTermId) : null;
+                    categoryName = primary ? primary.name : cats[0].name;
+                }
+                
                 categoryArticles.push({
                     id: r.entry.id,
                     slug: r.entry.slug,
@@ -411,7 +439,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                     publishedAt: r.entry.publishedAt,
                     ...data,
                     authorName: r.author?.name || 'Writer',
-                    categoryName: taxonomy.label, // Generic label since it's the umbrella page
+                    categoryName,
                     excerpt
                 });
             }
@@ -761,6 +789,27 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         const entryIds = articlesResult.map((r: any) => r.entry.id);
         const canonicalMap = await getCanonicalUrls(db, entryIds);
         
+        const categoryMap: any = {};
+        if (entryIds.length > 0) {
+            const catTermRows = await db.select({
+                entryId: entryTerms.entryId,
+                id: terms.id,
+                name: terms.name,
+                slug: terms.slug
+            })
+            .from(entryTerms)
+            .innerJoin(terms, eq(entryTerms.termId, terms.id))
+            .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+            .where(and(
+                eq(taxonomies.slug, 'categories'),
+                sql`${entryTerms.entryId} IN (${sql.join(entryIds.map((id: any) => sql`${id}`), sql`, `)})`
+            ));
+            for (const row of catTermRows) {
+                if (!categoryMap[row.entryId]) categoryMap[row.entryId] = [];
+                categoryMap[row.entryId].push(row);
+            }
+        }
+        
         for (const r of articlesResult) {
             const data = safeJsonParse(r.entry.data, {});
             const rawContent = data.content || '';
@@ -770,6 +819,13 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             const prefixSlug = canonicalMap[r.entry.id];
             const canonicalPath = prefixSlug ? `/${prefixSlug}/${r.entry.slug}` : `/${r.entry.slug}`;
 
+            let categoryName = taxonomyData?.label || 'Article';
+            const cats = categoryMap[r.entry.id] || [];
+            if (cats.length > 0) {
+                const primary = data.primaryTermId ? cats.find((c: any) => c.id === data.primaryTermId) : null;
+                categoryName = primary ? primary.name : cats[0].name;
+            }
+
             categoryArticles.push({
                 id: r.entry.id,
                 slug: r.entry.slug,
@@ -777,7 +833,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 publishedAt: r.entry.publishedAt,
                 ...data,
                 authorName: r.author?.name || 'Writer',
-                categoryName: taxonomyData?.label || 'Term',
+                categoryName,
                 excerpt
             });
         }
