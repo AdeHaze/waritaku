@@ -62,15 +62,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
             enableRedirections = settingsCache.config.enableRedirections !== false;
             enable404Tracking = settingsCache.config.enable404Tracking !== false;
         } else {
-        try {
-            const configRow = await db.select().from(settings).where(eq(settings.key, 'general_settings')).get();
-            if (configRow) {
-                const config = JSON.parse(configRow.value);
-                settingsCache = { config, timestamp: now };
-                enableRedirections = config.enableRedirections !== false;
-                enable404Tracking = config.enable404Tracking !== false;
-            }
-        } catch(e) {}
+            try {
+                const configRow = await db.select().from(settings).where(eq(settings.key, 'general_settings')).get();
+                if (configRow) {
+                    const config = JSON.parse(configRow.value);
+                    settingsCache = { config, timestamp: now };
+                    enableRedirections = config.enableRedirections !== false;
+                    enable404Tracking = config.enable404Tracking !== false;
+                }
+            } catch(e) {}
+        }
+        if (settingsCache) {
+            (context.locals as any).generalSettings = settingsCache.config;
         }
     }
 
@@ -150,8 +153,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
         });
 
         // --- 3. Security headers ---
-        // CSP: 'unsafe-inline' needed for Astro is:inline scripts; frame-src allows embeds (YouTube, Twitter, Vimeo, Spotify, SoundCloud)
-        response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://platform.twitter.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self'; connect-src 'self'; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://platform.twitter.com https://twitter.com https://x.com");
+        // CSP: 'unsafe-inline' needed for Astro is:inline scripts; script-src includes
+        // Twitter embed + Google AdSense (pagead2, doubleclick) + Cloudflare Insights beacon;
+        // frame-src allows embeds (YouTube, Twitter, Vimeo, Spotify, SoundCloud, AdSense iframes)
+        response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://platform.twitter.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self'; connect-src 'self' https://pagead2.googlesyndication.com https://*.doubleclick.net https://*.google.com https://*.cloudflareinsights.com; frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://open.spotify.com https://w.soundcloud.com https://platform.twitter.com https://twitter.com https://x.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com https://www.googletagservices.com https://fundingchoicesmessages.google.com");
         response.headers.set('X-Content-Type-Options', 'nosniff');
         response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
         response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
