@@ -19,9 +19,11 @@ interface Props {
   footerStyle?: string;
   noindex?: boolean;
   canonicalUrl?: string;
+  ogImage?: string;
+  author?: string;
 }
 
-const { title, metaDescription, schema, headerStyle = 'default', footerStyle = 'default', noindex = false, canonicalUrl } = Astro.props;
+const { title, metaDescription, schema, headerStyle = 'default', footerStyle = 'default', noindex = false, canonicalUrl, ogImage, author } = Astro.props;
 
 let generalConfig = {
     siteTitle: 'Waritaku',
@@ -57,7 +59,19 @@ const finalCanonicalUrl = canonicalUrl
 		<meta name="generator" content={Astro.generator} />
 		<title>{displayTitle}</title>
         {metaDescription && <meta name="description" content={metaDescription} />}
+        {author && <meta name="author" content={author} />}
         <link rel="canonical" href={finalCanonicalUrl} />
+        {/* Open Graph / Twitter Card */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content={generalConfig.siteTitle} />
+        <meta property="og:title" content={displayTitle.length > 60 ? displayTitle.slice(0, 57) + '...' : displayTitle} />
+        <meta property="og:url" content={finalCanonicalUrl} />
+        <meta property="og:description" content={(metaDescription || generalConfig.siteDescription).slice(0, 200)} />
+        {ogImage && <meta property="og:image" content={ogImage} />}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={displayTitle.length > 60 ? displayTitle.slice(0, 57) + '...' : displayTitle} />
+        <meta name="twitter:description" content={(metaDescription || generalConfig.siteDescription).slice(0, 200)} />
+        {ogImage && <meta name="twitter:image" content={ogImage} />}
         {noindex && <meta name="robots" content="noindex, nofollow" />}
         {schema && <script type="application/ld+json" set:html={schema} />}
         {generalConfig.headerHtml && <Fragment set:html={sanitizeHtml(generalConfig.headerHtml)} />}

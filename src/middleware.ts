@@ -32,7 +32,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     // --- R2 Render Cache short-circuit ---
     // Runs before any D1 query. Visitor read traffic for public HTML pages
     // is served entirely from R2 + Cloudflare edge cache.
-    if (isPublicHtmlPath(url.pathname) && !isBypassRequest(context.request)) {
+    // NOTE: requests asking for text/markdown bypass the cache so the SSR
+    // route can run its Turndown conversion (cached HTML is not markdown).
+    const wantsMarkdown = (context.request.headers.get('Accept') || '').includes('text/markdown');
+    if (isPublicHtmlPath(url.pathname) && !isBypassRequest(context.request) && !wantsMarkdown) {
         const cached = await getCachedPage(env, url.pathname);
         if (cached) {
             // Apply security headers to cached responses too

@@ -64,6 +64,17 @@ const canonicalUrl = new URL(cleanPath, generalConfig.siteUrl).toString();
 		<title>{displayTitle}</title>
 		{displayDesc && <meta name="description" content={displayDesc} />}
 		<link rel="canonical" href={canonicalUrl} />
+		{/* Open Graph / Twitter Card */}
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content={generalConfig.siteTitle} />
+		<meta property="og:title" content={displayTitle.length > 60 ? displayTitle.slice(0, 57) + '...' : displayTitle} />
+		<meta property="og:url" content={canonicalUrl} />
+		<meta property="og:description" content={(displayDesc || generalConfig.siteDescription).slice(0, 200)} />
+		{generalConfig.logoUrl && <meta property="og:image" content={generalConfig.logoUrl} />}
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={displayTitle.length > 60 ? displayTitle.slice(0, 57) + '...' : displayTitle} />
+		<meta name="twitter:description" content={(displayDesc || generalConfig.siteDescription).slice(0, 200)} />
+		{generalConfig.logoUrl && <meta name="twitter:image" content={generalConfig.logoUrl} />}
 		{
 			generalConfig.headerHtml && (
 				<Fragment set:html={sanitizeHtml(generalConfig.headerHtml)} />
