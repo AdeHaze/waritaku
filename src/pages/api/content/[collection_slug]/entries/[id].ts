@@ -120,18 +120,18 @@ export const PUT: APIRoute = async (ctx) => {
 
         // Invalidate Cache
         const tIds = selectedTerms && Array.isArray(selectedTerms) ? selectedTerms.map(t => parseInt(t, 10)) : [];
-        const waitUntil = (ctx.locals as any).cfContext?.waitUntil || (ctx as any).waitUntil;
+        const waitCtx = (ctx.locals as any).cfContext || ctx;
         
-        if (waitUntil) {
-            waitUntil(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
+        if (waitCtx && waitCtx.waitUntil) {
+            waitCtx.waitUntil(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
         } else {
             invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
         }
         
         // Also invalidate old slug if it changed
         if (finalSlug !== entryRes[0].slug) {
-            if (waitUntil) {
-                waitUntil(invalidateEntryCache(env, collectionId, entryId, entryRes[0].slug, []));
+            if (waitCtx && waitCtx.waitUntil) {
+                waitCtx.waitUntil(invalidateEntryCache(env, collectionId, entryId, entryRes[0].slug, []));
             } else {
                 invalidateEntryCache(env, collectionId, entryId, entryRes[0].slug, []).catch(console.error);
             }
@@ -196,9 +196,9 @@ export const DELETE: APIRoute = async (ctx) => {
             await db.delete(entries).where(and(eq(entries.id, entryId), eq(entries.collectionId, colRes[0].id)));
             
             // Invalidate Cache
-            const waitUntil = (ctx.locals as any).cfContext?.waitUntil || (ctx as any).waitUntil;
-            if (waitUntil) {
-                waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
+            const waitCtx = (ctx.locals as any).cfContext || ctx;
+            if (waitCtx && waitCtx.waitUntil) {
+                waitCtx.waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
             } else {
                 invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
             }
@@ -221,9 +221,9 @@ export const DELETE: APIRoute = async (ctx) => {
             .from(entryTerms)
             .where(eq(entryTerms.entryId, entryId));
         const tIds = oldTerms.map(t => t.termId);
-        const waitUntil = (ctx.locals as any).cfContext?.waitUntil || (ctx as any).waitUntil;
-        if (waitUntil) {
-            waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
+        const waitCtx = (ctx.locals as any).cfContext || ctx;
+        if (waitCtx && waitCtx.waitUntil) {
+            waitCtx.waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
         } else {
             invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
         }
