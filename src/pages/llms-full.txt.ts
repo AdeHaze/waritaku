@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { entries, collections, settings, users } from '../db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
 import { getCanonicalUrls } from '../lib/queries';
 
