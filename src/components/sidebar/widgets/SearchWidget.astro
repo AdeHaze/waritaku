@@ -1,0 +1,29 @@
+---
+// Search widget — static search form, no data dependency.
+interface Props {
+    widget: any;
+}
+const { widget } = Astro.props;
+---
+
+<div class="bg-background rounded-2xl border border-border overflow-hidden shadow-sm">
+    <div class="bg-primary/10 px-5 py-3 border-b border-border">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-primary flex items-center">
+            {widget.title || 'Search'}
+        </h3>
+    </div>
+    <div class="p-5">
+        <form action="/search" method="GET" class="relative">
+            <input 
+                type="text" 
+                name="q" 
+                placeholder="Search articles..." 
+                required
+                class="w-full h-10 pl-3 pr-10 rounded-md border border-input bg-muted/50 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary transition-colors"
+            />
+            <button type="submit" class="absolute right-0 top-0 h-10 w-10 flex items-center justify-center text-muted-foreground hover:text-primary transition-colors" aria-label="Search">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+            </button>
+        </form>
+    </div>
+</div>
