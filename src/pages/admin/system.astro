@@ -342,6 +342,95 @@ if (Astro.request.method === 'POST') {
                 </div>
             </form>
         </div>
+
+        {/* ── Cache Management Card ─────────────────────────────────────────── */}
+        <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden relative" id="cache-management-section">
+            <div class="absolute top-0 left-0 w-1 h-full bg-sky-500"></div>
+            <div class="p-6">
+                <div class="mb-6 pb-4 border-b border-border flex justify-between items-start">
+                    <div>
+                        <h3 class="text-lg font-bold flex items-center gap-2">
+                            <span class="text-2xl">⚡</span>
+                            Cache Management
+                        </h3>
+                        <p class="text-sm text-muted-foreground mt-1">
+                            Manually purge R2 render cache and Cloudflare edge cache. Use this when automatic invalidation is not enough.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+
+                    {/* A — Specific URL */}
+                    <div class="p-4 bg-muted/20 border border-border rounded-lg">
+                        <h4 class="font-bold text-sm mb-1">Purge Specific URL</h4>
+                        <p class="text-xs text-muted-foreground mb-3">Enter a pathname to remove from R2 and Cloudflare edge cache. Example: <code class="font-mono">/anime/boruto-slug</code></p>
+                        <div class="flex gap-2">
+                            <input
+                                id="cache-url-input"
+                                type="text"
+                                placeholder="/your/path/here"
+                                class="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                            <button
+                                id="cache-purge-url-btn"
+                                type="button"
+                                class="px-4 py-2 bg-sky-500 text-white font-semibold text-sm rounded-md hover:bg-sky-600 active:scale-95 transition-all shadow-sm disabled:opacity-60"
+                            >
+                                Purge URL
+                            </button>
+                        </div>
+                        <div id="cache-url-result" class="text-xs font-medium mt-2 hidden"></div>
+                    </div>
+
+                    {/* B — Scoped Bulk Purge */}
+                    <div class="p-4 bg-muted/20 border border-border rounded-lg">
+                        <h4 class="font-bold text-sm mb-1">Scoped Bulk Purge</h4>
+                        <p class="text-xs text-muted-foreground mb-3">Delete R2 cache entries by when they were cached (R2 <code class="font-mono">cachedAt</code> timestamp). Matching Cloudflare edge URLs are also purged.</p>
+                        <div class="flex gap-2 flex-wrap">
+                            <select
+                                id="cache-scope-select"
+                                class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                                <option value="1h">Last 1 hour</option>
+                                <option value="24h" selected>Last 24 hours</option>
+                                <option value="7d">Last 7 days</option>
+                                <option value="30d">Last 30 days</option>
+                                <option value="all">All time</option>
+                            </select>
+                            <button
+                                id="cache-purge-scoped-btn"
+                                type="button"
+                                class="px-4 py-2 bg-amber-500 text-white font-semibold text-sm rounded-md hover:bg-amber-600 active:scale-95 transition-all shadow-sm disabled:opacity-60"
+                            >
+                                Purge Scoped
+                            </button>
+                        </div>
+                        <div id="cache-scoped-result" class="text-xs font-medium mt-2 hidden"></div>
+                    </div>
+
+                    {/* C — Purge All */}
+                    <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-lg">
+                        <h4 class="font-bold text-sm text-destructive mb-1">⚠ Purge All Rendered Cache</h4>
+                        <p class="text-xs text-red-700 dark:text-red-400 mb-3">
+                            Deletes <strong>every</strong> R2 render cache key and purges the matching Cloudflare edge URLs individually.
+                            All pages will SSR on the next request — expect a temporary traffic spike and D1 load surge.
+                            <strong> Only use during off-peak hours.</strong>
+                        </p>
+                        <button
+                            id="cache-purge-all-btn"
+                            type="button"
+                            class="px-4 py-2 bg-destructive text-destructive-foreground font-semibold text-sm rounded-md hover:bg-destructive/90 active:scale-95 transition-all shadow-sm disabled:opacity-60"
+                        >
+                            Purge All Cache
+                        </button>
+                        <div id="cache-all-result" class="text-xs font-medium mt-2 hidden"></div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
     </div>
 
     {/* ── WordPress Import UI ─────────────────────────────────────────────── */}
@@ -451,4 +540,85 @@ if (Astro.request.method === 'POST') {
       }
     })();
     </script>
+
+    {/* ── Cache Management UI ──────────────────────────────────────────────── */}
+    <script>
+    (function () {
+      function cachePost(body: any, resultEl: HTMLElement, btn: HTMLButtonElement) {
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.textContent = '⏳ Working…';
+        resultEl.className = 'text-xs font-medium mt-2 text-yellow-600 dark:text-yellow-400';
+        resultEl.textContent = 'Sending request…';
+        resultEl.classList.remove('hidden');
+
+        fetch('/api/admin/cache-manager', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+          .then(r => r.json() as Promise<any>)
+          .then(data => {
+            if (data.success) {
+              resultEl.className = 'text-xs font-medium mt-2 text-emerald-600 dark:text-emerald-400';
+              if (body.action === 'purge_url') {
+                resultEl.textContent = `✅ Purged: ${data.purged?.join(', ')}`;
+              } else if (body.action === 'purge_scoped') {
+                resultEl.textContent = `✅ Deleted ${data.deleted} cached page${data.deleted !== 1 ? 's' : ''}.`;
+              } else if (body.action === 'purge_all') {
+                resultEl.textContent = `✅ Purged ${data.deleted} cached page${data.deleted !== 1 ? 's' : ''} from R2 and Cloudflare.`;
+              }
+            } else {
+              resultEl.className = 'text-xs font-medium mt-2 text-destructive';
+              resultEl.textContent = '❌ Error: ' + (data.error || 'Unknown error');
+            }
+          })
+          .catch(err => {
+            resultEl.className = 'text-xs font-medium mt-2 text-destructive';
+            resultEl.textContent = '❌ Network error: ' + err.message;
+          })
+          .finally(() => {
+            btn.disabled = false;
+            btn.textContent = orig;
+          });
+      }
+
+      // A — Specific URL
+      const urlInput = document.getElementById('cache-url-input') as HTMLInputElement;
+      const urlBtn   = document.getElementById('cache-purge-url-btn') as HTMLButtonElement;
+      const urlRes   = document.getElementById('cache-url-result') as HTMLElement;
+      if (urlBtn) {
+        urlBtn.addEventListener('click', () => {
+          const path = urlInput?.value?.trim();
+          if (!path) { urlRes.className = 'text-xs font-medium mt-2 text-destructive'; urlRes.textContent = '⚠ Enter a pathname first.'; urlRes.classList.remove('hidden'); return; }
+          cachePost({ action: 'purge_url', path }, urlRes, urlBtn);
+        });
+      }
+
+      // B — Scoped Bulk Purge
+      const scopeSelect = document.getElementById('cache-scope-select') as HTMLSelectElement;
+      const scopeBtn    = document.getElementById('cache-purge-scoped-btn') as HTMLButtonElement;
+      const scopeRes    = document.getElementById('cache-scoped-result') as HTMLElement;
+      if (scopeBtn) {
+        scopeBtn.addEventListener('click', () => {
+          const window_ = scopeSelect?.value || '24h';
+          cachePost({ action: 'purge_scoped', window: window_ }, scopeRes, scopeBtn);
+        });
+      }
+
+      // C — Purge All
+      const allBtn = document.getElementById('cache-purge-all-btn') as HTMLButtonElement;
+      const allRes = document.getElementById('cache-all-result') as HTMLElement;
+      if (allBtn) {
+        allBtn.addEventListener('click', () => {
+          const confirmed = window.confirm(
+            '⚠ WARNING\n\nThis will delete every rendered HTML page from the R2 cache and purge the matching Cloudflare edge URLs.\n\nAll pages will SSR on next request — expect a temporary traffic spike.\n\nProceed only during off-peak hours.\n\nAre you absolutely sure?'
+          );
+          if (!confirmed) return;
+          cachePost({ action: 'purge_all' }, allRes, allBtn);
+        });
+      }
+    })();
+    </script>
+
 </AdminLayout>
