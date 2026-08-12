@@ -61,6 +61,8 @@ function pathToKey(pathname: string): string {
 export async function getCachedPage(env: any, pathname: string): Promise<Response | null> {
     if (!env?.RENDER_CACHE) return null;
     if (import.meta.env.DEV) return null; // Always SSR in local dev
+    // Search results are query-string-dependent — never serve from cache.
+    if (pathname.startsWith('/search')) return null;
 
     const key = pathToKey(pathname);
     const object = await env.RENDER_CACHE.get(key);
