@@ -40,9 +40,14 @@ export const GET: APIRoute = async ({ request }) => {
           .limit(50);
     }
 
-    // Canonical URLs for recent articles
+    // Canonical URLs for recent articles (chunked — D1 caps bind params at ~100)
     const ids = articles.map(a => a.id);
-    const canonicalMap = ids.length > 0 ? await getCanonicalUrls(db, ids) : {};
+    let canonicalMap: Record<number, string> = {};
+    for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        const part = chunk.length > 0 ? await getCanonicalUrls(db, chunk) : {};
+        canonicalMap = { ...canonicalMap, ...part };
+    }
     const articleLinks = articles.map(a => {
         const prefix = canonicalMap[a.id];
         return `- [${a.slug.replace(/-/g, ' ')}](${siteUrl}/${prefix ? `${prefix}/` : ''}${a.slug})`;
