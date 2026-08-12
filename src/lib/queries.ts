@@ -129,7 +129,7 @@ export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: strin
     return entrySlug;
 };
 
-export async function resolveRouteData(db: any, slug: string, currentPage: number = 1, pageSize: number = 12, sortTermBy: string = 'popular') {
+export async function resolveRouteData(db: any, slug: string, currentPage: number = 1, pageSize: number = 12, sortTermBy: string = 'popular', options: { dateArchiveMode?: string } = {}) {
     if (!db || !slug) return null;
 
     // Helper to get collections
@@ -142,11 +142,18 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
     const pagesCol = await getCollection('pages');
 
     // 0. Check Date Archive (e.g., 2025/03 or 2025/03/15) — WIB (UTC+7) aware
+    let dateArchiveMode = options.dateArchiveMode || 'date';
+
+    if (dateArchiveMode !== 'off') {
     const dateMatch = slug.match(/^(\d{4})(?:\/(\d{1,2}))?(?:\/(\d{1,2}))?$/);
     if (dateMatch && articlesCol) {
         const year = dateMatch[1];
         const month = dateMatch[2];
         const day = dateMatch[3];
+
+        // Gate finer date levels against archive mode
+        if (day && dateArchiveMode !== 'date') return null;
+        if (month && dateArchiveMode === 'year') return null;
 
         let archiveTitle = `Arsip: ${year}`;
         if (month) {
@@ -245,6 +252,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
         return { pageType: 'category' as const, data, categoryArticles, totalPages, articleBottomHtml: '' };
     }
+    } // end dateArchiveMode !== 'off'
 
     const segments = slug.split('/');
     const lastSegment = segments[segments.length - 1];
