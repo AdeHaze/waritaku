@@ -43,7 +43,13 @@ export const GET: APIRoute = async ({ request }) => {
       .limit(200);
 
     const ids = articles.map(a => a.id);
-    const canonicalMap = ids.length > 0 ? await getCanonicalUrls(db, ids) : {};
+    // Chunk canonical lookups — D1 caps bind parameters at ~100 per query
+    let canonicalMap: Record<number, string> = {};
+    for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        const part = chunk.length > 0 ? await getCanonicalUrls(db, chunk) : {};
+        canonicalMap = { ...canonicalMap, ...part };
+    }
 
     const parts: string[] = [`# ${siteTitle} — Full Content`, ''];
 
