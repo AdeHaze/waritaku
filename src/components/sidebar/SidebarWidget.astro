@@ -1,0 +1,18 @@
+---
+import SearchWidget from './widgets/SearchWidget.astro';
+import CalendarWidget from './widgets/CalendarWidget.astro';
+import HtmlWidget from './widgets/HtmlWidget.astro';
+import RecentPostsWidget from './widgets/RecentPostsWidget.astro';
+import SocialWidget from './widgets/SocialWidget.astro';
+
+interface Props {
+    widget: any;
+}
+const { widget } = Astro.props;
+---
+
+{widget.type === 'search' && <SearchWidget widget={widget} />}
+{widget.type === 'calendar' && <CalendarWidget widget={widget} />}
+{widget.type === 'html' && <HtmlWidget widget={widget} />}
+{widget.type === 'recent' && <RecentPostsWidget widget={widget} />}
+{widget.type === 'social' && <SocialWidget widget={widget} />}
