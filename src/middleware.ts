@@ -9,7 +9,8 @@ import { useTranslation } from './i18n';
 
 // Paths that must never be served from the R2 render cache.
 // Static file extensions are matched by the dot check further below.
-const CACHE_BYPASS_PREFIXES = ['/admin', '/api', '/uploads', '/@', '/node_modules'];
+// /search is excluded because results are query-string-dependent and must always be live.
+const CACHE_BYPASS_PREFIXES = ['/admin', '/api', '/uploads', '/@', '/node_modules', '/search'];
 
 function isPublicHtmlPath(pathname: string): boolean {
     // Skip any path that belongs to a bypass prefix
