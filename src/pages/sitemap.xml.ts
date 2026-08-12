@@ -43,9 +43,16 @@ export const GET: APIRoute = async ({ request }) => {
     // 1. Homepage
     xml += `  <url>\n    <loc>${siteUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
 
-    // 2. Entries (Articles, Pages, etc) — batch-fetch canonical URLs
+    // 2. Entries (Articles, Pages, etc) — batch-fetch canonical URLs.
+    // Chunk the lookup — D1 caps bind parameters at ~100 per query, and the
+    // site has thousands of entries.
     const entryIds = publishedEntries.map((e: any) => e.id);
-    const canonicalMap = await getCanonicalUrls(db, entryIds);
+    let canonicalMap: Record<number, string> = {};
+    for (let i = 0; i < entryIds.length; i += 50) {
+        const chunk = entryIds.slice(i, i + 50);
+        const part = chunk.length > 0 ? await getCanonicalUrls(db, chunk) : {};
+        canonicalMap = { ...canonicalMap, ...part };
+    }
 
     for (const entry of publishedEntries) {
         xml += `  <url>\n`;
