@@ -254,7 +254,22 @@ if (env && (env as any).DB) {
     await Promise.all(promises);
 }
 
-const siteUrl = Astro.url.origin;
+// Use the configured canonical site URL for structured data so cached HTML
+// is correct no matter which host rendered it (localhost, preview, r2 domain).
+// NOTE: db is block-scoped inside the `if (env && env.DB)` guard above, so this
+// must live inside that block or re-acquire the handle.
+let siteUrl = Astro.url.origin;
+if (env && (env as any).DB) {
+    try {
+        const db2 = getDb(env as any);
+        const gs = await db2.select({ value: settings.value }).from(settings).where(eq(settings.key, 'general_settings')).limit(1);
+        if (gs.length > 0) {
+            const parsed = JSON.parse(gs[0].value);
+            if (parsed.siteUrl) siteUrl = parsed.siteUrl;
+        }
+    } catch (e) {}
+}
+
 const schemaObj = {
     "@context": "https://schema.org",
     "@type": "WebSite",
