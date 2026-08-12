@@ -30,6 +30,8 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
     const [dateFilter, setDateFilter] = useState('');
     const [termFilter, setTermFilter] = useState('');
     const [availableTerms, setAvailableTerms] = useState<any[]>([]);
+    // Per-row purge state: null | 'loading' | 'success' | 'error'
+    const [purgeState, setPurgeState] = useState<Record<number, string>>({});
 
     const limit = 20;
 
@@ -100,7 +102,21 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
         }
     };
 
-    const totalPages = Math.ceil(total / limit);
+    const handlePurge = async (id: number) => {
+        setPurgeState(s => ({ ...s, [id]: 'loading' }));
+        try {
+            const res = await fetch('/api/admin/purge-entry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entryId: id, collectionSlug }),
+            });
+            setPurgeState(s => ({ ...s, [id]: res.ok ? 'success' : 'error' }));
+        } catch {
+            setPurgeState(s => ({ ...s, [id]: 'error' }));
+        }
+        // Reset icon after 2.5 s
+        setTimeout(() => setPurgeState(s => { const n = { ...s }; delete n[id]; return n; }), 2500);
+    };
 
     return (
         <div>
@@ -249,6 +265,26 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
                                         )}
                                         <button onClick={() => handleDelete(entry.id)} className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Delete">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                        </button>
+                                        <button
+                                            onClick={() => handlePurge(entry.id)}
+                                            disabled={purgeState[entry.id] === 'loading'}
+                                            className={`p-2 rounded-md transition-colors ${
+                                                purgeState[entry.id] === 'success' ? 'text-emerald-500 bg-emerald-500/10' :
+                                                purgeState[entry.id] === 'error'   ? 'text-red-500 bg-red-500/10' :
+                                                'text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10'
+                                            }`}
+                                            title="Purge Cache"
+                                        >
+                                            {purgeState[entry.id] === 'loading' ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                            ) : purgeState[entry.id] === 'success' ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                            ) : purgeState[entry.id] === 'error' ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                            ) : (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                            )}
                                         </button>
                                     </div>
                                 </td>
