@@ -56,7 +56,8 @@ let blockData: Record<string, any> = {};
 if (!isHomepageFallback && env && env.DB && slug) {
   const db = getDb(env);
   const sortTermBy = Astro.url.searchParams.get('sort') || 'popular';
-  const resolved = await resolveRouteData(db, slug, currentPage, pageSize, sortTermBy);
+  const options = { dateArchiveMode: (Astro.locals as any).generalSettings?.dateArchiveMode };
+  const resolved = await resolveRouteData(db, slug, currentPage, pageSize, sortTermBy, options);
   if (resolved) {
       if (resolved.redirect) {
           return Astro.redirect(resolved.redirect, 301);
@@ -402,8 +403,22 @@ if (!data.is_block_builder) {
 
 const headerImage = data.featuredImageUrl || data.featuredImage || data.image || data.heroImage || data.thumbnail || data.coverImage || data.hero || getThumbnail(parsedContent);
 const pageTitle = data.metaTitle || data.title || data.name;
-const siteUrl = Astro.url.origin;
-const currentUrl = Astro.url.href;
+// Use the configured canonical site URL for structured data so cached HTML
+// is correct no matter which host rendered it (localhost, preview, r2 domain).
+// NOTE: db is block-scoped inside the route-resolution guard above, so this
+// must re-acquire the handle.
+let siteUrl = Astro.url.origin;
+if (env && env.DB) {
+    try {
+        const db2 = getDb(env);
+        const gs = await db2.select({ value: settings.value }).from(settings).where(eq(settings.key, 'general_settings')).limit(1);
+        if (gs.length > 0) {
+            const parsed = JSON.parse(gs[0].value);
+            if (parsed.siteUrl) siteUrl = parsed.siteUrl;
+        }
+    } catch (e) {}
+}
+const currentUrl = `${siteUrl}${Astro.url.pathname}`;
 
 let schemaObj: any = null;
 
@@ -501,7 +516,8 @@ if (data.customSchema) {
 }
 
 const acceptHeader = Astro.request.headers.get('Accept') || '';
-if (!showPasswordPrompt && acceptHeader.includes('text/markdown') && (pageType === 'article' || pageType === 'page')) {
+const wantsMarkdown = acceptHeader.includes('text/markdown') || acceptHeader.includes('application/json');
+if (!showPasswordPrompt && wantsMarkdown && (pageType === 'article' || pageType === 'page')) {
     let mdContent = parsedContent;
     try {
         const TurndownService = (await import('turndown')).default;
@@ -510,14 +526,28 @@ if (!showPasswordPrompt && acceptHeader.includes('text/markdown') && (pageType =
     } catch (e) {
         mdContent = parsedContent.replace(/<[^>]+>/g, '\n').replace(/\n\n+/g, '\n\n').trim();
     }
-    
-    const tagsList = data.tags ? data.tags.map((t: any) => t.name).join(', ') : '';
-    const mdHeader = `---\ntitle: ${pageTitle}\ncategory: ${data.categoryName || ''}\ntags: ${tagsList}\npublishedAt: ${data.publishedAt}\nauthor: ${data.authorName || ''}\n---\n\n`;
-    
-    return new Response(mdHeader + mdContent, {
+
+    // Match Obsidian Web Clipper conventions:
+    //   created, tags, source, author frontmatter → # Title → > ## Excerpt → --- → body
+    const now = new Date();
+    const offsetMin = -now.getTimezoneOffset();
+    const offsetSign = offsetMin >= 0 ? '+' : '-';
+    const offsetH = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0');
+    const offsetM = String(Math.abs(offsetMin) % 60).padStart(2, '0');
+    const isoWithOffset = `${now.toISOString().replace(/\.\d{3}Z$/, '')} (UTC ${offsetSign}${offsetH}:${offsetM})`;
+    const sourceUrl = data.canonicalUrl
+        ? (data.canonicalUrl.startsWith('http') ? data.canonicalUrl : `${siteUrl}${data.canonicalUrl}`)
+        : `${siteUrl}/${data.slug}`;
+
+    const excerpt = data.metaDescription || data.excerpt || '';
+
+    const mdHeader = `---\ncreated: ${isoWithOffset}\ntags: []\nsource: ${sourceUrl}\nauthor: ${data.authorName || ''}\n---\n\n# ${pageTitle}\n\n`;
+    const mdExcerpt = excerpt ? `> ## Excerpt\n> ${excerpt}\n\n---\n\n` : `---\n\n`;
+
+    return new Response(mdHeader + mdExcerpt + mdContent.trim() + '\n', {
         status: 200,
         headers: {
-            'Content-Type': 'text/markdown',
+            'Content-Type': 'text/markdown; charset=utf-8',
             'x-markdown-tokens': 'true'
         }
     });
@@ -533,6 +563,8 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
     headerStyle={headerStyle} 
     footerStyle={footerStyle} 
     canonicalUrl={data.canonicalUrl ? data.canonicalUrl : `/${data.slug}`}
+    ogImage={headerImage ? (headerImage.startsWith('http') ? headerImage : `${Astro.url.origin}${headerImage.startsWith('/') ? '' : '/'}${headerImage}`) : undefined}
+    author={data.authorName || undefined}
     noindex={pageType === 'taxonomy_archive' ? (data.taxonomy?.umbrellaAllowIndexing === false || data.taxonomy?.umbrellaAllowIndexing === 0) : (data.taxonomy?.allowIndexing === false || data.taxonomy?.allowIndexing === 0)}
 >
     {(pageType === 'category' || pageType === 'collection_archive') && (
