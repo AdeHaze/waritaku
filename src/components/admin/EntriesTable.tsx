@@ -118,6 +118,8 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
         setTimeout(() => setPurgeState(s => { const n = { ...s }; delete n[id]; return n; }), 2500);
     };
 
+    const totalPages = Math.ceil(total / limit);
+
     return (
         <div>
             {/* Status Tabs */}
