@@ -7,9 +7,9 @@ import { getDb } from '../lib/db';
 
 let themeColors = null;
 
-if (env && env.DB) {
+if (env && (env as any).DB) {
     try {
-        const db = getDb(env);
+        const db = getDb(env as any);
         const existing = await db.select().from(settings).where(eq(settings.key, 'theme_colors')).limit(1);
         if (existing.length > 0) {
             themeColors = JSON.parse(existing[0].value);
@@ -20,7 +20,7 @@ if (env && env.DB) {
 }
 ---
 
-{themeColors && (
+{themeColors?.light && themeColors?.dark && (
     <style set:html={`
         :root {
             ${themeColors.light.primary ? `--primary: ${themeColors.light.primary};` : ''}
