@@ -1,0 +1,11 @@
+---
+// Custom HTML widget — renders raw widget content as-is.
+interface Props {
+    widget: any;
+}
+const { widget } = Astro.props;
+---
+
+<div class="w-full rounded-2xl overflow-hidden">
+    <div set:html={widget.content || ''}></div>
+</div>
