@@ -5,6 +5,7 @@ import { eq, and, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../../lib/db';
 import { hasPermission } from '../../../lib/permissions';
+import { invalidateHomepageCache } from '../../../lib/cache-invalidation';
 
 const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
@@ -29,6 +30,8 @@ if (Astro.request.method === 'POST') {
             await db.insert(settings)
                 .values({ key: 'homepage_page_id', value: homepagePageId })
                 .onConflictDoUpdate({ target: settings.key, set: { value: homepagePageId } });
+            // Purge homepage R2/CF cache so the new page is served immediately.
+            invalidateHomepageCache(env).catch(console.error);
             message = 'Homepage setting updated successfully.';
         }
     } catch (e) {
