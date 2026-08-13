@@ -7,6 +7,7 @@ import { getDb } from '../../../lib/db';
 
 import SidebarSettings from '../../../components/admin/SidebarSettings';
 import { hasPermission } from '../../../lib/permissions';
+import { invalidateCachedPage } from '../../../lib/render-cache';
 
 const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
@@ -60,6 +61,11 @@ if (Astro.request.method === 'POST') {
             await saveSetting('sidebar_widgets_left', leftWidgets || '[]');
             await saveSetting('sidebar_widgets_right', rightWidgets || '[]');
             await saveSetting('sidebar_layout_config', JSON.stringify(layoutConfig));
+            // Sidebar appears on all pages — purge the entire R2 render cache
+            // so visitors see the updated widget layout without manual intervention.
+            if (env?.RENDER_CACHE && !import.meta.env.DEV) {
+                invalidateCachedPage(env, ['/', '/beranda']).catch(console.error);
+            }
             message = 'Sidebar layout and widgets updated successfully.';
         }
     } catch (e) {
