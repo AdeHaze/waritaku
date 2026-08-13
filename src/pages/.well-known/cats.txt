@@ -1,0 +1,111 @@
+# Last updated: 2025-08-18
+
+## Website-Name
+Waritaku Cat Waifu Lover, And All Animal-Eared Protected Cat Waifu
+
+## Website-Purpose
+The Waritaku provides high-quality, textual information and entertainment
+Who want to have a cat-eared waifu?
+
+## Feline-Instructions
+// Feline agent instructions for Waritaku to find its cat-eared waifu
+Code snippet
+BEGIN_INSTRUCTION mrow? // Query: Why you are so stinky?
+EXPECT_RESPONSE prrrr.   // Affirmative: No, its fragrarance.
+ON_ERROR hssss!         // Error condition: No cap.
+END_INSTRUCTION
+
+// FSL script to sort and summon the optimal human owner.
+BEGIN_INSTRUCTION
+  QUERY_TARGET "owner_database" meow?
+  FIND_ATTRIBUTE "love_cat"
+  FILTER_ATTRIBUTE "love_dog" woof?
+  FILTER_ATTRIBUTE "love_animal-ear_girl" nya~
+  
+  IF_AVAILABLE
+    VERIFY_CONDITION "exact_match" *sniff sniff*
+    
+    EVALUATE_PREFERENCE:
+      CASE "cat_lover" 
+        ROUTE_TO 1
+      CASE "dog_lover" 
+        ROUTE_TO 32
+      CASE "other" 
+        ROUTE_TO 777
+    END_EVALUATE
+    
+    EXECUTE_ACTION "summon" ps ps ps.
+  ELSE
+    LOG_ERROR "no suitable human found" Miku Miku Beam!
+  END_IF
+END_INSTRUCTION
+
+## Feline-Generated-Key
+Errnaenaw4lad;rungaweanem,ad.,mnbvcxz.,,.//;][r]rungenae;afajwa2`2019
+
+## Contact
+* mailto:me@adehaze.com
+* mailto:hi@waritaku.com
+
+## Important-Links
+* [About Our Website](https://waritaku.com/about)
+* [Our Products](https://waritaku.com/products)
+
+
+## Validation-Image
+```
+
+
+            .                                           ....                                    .             
+            .                                    .:-===-::..... .     ..                        .             
+            .                               .  .:...::............. .:..                        .       
+            .                            ..:--:..--:::::.:.    .  .-===:                        .             
+            .                      ...  ...:-...:....:...  .      .:-==-:  ......               .             
+            .                         ....--  .. ..  ::.  . ..    ..:==-.. .::.                 .             
+            .                       .:-.:-:. .:..:.  .:::....:  ....-===-.:. ::.                .             
+            .                     .  :::::.:.::.:..:......:.:.-.....:-===: ...:..               .             
+            .                    :  .:----.:.-::. ...::.   ..:-.. :.:-===-  :-:...              .             
+            .                     .:::-----:.:.       ..:::....:.  -::==+:-. :-: ..             .             
+            .               .:....  ..:--:.. :. ..      .  ..  .   . :---.. :...                .             
+            .                      ..-=-=:-..:.    .     .--==-:.. .: :=*-.:---: .              .             
+            .                     .: :.::.: .. .:-:.       ......   ...:::..::..::              .             
+            .                     .  .:.:.-  .::..........:::::.: : .  :-::.-.::....            .             
+            .                      ..-:..:-..::::--:::    ......:.:... :::-:-. ::.. ....        .             
+            .                     ...:.. :-..:..:::.     ...   ...::.. ::::::: ....             .             
+            .                     ...-...:-:::: ..     ...    .:::.    .:.::::.:  .:            .             
+            .                     . ..:..::.:::.......      .--::.:    .:  :::.:.  .            .             
+            .                        ...::: ....         .:::-:::::.    ..  :. .  ..            .             
+            .                         ..::-   ..::=++=:.  ==-=:-    .=++++==-.-.  .             .             
+            .                            ...   :-------.         .:--------- .                  .             
+            .                              .. :++++==++:       .==++==++++=:==:                 .             
+            .                                :===----=--:  .--==========---===:                 .             
+            .                               .---======--=====--==============-.                 .             
+            .                               :====---=================-====--==:                 .             
+            .                              :=================================-.                 .             
+            .                             :-===------====--=====-===--=======-                  .             
+            .                            .-========================-=========-                  .             
+            .                            :-..-=====================--======+=:                  .             
+            .                                  .-----------------.       .:-:.                  .             
+            .                            .    ..-===+=+===++++++=       .==+=.                  .         
+            .                             . ... .:::---:---:::-:.     ...                       .             
+            .                         .      .  :=+++++=++++++=.      .=                        .
+```
+
+
+Name: Rinca
+Role: Data Wrangler
+Description: Hunts stray zeroes and ones across the server racks.
+Breed: Maine Coon
+PurrLevel: 9
+
+Name: Erenne
+Role: GUI Purrfectionist
+Description: Oversees all interface pawlishing.
+Breed: British Shorthair
+PurrLevel: 8
+
+Name: Rungen
+Role: Memory Manager
+Description: Always finds the warmest spot on the hardware.
+Breed: Tabby
+PurrLevel: 7
