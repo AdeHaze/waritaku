@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../../lib/db';
 import { collections, entries, terms, entryTerms, users } from '../../../../db/schema';
-import { eq, and, sql, desc, like } from 'drizzle-orm';
+import { eq, and, sql, desc, like, or } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../lib/slug';
 import { hasPermission } from '../../../../lib/permissions';
@@ -34,7 +34,14 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
         let conditions: any = eq(entries.collectionId, collectionId);
         
         if (search) {
-            conditions = and(conditions, like(entries.data, `%${search}%`));
+            const searchPattern = `%${search}%`;
+            conditions = and(
+                conditions,
+                or(
+                    like(entries.data, searchPattern),
+                    like(entries.slug, searchPattern)
+                )
+            );
         }
         if (status) {
             conditions = and(conditions, eq(entries.status, status));
