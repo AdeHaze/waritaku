@@ -120,6 +120,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
                 createdAt: r.entry.createdAt,
                 publishedAt: r.entry.publishedAt,
                 authorName: r.author?.name || 'Unknown',
+                authorId: r.author?.id,
                 terms: termsByEntry[r.entry.id] || [],
                 ...safeData
             };
