@@ -15,10 +15,25 @@ interface Entry {
     status: string;
     publishedAt: string;
     authorName: string;
+    authorId?: number;
     terms?: Term[];
 }
 
-export default function EntriesTable({ collectionSlug, initialPage, initialSearch }: { collectionSlug: string, initialPage: number, initialSearch: string }) {
+export default function EntriesTable({ 
+    collectionSlug, 
+    initialPage, 
+    initialSearch,
+    currentUserId,
+    canEditOthers,
+    canDeleteOthers
+}: { 
+    collectionSlug: string, 
+    initialPage: number, 
+    initialSearch: string,
+    currentUserId?: number,
+    canEditOthers?: boolean,
+    canDeleteOthers?: boolean
+}) {
     const [entries, setEntries] = useState<Entry[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(initialPage);
@@ -206,9 +221,15 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
                             <tr key={entry.id} className="bg-card hover:bg-muted/10 transition-colors group">
                                 <td className="px-6 py-4 font-medium text-foreground">
                                     <div className="flex flex-col">
-                                        <a href={`/admin/content/${collectionSlug}/edit/${entry.id}`} className="hover:text-primary transition-colors text-base font-bold">
-                                            {entry.title || entry.name || entry.slug || 'Untitled'}
-                                        </a>
+                                        {(!canEditOthers && entry.authorId && currentUserId && entry.authorId !== currentUserId) ? (
+                                            <span className="text-base font-bold text-muted-foreground opacity-60">
+                                                {entry.title || entry.name || entry.slug || 'Untitled'}
+                                            </span>
+                                        ) : (
+                                            <a href={`/admin/content/${collectionSlug}/edit/${entry.id}`} className="hover:text-primary transition-colors text-base font-bold">
+                                                {entry.title || entry.name || entry.slug || 'Untitled'}
+                                            </a>
+                                        )}
                                         <span className="text-xs text-muted-foreground mt-1 font-mono">/{entry.slug}</span>
                                     </div>
                                 </td>
@@ -257,17 +278,21 @@ export default function EntriesTable({ collectionSlug, initialPage, initialSearc
                                 </td>
                                 <td className="px-6 py-4 text-right whitespace-nowrap">
                                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <a href={`/admin/content/${collectionSlug}/edit/${entry.id}`} className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="Edit">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                                        </a>
+                                        {(canEditOthers || !entry.authorId || !currentUserId || entry.authorId === currentUserId) && (
+                                            <a href={`/admin/content/${collectionSlug}/edit/${entry.id}`} className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="Edit">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                                            </a>
+                                        )}
                                         {entry.status === 'published' && collectionSlug === 'articles' && (
                                             <a href={`/${entry.slug}`} target="_blank" rel="noopener noreferrer" className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors" title="View">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                                             </a>
                                         )}
-                                        <button onClick={() => handleDelete(entry.id)} className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Delete">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                                        </button>
+                                        {(canDeleteOthers || !entry.authorId || !currentUserId || entry.authorId === currentUserId) && (
+                                            <button onClick={() => handleDelete(entry.id)} className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Delete">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => handlePurge(entry.id)}
                                             disabled={purgeState[entry.id] === 'loading'}
