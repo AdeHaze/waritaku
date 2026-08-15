@@ -87,6 +87,25 @@
     --sidebar-ring: oklch(0.35 0.12 20);
 }
 
+/* Disqus theme overrides — Disqus's parseColor cannot read Tailwind 4 oklch()
+   values; provide hex equivalents so the comment embed auto-theming works. */
+:root {
+    --disqus-background-color: #FFF6F6;
+    --disqus-foreground-color: #1C0204;
+    --disqus-color: #1C0204;
+    --disqus-link-color: #6B141F;
+    --disqus-button-color: #F8F8F8;
+    --disqus-button-background-color: #6B141F;
+}
+.dark {
+    --disqus-background-color: #1C0204;
+    --disqus-foreground-color: #F5ECEC;
+    --disqus-color: #F5ECEC;
+    --disqus-link-color: #C46668;
+    --disqus-button-color: #1C0204;
+    --disqus-button-background-color: #C46668;
+}
+
 .dark {
     --background: oklch(0.10 0.02 20);
     --foreground: oklch(0.95 0.01 20);
