@@ -1,7 +1,7 @@
 ---
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import { getDb } from '../../../../lib/db';
-import { collections, taxonomies } from '../../../../db/schema';
+import { collections, taxonomies, users } from '../../../../db/schema';
 import { eq, like } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 
@@ -26,7 +26,10 @@ const schema = JSON.parse(collection.fields || '[]');
 // Fetch allowed taxonomies for this collection
 const taxQuery = await db.select().from(taxonomies).where(like(taxonomies.allowedCollections, `%"${collection.slug}"%`));
 const allowedTaxonomies = taxQuery.map(t => t.slug);
-const taxonomyMeta = taxQuery.map(t => ({ slug: t.slug, label: t.label, prefixEntryUrl: t.prefixEntryUrl }));
+const taxonomyMeta = taxQuery.map(t => ({ slug: t.slug, label: t.label, prefixEntryUrl: t.prefixEntryUrl, allowInlineCreation: t.allowInlineCreation, inlineSearchHint: t.inlineSearchHint }));
+
+// Fetch all users for author selection
+const allUsersRes = await db.select({ id: users.id, name: users.name, role: users.role }).from(users);
 
 import DynamicEntryEditor from '../../../../components/admin/DynamicEntryEditor';
 ---
@@ -41,5 +44,5 @@ import DynamicEntryEditor from '../../../../components/admin/DynamicEntryEditor'
     </div>
 
     <!-- The React Root for our Editor -->
-    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} initialEntry={null} supports={collection.supports} />
+    <DynamicEntryEditor client:only="react" collectionSlug={collection.slug} schema={schema} taxonomies={allowedTaxonomies} taxonomyMeta={taxonomyMeta} initialEntry={null} supports={collection.supports} allUsers={allUsersRes} canChangeAuthor={hasPermission(permissions, 'entries', 'edit_others')} />
 </AdminLayout>
