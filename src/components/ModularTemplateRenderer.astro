@@ -202,31 +202,24 @@ const customFields = Object.keys(data).filter(k =>
 
         // 6. RELATED ITEMS
         if (block.type === 'related_items') {
-            if (!data.relatedItems || data.relatedItems.length === 0) return null;
+            const targetTaxSlug = block.config?.targetTaxonomy || 'categories';
+            let termIdsToMatch: number[] = [];
+            if (data.taxonomyTerms && data.taxonomyTerms[targetTaxSlug]) {
+                termIdsToMatch = data.taxonomyTerms[targetTaxSlug].map((t: any) => t.id);
+            }
+            
             return (
                 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-border mt-12 bg-muted/10">
                     <h3 class="text-2xl font-bold mb-8 uppercase tracking-widest text-center">Related Items</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                        {data.relatedItems.map((item: any) => (
-                            <a href={`/${item.slug}`} class="group flex flex-col bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1">
-                                <div class="aspect-[16/9] w-full overflow-hidden bg-muted">
-                                    <img 
-                                        src={item.featuredImageUrl || `https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}`}
-                                        alt={item.title}
-                                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                        onerror={`this.src='https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}'`}
-                                    />
-                                </div>
-                                <div class="p-5 flex flex-col flex-grow">
-                                    <h4 class="text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2 mb-2">
-                                        {item.title}
-                                    </h4>
-                                    <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
-                                        {item.excerpt}
-                                    </p>
-                                </div>
-                            </a>
-                        ))}
+                    <div 
+                        class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 related-items-container min-h-[300px]"
+                        data-tax={targetTaxSlug}
+                        data-terms={termIdsToMatch.length > 0 ? termIdsToMatch.join(',') : 'all'}
+                        data-current-id={data.id || ''}
+                        data-limit="4"
+                        data-randomize="true"
+                    >
+                        {/* Client-Side Shuffle will inject articles here */}
                     </div>
                 </div>
             );
@@ -235,3 +228,87 @@ const customFields = Object.keys(data).filter(k =>
         return null;
     })}
 </div>
+
+<script>
+    function decodeHtmlRelated(text) {
+        if (!text) return '';
+        const textArea = document.createElement('textarea');
+        textArea.innerHTML = text;
+        return textArea.value;
+    }
+
+    async function loadRelatedItems(container) {
+        const tax = container.getAttribute('data-tax');
+        const terms = container.getAttribute('data-terms');
+        const limit = parseInt(container.getAttribute('data-limit'), 10) || 4;
+        const currentId = parseInt(container.getAttribute('data-current-id'), 10);
+        const randomize = container.getAttribute('data-randomize') === 'true';
+
+        try {
+            const res = await fetch(`/api/widgets/recent.json?tax=${tax}&terms=${terms}&limit=50`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            let articles = await res.json();
+
+            // Filter out the current article being viewed
+            if (currentId) {
+                articles = articles.filter(a => a.id !== currentId);
+            }
+
+            if (randomize) {
+                for (let i = articles.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [articles[i], articles[j]] = [articles[j], articles[i]];
+                }
+            }
+
+            articles = articles.slice(0, limit);
+
+            if (articles.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-sm text-muted-foreground text-center py-8">No related articles found.</div>';
+                container.classList.remove('min-h-[300px]');
+                return;
+            }
+
+            let html = '';
+            articles.forEach(item => {
+                const imgUrl = item.featuredImageUrl || `https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}`;
+                const title = decodeHtmlRelated(item.title);
+                const excerpt = item.excerpt || '';
+
+                html += `
+                    <a href="${item.canonicalUrl}" class="group flex flex-col bg-card border border-border rounded-2xl overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1">
+                        <div class="aspect-[16/9] w-full overflow-hidden bg-muted">
+                            <img 
+                                src="${imgUrl}"
+                                alt="${title}"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                onerror="this.src='https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(title)}'"
+                                loading="lazy"
+                            />
+                        </div>
+                        <div class="p-5 flex flex-col flex-grow">
+                            <h4 class="text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                                ${title}
+                            </h4>
+                            <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
+                                ${excerpt}
+                            </p>
+                        </div>
+                    </a>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.classList.remove('min-h-[300px]');
+        } catch (e) {
+            console.error('Error loading related items:', e);
+            container.innerHTML = '<div class="col-span-full text-sm text-destructive text-center py-8">Error loading articles.</div>';
+            container.classList.remove('min-h-[300px]');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const containers = document.querySelectorAll('.related-items-container');
+        containers.forEach(container => loadRelatedItems(container));
+    });
+</script>
