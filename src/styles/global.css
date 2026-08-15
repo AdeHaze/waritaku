@@ -50,96 +50,81 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Disqus fix: theme colors are hex (not Tailwind oklch) so Disqus's
+   parseColor can read computed styles — Disqus probes the page by injecting
+   a hidden element and reading getComputedStyle().color */
 :root {
-    --background: oklch(0.98 0.01 20);
-    --foreground: oklch(0.15 0.05 20);
-    --card: oklch(0.98 0.01 20);
-    --card-foreground: oklch(0.15 0.05 20);
-    --popover: oklch(0.98 0.01 20);
-    --popover-foreground: oklch(0.15 0.05 20);
-    --navbar: oklch(0.98 0.01 20);
-    --navbar-foreground: oklch(0.15 0.05 20);
-    --primary: oklch(0.35 0.12 20);
-    --primary-foreground: oklch(0.98 0 0);
-    --secondary: oklch(0.9 0.02 20);
-    --secondary-foreground: oklch(0.2 0.05 20);
-    --muted: oklch(0.9 0.02 20);
-    --muted-foreground: oklch(0.4 0.05 20);
-    --accent: oklch(0.9 0.02 20);
-    --accent-foreground: oklch(0.2 0.05 20);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.85 0.02 20);
-    --input: oklch(0.85 0.02 20);
-    --ring: oklch(0.35 0.12 20);
-    --chart-1: oklch(0.35 0.12 20);
-    --chart-2: oklch(0.45 0.15 20);
-    --chart-3: oklch(0.55 0.18 20);
-    --chart-4: oklch(0.65 0.20 20);
-    --chart-5: oklch(0.75 0.22 20);
+    --background: #FFF6F6;
+    --foreground: #1C0204;
+    --card: #FFF6F6;
+    --card-foreground: #1C0204;
+    --popover: #FFF6F6;
+    --popover-foreground: #1C0204;
+    --navbar: #FFF6F6;
+    --navbar-foreground: #1C0204;
+    --primary: #6B141F;
+    --primary-foreground: #F8F8F8;
+    --secondary: #EBD9D8;
+    --secondary-foreground: #290B0C;
+    --muted: #EBD9D8;
+    --muted-foreground: #603D3C;
+    --accent: #EBD9D8;
+    --accent-foreground: #290B0C;
+    --destructive: #E7000B;
+    --border: #DBC9C8;
+    --input: #DBC9C8;
+    --ring: #6B141F;
+    --chart-1: #6B141F;
+    --chart-2: #972430;
+    --chart-3: #C53443;
+    --chart-4: #F04C5A;
+    --chart-5: #FF6472;
     --radius: 0.5rem;
-    --sidebar: oklch(0.98 0.01 20);
-    --sidebar-foreground: oklch(0.15 0.05 20);
-    --sidebar-primary: oklch(0.35 0.12 20);
-    --sidebar-primary-foreground: oklch(0.98 0 0);
-    --sidebar-accent: oklch(0.9 0.02 20);
-    --sidebar-accent-foreground: oklch(0.2 0.05 20);
-    --sidebar-border: oklch(0.85 0.02 20);
-    --sidebar-ring: oklch(0.35 0.12 20);
+    --sidebar: #FFF6F6;
+    --sidebar-foreground: #1C0204;
+    --sidebar-primary: #6B141F;
+    --sidebar-primary-foreground: #F8F8F8;
+    --sidebar-accent: #EBD9D8;
+    --sidebar-accent-foreground: #290B0C;
+    --sidebar-border: #DBC9C8;
+    --sidebar-ring: #6B141F;
 }
 
-/* Disqus theme overrides — Disqus's parseColor cannot read Tailwind 4 oklch()
-   values; provide hex equivalents so the comment embed auto-theming works. */
-:root {
-    --disqus-background-color: #FFF6F6;
-    --disqus-foreground-color: #1C0204;
-    --disqus-color: #1C0204;
-    --disqus-link-color: #6B141F;
-    --disqus-button-color: #F8F8F8;
-    --disqus-button-background-color: #6B141F;
-}
-.dark {
-    --disqus-background-color: #1C0204;
-    --disqus-foreground-color: #F5ECEC;
-    --disqus-color: #F5ECEC;
-    --disqus-link-color: #C46668;
-    --disqus-button-color: #1C0204;
-    --disqus-button-background-color: #C46668;
-}
 
 .dark {
-    --background: oklch(0.10 0.02 20);
-    --foreground: oklch(0.95 0.01 20);
-    --card: oklch(0.12 0.02 20);
-    --card-foreground: oklch(0.95 0.01 20);
-    --popover: oklch(0.12 0.02 20);
-    --popover-foreground: oklch(0.95 0.01 20);
-    --navbar: oklch(0.12 0.02 20);
-    --navbar-foreground: oklch(0.95 0.01 20);
-    --primary: oklch(0.40 0.15 25);
-    --primary-foreground: oklch(0.98 0 0);
-    --secondary: oklch(0.20 0.03 20);
-    --secondary-foreground: oklch(0.95 0.01 20);
-    --muted: oklch(0.20 0.03 20);
-    --muted-foreground: oklch(0.65 0.05 20);
-    --accent: oklch(0.20 0.03 20);
-    --accent-foreground: oklch(0.95 0.01 20);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.25 0.05 20);
-    --input: oklch(0.25 0.05 20);
-    --ring: oklch(0.40 0.15 25);
-    --chart-1: oklch(0.40 0.15 25);
-    --chart-2: oklch(0.35 0.12 20);
-    --chart-3: oklch(0.30 0.09 20);
-    --chart-4: oklch(0.25 0.06 20);
-    --chart-5: oklch(0.20 0.03 20);
-    --sidebar: oklch(0.12 0.02 20);
-    --sidebar-foreground: oklch(0.95 0.01 20);
-    --sidebar-primary: oklch(0.40 0.15 25);
-    --sidebar-primary-foreground: oklch(0.98 0 0);
-    --sidebar-accent: oklch(0.20 0.03 20);
-    --sidebar-accent-foreground: oklch(0.95 0.01 20);
-    --sidebar-border: oklch(0.25 0.05 20);
-    --sidebar-ring: oklch(0.40 0.15 25);
+    --background: #080202;
+    --foreground: #F5ECEC;
+    --card: #0C0404;
+    --card-foreground: #F5ECEC;
+    --popover: #0C0404;
+    --popover-foreground: #F5ECEC;
+    --navbar: #0C0404;
+    --navbar-foreground: #F5ECEC;
+    --primary: #861118;
+    --primary-foreground: #F8F8F8;
+    --secondary: #221010;
+    --secondary-foreground: #F5ECEC;
+    --muted: #221010;
+    --muted-foreground: #AC8383;
+    --accent: #221010;
+    --accent-foreground: #F5ECEC;
+    --destructive: #E7000B;
+    --border: #361717;
+    --input: #361717;
+    --ring: #861118;
+    --chart-1: #861118;
+    --chart-2: #6B141F;
+    --chart-3: #52151A;
+    --chart-4: #391415;
+    --chart-5: #221010;
+    --sidebar: #0C0404;
+    --sidebar-foreground: #F5ECEC;
+    --sidebar-primary: #861118;
+    --sidebar-primary-foreground: #F8F8F8;
+    --sidebar-accent: #221010;
+    --sidebar-accent-foreground: #F5ECEC;
+    --sidebar-border: #361717;
+    --sidebar-ring: #861118;
 }
 
 @layer base {
