@@ -101,7 +101,37 @@ export const POST: APIRoute = async (ctx) => {
         }
     }
 
-    // ── B. Scoped bulk purge by R2 cachedAt timestamp ────────────────────────
+    // ── B. Purge all cached /search/* keys (one-time cleanup) ────────────────
+    if (action === 'purge_search') {
+        try {
+            const listed = await env.RENDER_CACHE.list({ prefix: 'rendered/search' });
+            const keys: string[] = listed.objects.map((o: any) => o.key);
+
+            if (keys.length === 0) {
+                return new Response(JSON.stringify({ success: true, deleted: 0, message: 'No search keys found in R2.' }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' },
+                });
+            }
+
+            // Delete from R2
+            await Promise.all(keys.map((k: string) => env.RENDER_CACHE.delete(k)));
+
+            // Purge CF edge for each URL
+            const pathnames = keys.map((k: string) => k.replace(/^rendered/, '').replace(/\.html$/, ''));
+            const urls = pathnames.map((p: string) => `${PRODUCTION_ORIGIN}${p}`);
+            await purgeEdgeUrls(env, urls);
+
+            return new Response(JSON.stringify({ success: true, deleted: keys.length, paths: pathnames }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        } catch (e: any) {
+            return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        }
+    }
+
+    // ── C. Scoped bulk purge by R2 cachedAt timestamp ────────────────────────
     if (action === 'purge_scoped') {
         const { window: windowStr } = body; // '1h' | '24h' | '7d' | '30d' | 'all'
         const windowMs: Record<string, number> = {
