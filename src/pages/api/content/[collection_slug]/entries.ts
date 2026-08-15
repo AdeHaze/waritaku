@@ -75,7 +75,7 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
         .from(entries)
         .leftJoin(users, eq(entries.authorId, users.id))
         .where(conditions)
-        .orderBy(desc(entries.createdAt))
+        .orderBy(desc(entries.id))
         .limit(limit)
         .offset((page - 1) * limit);
 

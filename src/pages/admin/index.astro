@@ -56,20 +56,8 @@ if (env && (env as any).DB) {
   totalWriters = usersCount?.count || 0;
 
   if (articlesCollection.length > 0) {
-      recentArticles = await db.select({
-          id: entries.id,
-          title: entries.slug, // Fallback to slug if title isn't easily extracted from JSON data without SQLite JSON functions
-          slug: entries.slug,
-          status: entries.status,
-          publishedAt: entries.publishedAt,
-          createdAt: entries.createdAt
-      }).from(entries)
-      .where(eq(entries.collectionId, articlesCollection[0].id))
-      .orderBy(desc(entries.createdAt))
-      .limit(5);
-      
       // Attempt to parse JSON data for better titles
-      const fullEntries = await db.select().from(entries).where(eq(entries.collectionId, articlesCollection[0].id)).orderBy(desc(entries.createdAt)).limit(5);
+      const fullEntries = await db.select().from(entries).where(eq(entries.collectionId, articlesCollection[0].id)).orderBy(desc(entries.id)).limit(5);
       recentArticles = fullEntries.map(e => {
           let title = e.slug;
           try {

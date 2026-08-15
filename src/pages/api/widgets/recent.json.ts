@@ -3,7 +3,7 @@ import { getDb } from '../../../lib/db';
 import { entries, collections, taxonomies, terms, entryTerms } from '../../../db/schema';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
-import { getCanonicalUrl } from '../../../lib/queries';
+import { getCanonicalUrls } from '../../../lib/queries';
 
 export const GET: APIRoute = async ({ request }) => {
     const db = getDb(env as any);
@@ -59,6 +59,9 @@ export const GET: APIRoute = async ({ request }) => {
             }
         }
 
+        // Batch-fetch canonical URLs
+        const canonicalUrlMap = await getCanonicalUrls(db, entryIds);
+
         // Format the output specifically for the client-side widget
         const formattedArticles = await Promise.all(result.map(async (r: any) => {
             const data = JSON.parse(r.entry.data || '{}');
@@ -66,9 +69,8 @@ export const GET: APIRoute = async ({ request }) => {
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 80 ? textOnly.substring(0, 80) + '...' : textOnly;
             
-            // Note: getCanonicalUrl is theoretically expensive if run in loop without caching, 
-            // but this endpoint is Edge Cached so it only runs once per hour.
-            const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
+            const prefixSlug = canonicalUrlMap[r.entry.id];
+            const canonicalUrl = prefixSlug ? `${prefixSlug}/${r.entry.slug}` : r.entry.slug;
             
             let categoryName = '';
             const cats = categoryMap[r.entry.id] || [];
