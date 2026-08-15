@@ -78,10 +78,9 @@ if (env && (env as any).DB) {
         filterTermId?: string | number,
         limit?: number, 
         offset?: number, 
-        isRandom?: boolean, 
         tagSlug?: string 
     } = {}) => {
-        const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, isRandom = false, tagSlug } = options;
+        const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, tagSlug } = options;
         if (!articlesColId) return [];
         
         let query = db.select({
@@ -127,11 +126,7 @@ if (env && (env as any).DB) {
 
         query = query.where(conditions) as any;
 
-        if (isRandom) {
-            query = query.orderBy(sql`RANDOM()`) as any;
-        } else {
-            query = query.orderBy(desc(entries.publishedAt)) as any;
-        }
+        query = query.orderBy(desc(entries.publishedAt)) as any;
 
         const result = await query.limit(limit).offset(offset);
         
@@ -239,8 +234,6 @@ if (env && (env as any).DB) {
                 limit: block.limit || 11, 
                 tagSlug: block.tagSlug 
             });
-        } else if (block.type === 'article_grid') {
-            blockData[block.id] = await fetchArticles({ limit: block.limit || 12, isRandom: true });
         } else if (block.type === 'categories_grid') {
             const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
             if (catTax.length > 0) {
