@@ -119,6 +119,8 @@ export const taxonomies = sqliteTable('taxonomies', {
   umbrellaItemsPerPage: integer('umbrella_items_per_page').notNull().default(0), // 0 = fetch all, > 0 = pagination limit
   umbrellaAllowIndexing: integer('umbrella_allow_indexing', { mode: 'boolean' }).notNull().default(true), // SEO robots indexing for umbrella page
   authorId: integer('author_id').references(() => users.id, { onDelete: 'set null' }), // NULL = system-owned
+  allowInlineCreation: integer('allow_inline_creation', { mode: 'boolean' }).notNull().default(false), // Toggle for inline term creation
+  inlineSearchHint: text('inline_search_hint'), // Custom text to display below the search bar
 });
 
 export const terms = sqliteTable('terms', {
