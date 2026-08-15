@@ -93,18 +93,14 @@ if (currentMainColumnGroup.length > 0) {
                     ) : block.type === 'article_grid' ? (
                         <div class="border-t-4 border-primary pt-12">
                             <h2 class="text-2xl font-extrabold uppercase tracking-tight mb-8 text-center text-foreground">{block.title || 'Mungkin Anda Suka'}</h2>
-                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                                {(blockData[block.id] || []).map((article: any) => (
-                                    <a href={article.canonicalUrl || `/${article.slug}`} class="group flex flex-col gap-2">
-                                        <div class="relative aspect-[4/3] rounded-xl overflow-hidden">
-                                            <img src={article.featuredImageUrl || getThumbnail(article.content)} alt={article.title} class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                                        </div>
-                                        <span class="text-primary text-[10px] font-black uppercase tracking-wider mt-2">{article.categoryName}</span>
-                                        <h3 class="text-sm md:text-base font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2">
-                                            {article.title}
-                                        </h3>
-                                    </a>
-                                ))}
+                            <div 
+                                class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 article-grid-container min-h-[300px]"
+                                data-tax={block.taxonomySlug || 'all'}
+                                data-terms={block.termIds || 'all'}
+                                data-limit={block.limit || 12}
+                                data-randomize={!!block.randomize}
+                            >
+                                {/* Client-Side Shuffle will inject articles here */}
                             </div>
                         </div>
                     ) : null}
@@ -113,3 +109,76 @@ if (currentMainColumnGroup.length > 0) {
         }
     })}
 </div>
+
+<script>
+    function decodeHtml(text) {
+        if (!text) return '';
+        const textArea = document.createElement('textarea');
+        textArea.innerHTML = text;
+        return textArea.value;
+    }
+
+    function extractThumb(content) {
+        if (!content) return '/placeholder.jpg';
+        const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+        return match ? match[1] : '/placeholder.jpg';
+    }
+
+    async function loadArticleGrid(container) {
+        const tax = container.getAttribute('data-tax');
+        const terms = container.getAttribute('data-terms');
+        const limit = parseInt(container.getAttribute('data-limit'), 10);
+        const randomize = container.getAttribute('data-randomize') === 'true';
+
+        try {
+            const res = await fetch(`/api/widgets/recent.json?tax=${tax}&terms=${terms}&limit=50`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            let articles = await res.json();
+
+            if (randomize) {
+                for (let i = articles.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [articles[i], articles[j]] = [articles[j], articles[i]];
+                }
+            }
+
+            articles = articles.slice(0, limit);
+
+            if (articles.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-sm text-muted-foreground text-center py-8">No articles found.</div>';
+                container.classList.remove('min-h-[300px]');
+                return;
+            }
+
+            let html = '';
+            articles.forEach(article => {
+                const imgUrl = article.featuredImageUrl || extractThumb(article.content);
+                const title = decodeHtml(article.title);
+
+                html += `
+                    <a href="${article.canonicalUrl}" class="group flex flex-col gap-2">
+                        <div class="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted">
+                            <img src="${imgUrl}" alt="Thumbnail" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                        </div>
+                        <span class="text-primary text-[10px] font-black uppercase tracking-wider mt-2">${article.categoryName || ''}</span>
+                        <h3 class="text-sm md:text-base font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                            ${title}
+                        </h3>
+                    </a>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.classList.remove('min-h-[300px]');
+        } catch (e) {
+            console.error('Error loading article grid:', e);
+            container.innerHTML = '<div class="col-span-full text-sm text-destructive text-center py-8">Error loading articles.</div>';
+            container.classList.remove('min-h-[300px]');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const containers = document.querySelectorAll('.article-grid-container');
+        containers.forEach(container => loadArticleGrid(container));
+    });
+</script>
