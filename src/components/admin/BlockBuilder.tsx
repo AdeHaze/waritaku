@@ -257,7 +257,7 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
                 </div>
               )}
 
-              {['hero', 'hero_2', 'hero_3', 'categories_grid', 'article_grid'].includes(block.type) && (
+              {['hero', 'hero_2', 'hero_3', 'categories_grid'].includes(block.type) && (
                 <div>
                   <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Items Limit</label>
                   <input 
@@ -267,6 +267,63 @@ export default function BlockBuilder({ blocks = [], setBlocks }: any) {
                     onChange={(e) => updateBlock(index, { limit: parseInt(e.target.value) || 12 })}
                     className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                   />
+                </div>
+              )}
+
+              {block.type === 'article_grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/10 p-4 border border-border rounded-xl">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Filter By Taxonomy</label>
+                    <select 
+                      value={block.taxonomySlug || 'all'} 
+                      onChange={(e) => updateBlock(index, { taxonomySlug: e.target.value, termIds: 'all' })}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="all">All Taxonomies</option>
+                      {taxonomies.map((tax: any) => (
+                        <option key={tax.slug} value={tax.slug}>{tax.label || tax.slug}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {block.taxonomySlug && block.taxonomySlug !== 'all' && (
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Filter By Terms</label>
+                      <select 
+                        value={block.termIds || 'all'} 
+                        onChange={(e) => updateBlock(index, { termIds: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="all">All Terms</option>
+                        {terms.filter((t: any) => t.taxonomyId.toString() === (taxonomies.find((x:any) => x.slug === block.taxonomySlug)?.id || '').toString()).map((c: any) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Items Limit</label>
+                    <input 
+                      type="number" 
+                      min="1" max="50"
+                      value={block.limit} 
+                      onChange={(e) => updateBlock(index, { limit: parseInt(e.target.value) || 12 })}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  
+                  <div className="md:col-span-2 pt-2 border-t border-border">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={!!block.randomize}
+                        onChange={(e) => updateBlock(index, { randomize: e.target.checked })}
+                        className="w-4 h-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                      />
+                      <span className="text-sm font-semibold">Client-Side Shuffle (Randomize Articles on Load)</span>
+                    </label>
+                  </div>
                 </div>
               )}
 
