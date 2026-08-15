@@ -1,104 +1,114 @@
 ---
-// Recent posts widget — latest articles with thumbnail, category badge, and excerpt.
-// Self-contained: loads its own article list from D1.
-import { entries, collections, terms, entryTerms, taxonomies } from '../../../db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
-import { env } from 'cloudflare:workers';
-import { getDb } from '../../../lib/db';
-import { getCanonicalUrl } from '../../../lib/queries';
-import { getThumbnail } from '../../../lib/utils';
-
+// Recent posts widget — latest articles via Edge-Cached JSON and Client-Side Shuffle
 interface Props {
     widget: any;
 }
 const { widget } = Astro.props;
 
-let articleList: any[] = [];
-
-if (env && (env as any).DB) {
-    const db = getDb(env as any);
-    const articlesCol = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
-    if (articlesCol.length > 0) {
-        let query: any = db.select({ entry: entries }).from(entries);
-        let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCol[0].id));
-        if (widget.categoryId && widget.categoryId !== 'all') {
-            query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
-            conditions = and(conditions, eq(entryTerms.termId, parseInt(widget.categoryId)));
-        }
-        
-        query = query.where(conditions) as any;
-        let result: any[];
-        if (widget.randomize) {
-            result = await query.groupBy(entries.id).orderBy(sql`RANDOM()`).limit(widget.limit || 5);
-        } else {
-            result = await query.groupBy(entries.id).orderBy(desc(entries.publishedAt)).limit(widget.limit || 5);
-        }
-        
-        // Batch-fetch the primary category term for all results
-        const entryIds = result.map((r: any) => r.entry.id);
-        let categoryMap: Record<number, any[]> = {};
-        if (entryIds.length > 0) {
-            // Find the 'categories' taxonomy id
-            const catTax = await db.select({ id: taxonomies.id })
-                .from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
-            if (catTax.length > 0) {
-                const catTermRows = await db.select({ entryId: entryTerms.entryId, id: terms.id, name: terms.name })
-                    .from(entryTerms)
-                    .innerJoin(terms, eq(entryTerms.termId, terms.id))
-                    .where(and(
-                        eq(terms.taxonomyId, catTax[0].id),
-                        sql`${entryTerms.entryId} IN (${sql.join(entryIds.map((id: number) => sql`${id}`), sql`, `)})`
-                    ));
-                for (const row of catTermRows) {
-                    if (!categoryMap[row.entryId]) categoryMap[row.entryId] = [];
-                    categoryMap[row.entryId].push(row);
-                }
-            }
-        }
-        articleList = await Promise.all(result.map(async (r: any) => {
-            const data = JSON.parse(r.entry.data || '{}');
-            const rawContent = data.content || '';
-            const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
-            const excerpt = textOnly.length > 80 ? textOnly.substring(0, 80) + '...' : textOnly;
-            const canonicalUrl = await getCanonicalUrl(db, r.entry.id, r.entry.slug);
-            
-            let categoryName = '';
-            const cats = categoryMap[r.entry.id] || [];
-            if (cats.length > 0) {
-                const primary = data.primaryTermId ? cats.find((c: any) => c.id === data.primaryTermId) : null;
-                categoryName = primary ? primary.name : cats[0].name;
-            }
-
-            return { id: r.entry.id, slug: r.entry.slug, canonicalUrl: `/${canonicalUrl}`, publishedAt: r.entry.publishedAt, ...data, categoryName, excerpt };
-        }));
-    }
-}
+const widgetId = `recent-widget-${Math.random().toString(36).substring(2, 9)}`;
+const taxSlug = widget.taxonomySlug || 'all';
+const termIds = widget.termIds || 'all';
+const limit = widget.limit || 5;
+const randomize = !!widget.randomize;
 ---
 
 <section class="bg-muted/30 rounded-2xl p-4 md:p-6 border border-border">
     <div class="flex items-center justify-between border-b-2 border-border pb-2 mb-6">
         <h2 class="text-xl font-extrabold uppercase tracking-tight border-l-4 border-primary pl-3">{widget.title || 'Terbaru'}</h2>
     </div>
-    <div class="flex flex-col gap-4">
-        {articleList.map((article: any, idx: number) => (
-            <div class={`flex flex-row gap-4 group ${idx !== articleList.length - 1 ? 'border-b border-border pb-4' : ''}`}>
-                <a href={article.canonicalUrl || `/${article.slug}`} class="block relative w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden flex-shrink-0">
-                    <img src={article.featuredImageUrl || getThumbnail(article.content)} alt={article.title} class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                </a>
-                <div class="flex-1 flex flex-col justify-center">
-                    <span class="text-primary text-[10px] font-black uppercase tracking-wider mb-1 block">{article.categoryName}</span>
-                    <h3 class="text-xs md:text-sm font-bold leading-snug mb-1 group-hover:text-primary transition-colors line-clamp-2 md:line-clamp-3">
-                        <a href={article.canonicalUrl || `/${article.slug}`}>{article.title}</a>
-                    </h3>
-                    <time class="text-[10px] text-muted-foreground font-semibold uppercase">{new Date(article.publishedAt).toLocaleDateString()}</time>
-                </div>
-            </div>
-        ))}
-        {articleList.length === 0 && (
-            <div class="text-sm text-muted-foreground text-center py-4">No articles found.</div>
-        )}
+    
+    <div 
+        id={widgetId} 
+        class="flex flex-col gap-4 recent-posts-container min-h-[200px]"
+        data-tax={taxSlug}
+        data-terms={termIds}
+        data-limit={limit}
+        data-randomize={randomize.toString()}
+    >
+        {/* Empty space that will push ads down once loaded */}
     </div>
+
     <a href="/articles" class="block w-full text-center text-sm font-bold text-muted-foreground hover:text-primary transition-colors bg-background border border-border mt-6 py-2 rounded-lg">
         Lihat Semua &raquo;
     </a>
 </section>
+
+<script>
+    function decodeHtmlEntities(text) {
+        if (!text) return '';
+        const textArea = document.createElement('textarea');
+        textArea.innerHTML = text;
+        return textArea.value;
+    }
+
+    function getThumbnail(content) {
+        if (!content) return '/placeholder.jpg';
+        const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+        return match ? match[1] : '/placeholder.jpg';
+    }
+
+    async function loadRecentWidget(container) {
+        const tax = container.getAttribute('data-tax');
+        const terms = container.getAttribute('data-terms');
+        const limit = parseInt(container.getAttribute('data-limit'), 10);
+        const randomize = container.getAttribute('data-randomize') === 'true';
+
+        try {
+            const res = await fetch(`/api/widgets/recent.json?tax=${tax}&terms=${terms}&limit=50`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            let articles = await res.json();
+
+            if (randomize) {
+                for (let i = articles.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [articles[i], articles[j]] = [articles[j], articles[i]];
+                }
+            }
+
+            articles = articles.slice(0, limit);
+
+            if (articles.length === 0) {
+                container.innerHTML = '<div class="text-sm text-muted-foreground text-center py-4">No articles found.</div>';
+                container.classList.remove('min-h-[200px]');
+                return;
+            }
+
+            let html = '';
+            articles.forEach((article, idx) => {
+                const dateStr = new Date(article.publishedAt).toLocaleDateString();
+                const isLast = idx === articles.length - 1;
+                const borderClass = isLast ? '' : 'border-b border-border pb-4';
+                const imgUrl = article.featuredImageUrl || getThumbnail(article.content);
+                const title = decodeHtmlEntities(article.title);
+
+                html += `
+                    <div class="flex flex-row gap-4 group ${borderClass}">
+                        <a href="${article.canonicalUrl}" class="block relative w-24 h-16 md:w-28 md:h-20 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
+                            <img src="${imgUrl}" alt="Thumbnail" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                        </a>
+                        <div class="flex-1 flex flex-col justify-center">
+                            <span class="text-primary text-[10px] font-black uppercase tracking-wider mb-1 block">${article.categoryName || ''}</span>
+                            <h3 class="text-xs md:text-sm font-bold leading-snug mb-1 group-hover:text-primary transition-colors line-clamp-2 md:line-clamp-3">
+                                <a href="${article.canonicalUrl}">${title}</a>
+                            </h3>
+                            <time class="text-[10px] text-muted-foreground font-semibold uppercase">${dateStr}</time>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.classList.remove('min-h-[200px]'); // Allow natural height
+        } catch (e) {
+            console.error('Error loading widget:', e);
+            container.innerHTML = '<div class="text-xs text-destructive text-center py-4">Error loading articles.</div>';
+            container.classList.remove('min-h-[200px]');
+        }
+    }
+
+    // Initialize all recent widgets on the page
+    document.addEventListener('DOMContentLoaded', () => {
+        const containers = document.querySelectorAll('.recent-posts-container');
+        containers.forEach(container => loadRecentWidget(container));
+    });
+</script>
