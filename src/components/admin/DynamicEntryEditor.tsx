@@ -297,6 +297,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                 {(() => {
                     let supportedTax = [];
                     try { if (supports) supportedTax = JSON.parse(supports).taxonomies || []; } catch(e) {}
+                    if (supportedTax.length === 0) supportedTax = taxonomies;
                     
                     const prefixedTaxonomies = taxonomyMeta.filter(t => t.prefixEntryUrl && supportedTax.includes(t.slug));
                     
@@ -484,6 +485,7 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                 {(() => {
                     let supportedTax = [];
                     try { if (supports) supportedTax = JSON.parse(supports).taxonomies || []; } catch(e) {}
+                    if (supportedTax.length === 0) supportedTax = taxonomies;
                     
                     let activePrimary = formData.primaryTaxonomyOverride;
                     if (!activePrimary) {
@@ -509,6 +511,8 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                                     onTermData={(terms) => setAllTermsData(prev => ({ ...prev, [taxSlug]: terms }))}
                                     primaryTermId={formData.primaryTermId}
                                     onSetPrimaryTerm={(id) => handleChange('primaryTermId', id)}
+                                    allowInlineCreation={meta?.allowInlineCreation}
+                                    inlineSearchHint={meta?.inlineSearchHint}
                                 />
                             </div>
                         );
