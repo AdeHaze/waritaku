@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../../lib/db';
 import { taxonomies, terms } from '../../../../db/schema';
-import { eq, desc, asc, like, and, or, sql } from 'drizzle-orm';
+import { eq, desc, asc, like, and, or, inArray, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../lib/slug';
 import { hasPermission } from '../../../../lib/permissions';
@@ -26,12 +26,28 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         const limit = Math.min(100, Math.max(10, parseInt(url.searchParams.get('limit') || '50')));
         const search = url.searchParams.get('search') || '';
         const sort = url.searchParams.get('sort') || 'id_desc'; // id_desc, name_asc, name_desc, slug_asc
-
-        let conditions: any = eq(terms.taxonomyId, taxRes[0].id);
         
+        const includeIdsParam = url.searchParams.get('include_ids');
+        const includeIds = includeIdsParam ? includeIdsParam.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [];
+
+        let baseConditions: any = eq(terms.taxonomyId, taxRes[0].id);
+        let conditions = baseConditions;
+
         if (search) {
             const searchPattern = `%${search}%`;
-            conditions = and(conditions, or(like(terms.name, searchPattern), like(terms.slug, searchPattern)));
+            let searchCondition = or(like(terms.name, searchPattern), like(terms.slug, searchPattern));
+            if (includeIds.length > 0) {
+                searchCondition = or(searchCondition, inArray(terms.id, includeIds));
+            }
+            conditions = and(baseConditions, searchCondition);
+        } else if (includeIds.length > 0) {
+            // When not searching but there are included IDs, we still want to make sure they are returned.
+            // A simple way is to just fetch the normal page. The client will handle keeping selected terms around.
+            // Or we could return them regardless of the pagination. Let's just rely on normal pagination if no search.
+            // Actually, if we're not searching, we should ensure the selected IDs are included in the results
+            // if they are not in the first 50. But for simplicity, we'll let the client handle merging previously loaded selected terms.
+            // The main issue is when we DO search, the selected terms might disappear from the list.
+            // So the condition above handles it for search.
         }
 
         // Count
@@ -46,12 +62,22 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         else if (sort === 'name_desc') orderFn = desc(terms.name);
         else if (sort === 'slug_asc') orderFn = asc(terms.slug);
 
-        const results = await db.select()
+        let results = await db.select()
             .from(terms)
             .where(conditions)
             .orderBy(orderFn)
             .limit(limit)
             .offset((page - 1) * limit);
+            
+        // If there's no search, but we have include_ids, make sure they are in the result set
+        if (!search && includeIds.length > 0 && page === 1) {
+            const missingIds = includeIds.filter(id => !results.find(r => r.id === id));
+            if (missingIds.length > 0) {
+                const missingTerms = await db.select().from(terms).where(and(baseConditions, inArray(terms.id, missingIds)));
+                // Prepend them to the results
+                results = [...missingTerms, ...results];
+            }
+        }
 
         return new Response(JSON.stringify({ data: results, total, page, limit }), {
             status: 200,
