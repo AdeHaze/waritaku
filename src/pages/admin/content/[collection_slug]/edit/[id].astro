@@ -29,6 +29,10 @@ if (entryRes.length === 0) {
     return Astro.redirect('/404');
 }
 
+if (!hasPermission(permissions, 'entries', 'edit_others') && entryRes[0].authorId !== user.id) {
+    return new Response("Forbidden: cannot edit others entries", { status: 403 });
+}
+
 // Fetch assigned terms grouped by taxonomy
 const termsRes = await db.select({
     termId: entryTerms.termId,
