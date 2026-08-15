@@ -111,7 +111,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
         const body = await request.json() as any;
         
         let initialSlug = body.slug || body.name;
-        const finalSlug = await generateUniqueSlug(db, initialSlug);
+        const finalSlug = await generateUniqueSlug(db, initialSlug, 'term', undefined, taxRes[0].omitTaxonomySlug === true || taxRes[0].omitTaxonomySlug === 1);
 
         const inserted = await db.insert(terms).values({
             taxonomyId: taxRes[0].id,

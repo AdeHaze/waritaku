@@ -51,7 +51,7 @@ export const PUT: APIRoute = async (ctx) => {
         const { slug, status, publishedAt, selectedTerms, authorId, ...customData } = body;
 
         let initialSlug = slug || entryRes[0].slug;
-        let finalSlug = await generateUniqueSlug(db, initialSlug, undefined, entryId);
+        let finalSlug = await generateUniqueSlug(db, initialSlug, 'entry', entryId);
 
         // Map password_protected status to published + visibility field
         let mappedStatus = status || entryRes[0].status;

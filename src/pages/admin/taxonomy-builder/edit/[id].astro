@@ -190,23 +190,26 @@ try {
                                         >)</span
                                     >
                                 </label>
-                                <label
-                                    class="flex items-center gap-2 cursor-pointer"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="omitTaxonomySlug"
-                                        value="true"
-                                        checked={taxonomy.omitTaxonomySlug}
-                                        class="text-primary focus:ring-primary/50"
-                                    />
-                                    <span class="text-sm font-medium"
-                                        >Short Format (e.g. <code
-                                            class="bg-muted px-1 rounded text-xs"
-                                            >/term-slug</code
-                                        >)</span
-                                    >
-                                </label>
+                                <div class="space-y-1">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="omitTaxonomySlug"
+                                            value="true"
+                                            checked={taxonomy.omitTaxonomySlug}
+                                            class="text-primary focus:ring-primary/50"
+                                        />
+                                        <span class="text-sm font-medium"
+                                            >Short Format (e.g. <code
+                                                class="bg-muted px-1 rounded text-xs"
+                                                >/term-slug</code
+                                            >)</span
+                                        >
+                                    </label>
+                                    <div class="text-xs text-amber-500 font-medium bg-amber-500/10 px-2 py-1.5 rounded inline-block ml-6">
+                                        Warning: This can cause slug collisions with entries. If a collision occurs, entries will take precedence, and term slugs will be appended with -2.
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </label>

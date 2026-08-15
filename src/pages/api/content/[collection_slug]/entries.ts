@@ -164,7 +164,7 @@ export const POST: APIRoute = async (ctx) => {
              const title = customData.title || customData.name || 'entry';
              initialSlug = title;
         }
-        const finalSlug = await generateUniqueSlug(db, initialSlug);
+        let finalSlug = await generateUniqueSlug(db, initialSlug, 'entry');
 
         // Insert Entry
         const inserted = await db.insert(entries).values({
