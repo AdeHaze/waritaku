@@ -47,6 +47,14 @@ import EntriesTable from '../../../../components/admin/EntriesTable';
             </form>
         </div>
 
-        <EntriesTable client:load collectionSlug={collection.slug} initialPage={page} initialSearch={search} />
+        <EntriesTable 
+            client:load 
+            collectionSlug={collection.slug} 
+            initialPage={page} 
+            initialSearch={search}
+            currentUserId={user.id}
+            canEditOthers={hasPermission(permissions, 'entries', 'edit_others')}
+            canDeleteOthers={hasPermission(permissions, 'entries', 'delete_others')}
+        />
     </div>
 </AdminLayout>
