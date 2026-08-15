@@ -3,7 +3,7 @@ import { getDb } from '../../../lib/db';
 import { taxonomies, collections } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
-import { hasAnyPermission } from '../../../lib/permissions';
+import { hasAnyPermission, hasPermission } from '../../../lib/permissions';
 
 export const PUT: APIRoute = async ({ params, request, locals }) => {
     const user = locals.user;
@@ -66,6 +66,8 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
             umbrellaViewMode: umbrellaViewMode,
             umbrellaAllowIndexing: umbrellaAllowIndexing,
             umbrellaItemsPerPage: umbrellaItemsPerPage,
+            allowInlineCreation: body.allowInlineCreation === true || body.allowInlineCreation === 'true',
+            inlineSearchHint: body.inlineSearchHint || null,
         }).where(eq(taxonomies.id, id)).returning();
 
         // Sync collections.supports.taxonomies
@@ -108,7 +110,8 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
             headers: { 'Content-Type': 'application/json' }
         });
     } catch (error: any) {
-        return new Response(JSON.stringify({ error: 'An internal error occurred' }), { status: 500 });
+        console.error("API Error updating taxonomy:", error);
+        return new Response(JSON.stringify({ error: error.message || 'An internal error occurred' }), { status: 500 });
     }
 };
 
