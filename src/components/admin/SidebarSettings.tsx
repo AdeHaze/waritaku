@@ -3,8 +3,9 @@ import { ArrowUp, ArrowDown, Plus, Trash2, Settings } from 'lucide-react';
 
 type Widget = { id: string; type: string; title: string; [key: string]: any };
 type Category = { id: number | string; name: string };
+type Taxonomy = { id: number; slug: string; name: string; terms: Category[] };
 
-export default function SidebarSettings({ initialWidgets, categories, inputName = "sidebarWidgets" }: { initialWidgets: Widget[], categories: Category[], inputName?: string }) {
+export default function SidebarSettings({ initialWidgets, taxonomies = [], inputName = "sidebarWidgets" }: { initialWidgets: Widget[], taxonomies?: Taxonomy[], inputName?: string }) {
   const [widgets, setWidgets] = useState(initialWidgets || []);
 
   const updateWidget = (index: number, updates: Partial<Widget>) => {
@@ -44,7 +45,7 @@ export default function SidebarSettings({ initialWidgets, categories, inputName 
     let newWidget: Widget = { id, type, title: 'New Widget' };
     
     if (type === 'recent') {
-      newWidget = { ...newWidget, title: 'Terbaru', limit: 5, criteria: 'latest', categoryId: 'all', visibility: 'all' };
+      newWidget = { ...newWidget, title: 'Terbaru', limit: 5, criteria: 'latest', taxonomySlug: 'all', termIds: 'all', visibility: 'all', randomize: false };
     } else if (type === 'social') {
       newWidget = { ...newWidget, title: 'Stay Connected', links: { facebook: '', twitter: '', youtube: '', instagram: '', pinterest: '' }, visibility: 'all' };
     } else if (type === 'html') {
@@ -130,18 +131,34 @@ export default function SidebarSettings({ initialWidgets, categories, inputName 
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Category Filter</label>
+                    <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Filter By Taxonomy</label>
                     <select 
-                      value={widget.categoryId || 'all'} 
-                      onChange={(e) => updateWidget(index, { categoryId: e.target.value })}
+                      value={widget.taxonomySlug || 'all'} 
+                      onChange={(e) => updateWidget(index, { taxonomySlug: e.target.value, termIds: 'all' })}
                       className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      <option value="all">All Categories</option>
-                      {categories.map((c: Category) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                      <option value="all">All Taxonomies</option>
+                      {taxonomies.map((tax: Taxonomy) => (
+                        <option key={tax.slug} value={tax.slug}>{tax.name}</option>
                       ))}
                     </select>
                   </div>
+                  
+                  {widget.taxonomySlug && widget.taxonomySlug !== 'all' && (
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold uppercase text-muted-foreground mb-1">Filter By Terms</label>
+                      <select 
+                        value={widget.termIds || 'all'} 
+                        onChange={(e) => updateWidget(index, { termIds: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="all">All Terms in {taxonomies.find(t => t.slug === widget.taxonomySlug)?.name || 'Taxonomy'}</option>
+                        {taxonomies.find(t => t.slug === widget.taxonomySlug)?.terms.map((c: Category) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input 
