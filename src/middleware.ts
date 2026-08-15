@@ -173,6 +173,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
             response.headers.set('X-Frame-Options', 'DENY');
         }
 
+        // --- Search pages must never be cached by Cloudflare edge ---
+        // Our R2 layer already skips /search (CACHE_BYPASS_PREFIXES), but CF
+        // edge cache sits in front of the Worker and caches based on
+        // Cache-Control headers. Setting no-store here prevents CF from ever
+        // serving a stale search result to another visitor.
+        if (url.pathname.startsWith('/search')) {
+            response.headers.set('Cache-Control', 'private, no-store');
+            response.headers.set('Vary', 'Accept');
+        }
         // --- R2 lazy cache population ---
         // On a cache MISS, if SSR returned a 200 HTML page for a public path,
         // write the rendered HTML to R2 in the background so the next request
