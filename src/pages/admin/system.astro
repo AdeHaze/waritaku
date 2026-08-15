@@ -409,7 +409,25 @@ if (Astro.request.method === 'POST') {
                         <div id="cache-scoped-result" class="text-xs font-medium mt-2 hidden"></div>
                     </div>
 
-                    {/* C — Purge All */}
+                    {/* C — Purge Stale Search Cache */}
+                    <div class="p-4 bg-muted/20 border border-border rounded-lg">
+                        <h4 class="font-bold text-sm mb-1">Purge Stale Search Cache</h4>
+                        <p class="text-xs text-muted-foreground mb-3">
+                            Search results should never be cached. This removes any <code class="font-mono">/search</code> keys
+                            left in R2 from before the fix, and purges them from Cloudflare edge cache.
+                            Safe to run at any time — only affects search keys.
+                        </p>
+                        <button
+                            id="cache-purge-search-btn"
+                            type="button"
+                            class="px-4 py-2 bg-sky-600 text-white font-semibold text-sm rounded-md hover:bg-sky-700 active:scale-95 transition-all shadow-sm disabled:opacity-60"
+                        >
+                            Purge Search Cache
+                        </button>
+                        <div id="cache-search-result" class="text-xs font-medium mt-2 hidden"></div>
+                    </div>
+
+                    {/* D — Purge All */}
                     <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-lg">
                         <h4 class="font-bold text-sm text-destructive mb-1">⚠ Purge All Rendered Cache</h4>
                         <p class="text-xs text-red-700 dark:text-red-400 mb-3">
@@ -606,7 +624,16 @@ if (Astro.request.method === 'POST') {
         });
       }
 
-      // C — Purge All
+      // C — Purge Stale Search Cache
+      const searchBtn = document.getElementById('cache-purge-search-btn') as HTMLButtonElement;
+      const searchRes = document.getElementById('cache-search-result') as HTMLElement;
+      if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+          cachePost({ action: 'purge_search' }, searchRes, searchBtn);
+        });
+      }
+
+      // D — Purge All
       const allBtn = document.getElementById('cache-purge-all-btn') as HTMLButtonElement;
       const allRes = document.getElementById('cache-all-result') as HTMLElement;
       if (allBtn) {
