@@ -58,7 +58,7 @@ const entry = {
 // Fetch allowed taxonomies for this collection
 const taxQuery = await db.select().from(taxonomies).where(like(taxonomies.allowedCollections, `%"${collection.slug}"%`));
 const allowedTaxonomies = taxQuery.map(t => t.slug);
-const taxonomyMeta = taxQuery.map(t => ({ slug: t.slug, label: t.label, prefixEntryUrl: t.prefixEntryUrl }));
+const taxonomyMeta = taxQuery.map(t => ({ slug: t.slug, label: t.label, prefixEntryUrl: t.prefixEntryUrl, allowInlineCreation: t.allowInlineCreation, inlineSearchHint: t.inlineSearchHint }));
 
 // Fetch all users for author selection
 const allUsersRes = await db.select({ id: users.id, name: users.name, role: users.role }).from(users);
