@@ -72,6 +72,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
             umbrellaViewMode: umbrellaViewMode,
             umbrellaAllowIndexing: umbrellaAllowIndexing,
             umbrellaItemsPerPage: umbrellaItemsPerPage,
+            allowInlineCreation: body.allowInlineCreation === true || body.allowInlineCreation === 'true',
+            inlineSearchHint: body.inlineSearchHint || null,
         }).returning();
 
         return new Response(JSON.stringify(newTaxonomy[0]), {
