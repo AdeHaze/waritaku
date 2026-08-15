@@ -204,12 +204,16 @@ if (!isHomepageFallback && env && env.DB && slug) {
                       }
                   }
 
+                  const hasJoin = activeFilters.length > 0 || hasLegacyFilter || hasTaxonomyFilter || hasTermFilter;
                   query = query.where(conditions) as any;
+                  if (hasJoin) {
+                      query = query.groupBy(entries.id) as any;
+                  }
 
                   if (isRandom) {
-                      query = query.groupBy(entries.id).orderBy(sql`RANDOM()`) as any;
+                      query = query.orderBy(sql`RANDOM()`) as any;
                   } else {
-                      query = query.groupBy(entries.id).orderBy(desc(entries.publishedAt)) as any;
+                      query = query.orderBy(desc(entries.id)) as any;
                   }
 
                   const result = await query.limit(limit).offset(offset);

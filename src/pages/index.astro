@@ -125,8 +125,12 @@ if (env && (env as any).DB) {
         }
 
         query = query.where(conditions) as any;
+        const hasJoin = hasLegacyFilter || hasTaxonomyFilter || hasTermFilter;
+        if (hasJoin) {
+            query = query.groupBy(entries.id) as any;
+        }
 
-        query = query.orderBy(desc(entries.publishedAt)) as any;
+        query = query.orderBy(desc(entries.id)) as any;
 
         const result = await query.limit(limit).offset(offset);
         

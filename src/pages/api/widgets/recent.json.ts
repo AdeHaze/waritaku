@@ -28,13 +28,19 @@ export const GET: APIRoute = async ({ request }) => {
         if (taxSlug !== 'all' && termsParam !== 'all') {
             const termIds = termsParam.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
             if (termIds.length > 0) {
+                // Use a subquery-like approach or distinct innerJoin. We'll use innerJoin and groupBy only when filtering.
                 query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
                 conditions = and(conditions, inArray(entryTerms.termId, termIds));
+                query = query.where(conditions).groupBy(entries.id);
+            } else {
+                query = query.where(conditions);
             }
+        } else {
+            query = query.where(conditions);
         }
 
-        query = query.where(conditions);
-        const result = await query.groupBy(entries.id).orderBy(desc(entries.publishedAt)).limit(limit);
+        // Order by primary key (id) descending for massive performance gains instead of publishedAt
+        const result = await query.orderBy(desc(entries.id)).limit(limit);
 
         // Batch-fetch the primary category term for all results (to show on the card badge)
         const entryIds = result.map((r: any) => r.entry.id);
