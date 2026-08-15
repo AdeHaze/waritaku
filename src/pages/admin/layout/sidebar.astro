@@ -75,12 +75,16 @@ if (Astro.request.method === 'POST') {
     }
 }
 
-let allCategories: any[] = [];
+let allTaxonomies: any[] = [];
 if (db) {
-    const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
-    if (catTax.length > 0) {
-        allCategories = await db.select().from(terms).where(eq(terms.taxonomyId, catTax[0].id));
-    }
+    const taxQuery = await db.select().from(taxonomies);
+    const termQuery = await db.select().from(terms);
+    allTaxonomies = taxQuery.map(tax => ({
+        id: tax.id,
+        slug: tax.slug,
+        name: tax.label,
+        terms: termQuery.filter(t => t.taxonomyId === tax.id).map(t => ({ id: t.id, name: t.name }))
+    }));
 }
 
 const defaultLeft: any[] = [];
@@ -204,7 +208,7 @@ const layoutConfigData = await getSetting('sidebar_layout_config', defaultConfig
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
                         Left Sidebar Widgets
                     </h3>
-                    <SidebarSettings client:load initialWidgets={leftWidgetsData} categories={allCategories} inputName="sidebarWidgetsLeft" />
+                    <SidebarSettings client:load initialWidgets={leftWidgetsData} taxonomies={allTaxonomies} inputName="sidebarWidgetsLeft" />
                 </div>
 
                 <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
@@ -212,7 +216,7 @@ const layoutConfigData = await getSetting('sidebar_layout_config', defaultConfig
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
                         Right Sidebar Widgets
                     </h3>
-                    <SidebarSettings client:load initialWidgets={rightWidgetsData} categories={allCategories} inputName="sidebarWidgetsRight" />
+                    <SidebarSettings client:load initialWidgets={rightWidgetsData} taxonomies={allTaxonomies} inputName="sidebarWidgetsRight" />
                 </div>
             </div>
 
