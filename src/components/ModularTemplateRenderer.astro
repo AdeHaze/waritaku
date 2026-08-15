@@ -237,6 +237,12 @@ const customFields = Object.keys(data).filter(k =>
         return textArea.value;
     }
 
+    function getThumbnail(content) {
+        if (!content) return null;
+        const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+        return match ? match[1] : null;
+    }
+
     async function loadRelatedItems(container) {
         const tax = container.getAttribute('data-tax');
         const terms = container.getAttribute('data-terms');
@@ -271,7 +277,7 @@ const customFields = Object.keys(data).filter(k =>
 
             let html = '';
             articles.forEach(item => {
-                const imgUrl = item.featuredImageUrl || `https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}`;
+                const imgUrl = item.featuredImageUrl || getThumbnail(item.content) || `https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}`;
                 const title = decodeHtmlRelated(item.title);
                 const excerpt = item.excerpt || '';
 
