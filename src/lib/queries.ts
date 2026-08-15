@@ -607,58 +607,8 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
             // Process Related Items if configured in layout blocks
             data.relatedItems = [];
-            const layoutBlocks = (collectionSupports as any).layoutBlocks || [];
-            const relatedBlock = layoutBlocks.find((b: any) => b.type === 'related_items');
-            
-            if (relatedBlock) {
-                const targetTaxSlug = relatedBlock.config?.targetTaxonomy || data.categorySlug;
-                let termIdsToMatch: number[] = [];
-                
-                if (targetTaxSlug && targetTaxSlug !== 'all' && data.taxonomyTerms && data.taxonomyTerms[targetTaxSlug]) {
-                    termIdsToMatch = data.taxonomyTerms[targetTaxSlug].map((t: any) => t.id);
-                } else if (!relatedBlock.config?.targetTaxonomy && cats.length > 0) {
-                    // Fallback to primary category if Dynamic and no generic match
-                    termIdsToMatch = [cats[0].term.id];
-                }
-                
-                if (termIdsToMatch.length > 0) {
-                    const relatedQuery = await db.select({
-                        id: entries.id,
-                        slug: entries.slug,
-                        data: entries.data,
-                        publishedAt: entries.publishedAt,
-                    })
-                    .from(entries)
-                    .where(
-                        and(
-                            ne(entries.id, entry.id),
-                            eq(entries.status, 'published'),
-                            exists(
-                                db.select({ id: sql`1` })
-                                .from(entryTerms)
-                                .where(and(
-                                    inArray(entryTerms.termId, termIdsToMatch),
-                                    eq(entryTerms.entryId, entries.id)
-                                ))
-                            )
-                        )
-                    )
-                    .limit(4)
-                    .orderBy(desc(entries.publishedAt));
-                    
-                    data.relatedItems = relatedQuery.map((rq: any) => {
-                        const rqData = safeJsonParse(rq.data, {}) as any;
-                        return {
-                            id: rq.id,
-                            slug: rq.slug,
-                            publishedAt: rq.publishedAt,
-                            title: rqData.title || '',
-                            excerpt: rqData.excerpt || '',
-                            featuredImageUrl: rqData.featuredImageUrl || ''
-                        };
-                    });
-                }
-            }
+            // Note: The actual database query for Related Items has been removed.
+            // It is now handled via Client-Side Edge-Cache Shuffle in ModularTemplateRenderer.astro.
 
             // Extract Article Custom HTML
             let articleBottomHtml = '';
