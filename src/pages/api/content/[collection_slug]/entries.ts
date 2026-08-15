@@ -35,11 +35,13 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
         
         if (search) {
             const searchPattern = `%${search}%`;
+            const searchSlugPattern = `%${search.trim().replace(/\s+/g, '-')}%`;
             conditions = and(
                 conditions,
                 or(
                     like(entries.data, searchPattern),
-                    like(entries.slug, searchPattern)
+                    like(entries.slug, searchPattern),
+                    like(entries.slug, searchSlugPattern)
                 )
             );
         }
