@@ -135,7 +135,7 @@ if (isConfigured && layoutBlocks.length > 0) {
         if (isRandom) {
             query = query.orderBy(sql`RANDOM()`) as any;
         } else {
-            query = query.orderBy(desc(entries.publishedAt)) as any;
+            query = query.orderBy(desc(entries.id)) as any;
         }
 
         const result = await query.limit(limit).offset(offset);
