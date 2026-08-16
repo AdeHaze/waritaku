@@ -93,7 +93,7 @@ if (env && (env as any).DB) {
                     eq(entries.status, 'published')
                 )
             )
-            .orderBy(desc(entries.publishedAt))
+            .orderBy(desc(entries.id))
             .limit(pageSize)
             .offset((currentPage - 1) * pageSize);
 
