@@ -9,25 +9,45 @@ function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
 // Batched version of getCanonicalUrl — single query for all entry IDs
 export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Record<number, string>> {
     if (!entryIds.length) return {};
-    const results = await db.select()
+    
+    // Split into two queries to avoid confusing the SQLite query planner and causing a full table scan
+    const termsResults = await db.select({
+        entryId: entryTerms.entryId,
+        termId: terms.id,
+        termSlug: terms.slug,
+        taxonomySlug: taxonomies.slug,
+        entryUrlFormat: taxonomies.entryUrlFormat,
+    })
     .from(entryTerms)
     .innerJoin(terms, eq(entryTerms.termId, terms.id))
     .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
-    .innerJoin(entries, eq(entries.id, entryTerms.entryId))
-    .innerJoin(collections, eq(entries.collectionId, collections.id))
     .where(inArray(entryTerms.entryId, entryIds));
+
+    const entriesResults = await db.select({
+        id: entries.id,
+        data: entries.data,
+        supports: collections.supports
+    })
+    .from(entries)
+    .innerJoin(collections, eq(entries.collectionId, collections.id))
+    .where(inArray(entries.id, entryIds));
+
+    const entryDataMap: Record<number, any> = {};
+    for (const r of entriesResults) {
+        entryDataMap[r.id] = { data: r.data, supports: r.supports };
+    }
     
     // Group by entryId
     const byEntry: Record<number, any[]> = {};
-    for (const r of results) {
+    for (const r of termsResults) {
         const mapped = {
-            entryId: r.entry_terms.entryId,
-            termId: r.terms.id,
-            termSlug: r.terms.slug,
-            taxonomySlug: r.taxonomies.slug,
-            entryUrlFormat: r.taxonomies.entryUrlFormat,
-            supports: r.collections.supports,
-            entryData: r.entries.data
+            entryId: r.entryId,
+            termId: r.termId,
+            termSlug: r.termSlug,
+            taxonomySlug: r.taxonomySlug,
+            entryUrlFormat: r.entryUrlFormat,
+            supports: entryDataMap[r.entryId]?.supports || '{}',
+            entryData: entryDataMap[r.entryId]?.data || '{}'
         };
         if (mapped.entryUrlFormat === 'none') continue; // Manual filter to bypass Drizzle Cloudflare bug
         if (!byEntry[mapped.entryId]) byEntry[mapped.entryId] = [];
@@ -77,22 +97,38 @@ export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Rec
 }
 
 export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: string) => {
-    const results = await db.select()
-        .from(entryTerms)
-        .innerJoin(terms, eq(entryTerms.termId, terms.id))
-        .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
-        .innerJoin(entries, eq(entries.id, entryTerms.entryId))
-        .innerJoin(collections, eq(entries.collectionId, collections.id))
-        .where(eq(entryTerms.entryId, entryId));
+    // Split into two queries to avoid full table scan
+    const termsResults = await db.select({
+        termId: terms.id,
+        termSlug: terms.slug,
+        taxonomySlug: taxonomies.slug,
+        entryUrlFormat: taxonomies.entryUrlFormat,
+    })
+    .from(entryTerms)
+    .innerJoin(terms, eq(entryTerms.termId, terms.id))
+    .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
+    .where(eq(entryTerms.entryId, entryId));
     
-    if (results.length > 0) {
-        const prefixRes = results.map((r: any) => ({
-            termId: r.terms.id,
-            termSlug: r.terms.slug,
-            taxonomySlug: r.taxonomies.slug,
-            entryUrlFormat: r.taxonomies.entryUrlFormat,
-            supports: r.collections.supports,
-            entryData: r.entries.data
+    if (termsResults.length > 0) {
+        const entriesResults = await db.select({
+            data: entries.data,
+            supports: collections.supports
+        })
+        .from(entries)
+        .innerJoin(collections, eq(entries.collectionId, collections.id))
+        .where(eq(entries.id, entryId))
+        .limit(1);
+
+        const entryData = entriesResults[0]?.data || '{}';
+        const supports = entriesResults[0]?.supports || '{}';
+
+        const prefixRes = termsResults.map((r: any) => ({
+            termId: r.termId,
+            termSlug: r.termSlug,
+            taxonomySlug: r.taxonomySlug,
+            entryUrlFormat: r.entryUrlFormat,
+            supports: supports,
+            entryData: entryData
         })).filter((r: any) => r.entryUrlFormat !== 'none');
 
         if (prefixRes.length === 0) return entrySlug;
