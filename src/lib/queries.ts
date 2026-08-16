@@ -219,7 +219,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 lte(entries.publishedAt, utcEnd)
             )
         )
-        .orderBy(desc(entries.publishedAt))
+        .orderBy(desc(entries.id))
         .limit(pageSize)
         .offset((currentPage - 1) * pageSize);
 
@@ -287,7 +287,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 eq(entries.status, 'published')
             )
         )
-        .orderBy(desc(entries.publishedAt))
+        .orderBy(desc(entries.id))
         .limit(pageSize)
         .offset((currentPage - 1) * pageSize);
 
@@ -395,7 +395,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                     ))
                 )
             ))
-            .orderBy(desc(entries.publishedAt))
+            .orderBy(desc(entries.id))
             .limit(pageSize)
             .offset((currentPage - 1) * pageSize);
 
@@ -738,7 +738,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         }
 
         const articlesResult = await articlesQuery
-            .orderBy(desc(entries.publishedAt))
+            .orderBy(desc(entries.id))
             .limit(pageSize)
             .offset((currentPage - 1) * pageSize);
 
