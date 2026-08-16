@@ -48,9 +48,9 @@ export const GET: APIRoute = async ({ params, request }) => {
     const entryIds = pageEntries.map(e => e.id);
     let canonicalMap: Record<number, string> = {};
     
-    // Chunk the canonical URL lookup to respect SQLite param binding limits (chunk by 250 to be extremely safe)
-    for (let i = 0; i < entryIds.length; i += 250) {
-        const chunk = entryIds.slice(i, i + 250);
+    // Chunk the canonical URL lookup to respect SQLite param binding limits (chunk by 50 to be safe)
+    for (let i = 0; i < entryIds.length; i += 50) {
+        const chunk = entryIds.slice(i, i + 50);
         if (chunk.length > 0) {
             const part = await getCanonicalUrls(db, chunk);
             canonicalMap = { ...canonicalMap, ...part };
