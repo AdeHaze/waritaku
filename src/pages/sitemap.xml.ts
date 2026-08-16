@@ -39,13 +39,13 @@ export const GET: APIRoute = async ({ request }) => {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-    // 2. Terms Sitemap (Categories and Tags)
-    xml += `  <sitemap>\n    <loc>${siteUrl}/sitemap-terms.xml</loc>\n  </sitemap>\n`;
-
-    // 3. Entries Sitemaps (Chunked by 1000)
+    // 1. Entries Sitemaps (Chunked by 1000)
     for (let p = 1; p <= totalEntryPages; p++) {
         xml += `  <sitemap>\n    <loc>${siteUrl}/sitemap-entries-${p}.xml</loc>\n  </sitemap>\n`;
     }
+
+    // 2. Terms Sitemap (Categories and Tags)
+    xml += `  <sitemap>\n    <loc>${siteUrl}/sitemap-terms.xml</loc>\n  </sitemap>\n`;
 
     xml += `</sitemapindex>`;
 
