@@ -36,7 +36,7 @@ export const GET: APIRoute = async ({ request }) => {
             publishedAt: entries.publishedAt,
         }).from(entries)
           .where(eq(entries.collectionId, articlesCol[0].id))
-          .orderBy(desc(entries.publishedAt))
+          .orderBy(desc(entries.id))
           .limit(50);
     }
 
