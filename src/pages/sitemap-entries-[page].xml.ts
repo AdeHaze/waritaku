@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { entries, settings } from '../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { entries, collections, settings } from '../db/schema';
+import { eq, desc, and, inArray, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
 import { getCanonicalUrls } from '../lib/queries';
@@ -15,11 +15,14 @@ export const GET: APIRoute = async ({ params, request }) => {
     const db = getDb(env);
 
     let siteUrl = new URL(request.url).origin;
+    let sitemapCollections: string[] | null = null;
+    
     const settingsRec = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
     if (settingsRec.length > 0) {
         try {
             const parsed = JSON.parse(settingsRec[0].value);
             if (parsed.siteUrl) siteUrl = parsed.siteUrl;
+            if (parsed.sitemapCollections !== undefined) sitemapCollections = parsed.sitemapCollections;
         } catch(e) {}
     }
 
@@ -27,14 +30,25 @@ export const GET: APIRoute = async ({ params, request }) => {
     const CHUNK_SIZE = 1000;
     
     // Fetch chunk of published entries
-    const pageEntries = await db.select({ 
+    let pageQuery = db.select({ 
         id: entries.id, 
         slug: entries.slug, 
         updatedAt: entries.updatedAt, 
         publishedAt: entries.publishedAt 
     })
     .from(entries)
-    .where(eq(entries.status, 'published'))
+    .leftJoin(collections, eq(entries.collectionId, collections.id))
+    .where(eq(entries.status, 'published'));
+
+    if (sitemapCollections !== null) {
+        if (sitemapCollections.length === 0) {
+            pageQuery = pageQuery.where(sql`1=0`) as any; // Empty
+        } else {
+            pageQuery = pageQuery.where(and(eq(entries.status, 'published'), inArray(collections.slug, sitemapCollections))) as any;
+        }
+    }
+
+    const pageEntries = await pageQuery
     .orderBy(desc(entries.id))
     .limit(CHUNK_SIZE)
     .offset((page - 1) * CHUNK_SIZE);

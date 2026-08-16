@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { terms, taxonomies, settings } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, inArray, and, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
 
@@ -14,15 +14,18 @@ export const GET: APIRoute = async ({ request }) => {
     const db = getDb(env);
 
     let siteUrl = new URL(request.url).origin;
+    let sitemapTaxonomies: string[] | null = null;
+    
     const settingsRec = await db.select().from(settings).where(eq(settings.key, 'general_settings'));
     if (settingsRec.length > 0) {
         try {
             const parsed = JSON.parse(settingsRec[0].value);
             if (parsed.siteUrl) siteUrl = parsed.siteUrl;
+            if (parsed.sitemapTaxonomies !== undefined) sitemapTaxonomies = parsed.sitemapTaxonomies;
         } catch(e) {}
     }
 
-    const allTerms = await db.select({
+    let termsQuery = db.select({
         slug: terms.slug,
         taxonomySlug: taxonomies.slug,
         omitTaxonomySlug: taxonomies.omitTaxonomySlug
@@ -30,6 +33,16 @@ export const GET: APIRoute = async ({ request }) => {
     .from(terms)
     .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
     .where(eq(taxonomies.isRouted, true));
+
+    if (sitemapTaxonomies !== null) {
+        if (sitemapTaxonomies.length === 0) {
+            termsQuery = termsQuery.where(sql`1=0`) as any;
+        } else {
+            termsQuery = termsQuery.where(and(eq(taxonomies.isRouted, true), inArray(taxonomies.slug, sitemapTaxonomies))) as any;
+        }
+    }
+
+    const allTerms = await termsQuery;
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;

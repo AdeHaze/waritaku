@@ -1,6 +1,6 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { settings, collections, entries } from '../../db/schema';
+import { settings, collections, entries, taxonomies } from '../../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
@@ -42,7 +42,9 @@ let generalConfig = {
     enableRedirections: true,
     enable404Tracking: true,
     page404Id: '',
-    dateArchiveMode: 'date' // 'date' | 'month' | 'year' | 'off'
+    dateArchiveMode: 'date', // 'date' | 'month' | 'year' | 'off'
+    sitemapCollections: [] as string[],
+    sitemapTaxonomies: [] as string[]
 };
 
 let pageOptions: { id: number, title: string }[] = [];
@@ -56,6 +58,15 @@ if (db) {
             return { id: p.id, title: t };
         });
     }
+}
+
+let collectionsList: { slug: string, label: string }[] = [];
+let taxonomiesList: { slug: string, label: string }[] = [];
+if (db) {
+    const cols = await db.select({ slug: collections.slug, label: collections.label }).from(collections);
+    collectionsList = cols;
+    const taxs = await db.select({ slug: taxonomies.slug, label: taxonomies.label }).from(taxonomies);
+    taxonomiesList = taxs;
 }
 
 if (Astro.request.method === 'POST') {
@@ -79,7 +90,9 @@ if (Astro.request.method === 'POST') {
             enableRedirections: formData.get('enableRedirections') === 'on',
             enable404Tracking: formData.get('enable404Tracking') === 'on',
             page404Id: formData.get('page404Id') as string || '',
-            dateArchiveMode: formData.get('dateArchiveMode') as string || 'date'
+            dateArchiveMode: formData.get('dateArchiveMode') as string || 'date',
+            sitemapCollections: formData.getAll('sitemapCollections') as string[],
+            sitemapTaxonomies: formData.getAll('sitemapTaxonomies') as string[]
         };
 
         if (db) {
@@ -248,6 +261,37 @@ if (Astro.request.method === 'POST') {
                             <option value="off" selected={generalConfig.dateArchiveMode === 'off'}>Off — Disable all date archives</option>
                         </select>
                         <p class="text-[11px] text-muted-foreground mt-2">When Off, date archive URLs return 404 and the calendar widget is hidden.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-card border border-border rounded-xl p-6 shadow-sm">
+                <div class="mb-6 pb-4 border-b border-border">
+                    <h3 class="text-lg font-bold">XML Sitemap Config</h3>
+                    <p class="text-sm text-muted-foreground mt-1">Control which Collections and Taxonomies are included in your generated sitemaps.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                    <div>
+                        <label class="block text-sm font-semibold mb-3">Include Collections (Entries)</label>
+                        <div class="space-y-3">
+                            {collectionsList.map(c => (
+                                <label class="flex items-center space-x-3 cursor-pointer group">
+                                    <input type="checkbox" name="sitemapCollections" value={c.slug} checked={generalConfig.sitemapCollections === undefined || generalConfig.sitemapCollections.length === 0 ? true : generalConfig.sitemapCollections.includes(c.slug)} class="h-4 w-4 rounded border-input text-primary focus:ring-primary/50" />
+                                    <span class="text-sm group-hover:text-primary transition-colors">{c.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-3">Include Taxonomies (Terms)</label>
+                        <div class="space-y-3">
+                            {taxonomiesList.map(t => (
+                                <label class="flex items-center space-x-3 cursor-pointer group">
+                                    <input type="checkbox" name="sitemapTaxonomies" value={t.slug} checked={generalConfig.sitemapTaxonomies === undefined || generalConfig.sitemapTaxonomies.length === 0 ? true : generalConfig.sitemapTaxonomies.includes(t.slug)} class="h-4 w-4 rounded border-input text-primary focus:ring-primary/50" />
+                                    <span class="text-sm group-hover:text-primary transition-colors">{t.label}</span>
+                                </label>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
