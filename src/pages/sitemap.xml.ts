@@ -26,58 +26,28 @@ export const GET: APIRoute = async ({ request }) => {
         } catch(e) {}
     }
 
-    const [publishedEntries, allTerms] = await Promise.all([
-        db.select({ 
-            id: entries.id, 
-            slug: entries.slug, 
-            updatedAt: entries.updatedAt, 
-            publishedAt: entries.publishedAt 
-        }).from(entries).where(eq(entries.status, 'published')),
+    // 1. Count Total Published Entries
+    const { sql } = await import('drizzle-orm');
+    const countRes = await db.select({ count: sql<number>`count(*)` })
+        .from(entries)
+        .where(eq(entries.status, 'published'));
         
-        db.select({ slug: terms.slug }).from(terms),
-    ]);
+    const totalEntries = countRes[0]?.count || 0;
+    const CHUNK_SIZE = 1000;
+    const totalEntryPages = Math.max(1, Math.ceil(totalEntries / CHUNK_SIZE));
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    xml += `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-    // 1. Homepage
-    xml += `  <url>\n    <loc>${siteUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+    // 2. Terms Sitemap (Categories and Tags)
+    xml += `  <sitemap>\n    <loc>${siteUrl}/sitemap-terms.xml</loc>\n  </sitemap>\n`;
 
-    // 2. Entries (Articles, Pages, etc) — batch-fetch canonical URLs.
-    // Chunk the lookup — D1 caps bind parameters at ~100 per query, and the
-    // site has thousands of entries.
-    const entryIds = publishedEntries.map((e: any) => e.id);
-    let canonicalMap: Record<number, string> = {};
-    for (let i = 0; i < entryIds.length; i += 50) {
-        const chunk = entryIds.slice(i, i + 50);
-        const part = chunk.length > 0 ? await getCanonicalUrls(db, chunk) : {};
-        canonicalMap = { ...canonicalMap, ...part };
+    // 3. Entries Sitemaps (Chunked by 1000)
+    for (let p = 1; p <= totalEntryPages; p++) {
+        xml += `  <sitemap>\n    <loc>${siteUrl}/sitemap-entries-${p}.xml</loc>\n  </sitemap>\n`;
     }
 
-    for (const entry of publishedEntries) {
-        xml += `  <url>\n`;
-        const prefix = canonicalMap[entry.id];
-        const urlPath = prefix ? `${prefix}/${entry.slug}` : entry.slug;
-        xml += `    <loc>${siteUrl}/${urlPath}</loc>\n`;
-        const date = entry.updatedAt || entry.publishedAt;
-        if (date) {
-            xml += `    <lastmod>${date.split('T')[0]}</lastmod>\n`;
-        }
-        xml += `    <changefreq>weekly</changefreq>\n`;
-        xml += `    <priority>0.8</priority>\n`;
-        xml += `  </url>\n`;
-    }
-
-    // 3. Terms (Categories, Tags)
-    allTerms.forEach(term => {
-        xml += `  <url>\n`;
-        xml += `    <loc>${siteUrl}/${term.slug}</loc>\n`;
-        xml += `    <changefreq>weekly</changefreq>\n`;
-        xml += `    <priority>0.5</priority>\n`;
-        xml += `  </url>\n`;
-    });
-
-    xml += `</urlset>`;
+    xml += `</sitemapindex>`;
 
     return new Response(xml, {
         headers: {
