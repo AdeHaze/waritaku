@@ -1,14 +1,45 @@
-User-agent: *
+# Robots
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: DuckDuckBot
+User-agent: Bravebot
+Allow: /
+Disallow: /admin
+Disallow: /api
+
+# Soc
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: LinkedInBot
 Allow: /
 
-# Block admin and API from crawling
-Disallow: /admin/
-Disallow: /api/
+# Bot
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-Web
+User-agent: PerplexityBot
+User-agent: Google-Extended
+User-agent: Amazonbot
+Allow: /
+Disallow: /admin
+Disallow: /api
+
+# Training
+User-agent: CCBot
+User-agent: anthropic-ai
+Disallow: /
+
+# No.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
 Disallow: /@vite/
 Disallow: /node_modules/
 
-# Sitemap
 Sitemap: https://waritaku.com/sitemap.xml
-
-# LLM discovery
 Sitemap: https://waritaku.com/llms.txt
+Allow: /
+
