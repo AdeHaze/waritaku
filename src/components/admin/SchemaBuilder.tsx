@@ -460,6 +460,7 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                                     <option value="hero">Hero Header (Article Style)</option>
                                     <option value="product_split">Product Split Header (Image Left, Info Right)</option>
                                     <option value="body_content">Body Content (Rich Text + Accordions)</option>
+                                    <option value="author_box">Author Box (Bio & Avatar)</option>
                                     <option value="taxonomy_terms">Taxonomy Terms List (Tags/Categories)</option>
                                     <option value="related_items">Related Items Grid</option>
                                 </select>

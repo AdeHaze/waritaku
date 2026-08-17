@@ -591,8 +591,11 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             status: entry.status,
             publishedAt: entry.publishedAt,
             ...parsedData,
+            authorId: author?.id || 0,
             authorName: author?.name || 'Writer',
             authorSlug: author?.slug || genSlug,
+            authorBio: author?.bio || '',
+            authorAvatar: author?.avatarUrl || '',
             tags: [],
             supports: collectionSupports
         };
