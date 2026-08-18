@@ -639,9 +639,9 @@ if (Astro.request.method === 'POST') {
               } else if (body.action === 'purge_all') {
                 resultEl.textContent = `✅ Purged ${data.deleted} cached page${data.deleted !== 1 ? 's' : ''} from R2 and Cloudflare.`;
               } else if (body.action === 'purge_collection') {
-                resultEl.textContent = `✅ Purged ${data.deleted} collection page${data.deleted !== 1 ? 's' : ''}.`;
+                resultEl.textContent = `✅ Purged ${data.deleted} collection pages (${data.edgePurged} edge URLs).${data.note ? ' ⚠ ' + data.note : ''}`;
               } else if (body.action === 'purge_taxonomy') {
-                resultEl.textContent = `✅ Purged ${data.deleted} taxonomy page${data.deleted !== 1 ? 's' : ''}.`;
+                resultEl.textContent = `✅ Purged ${data.deleted} taxonomy pages (${data.edgePurged} edge URLs).${data.note ? ' ⚠ ' + data.note : ''}`;
               } else {
                 resultEl.textContent = `✅ Success: ${data.deleted} items deleted.`;
               }
