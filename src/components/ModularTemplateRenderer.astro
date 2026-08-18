@@ -88,10 +88,16 @@ const customFields = Object.keys(data).filter(k =>
                                 <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-tight drop-shadow-sm">
                                     {data.title || data.name}
                                 </h1>
-                                <div class="flex items-center text-muted-foreground pt-4 font-medium">
+                                <div class="flex flex-wrap items-center text-muted-foreground pt-4 font-medium gap-y-2">
                                     <span>By <a href={`/author/${data.authorSlug}`} class="hover:text-primary transition-colors">{data.authorName}</a></span>
                                     <span class="mx-3">•</span>
-                                    <time datetime={data.publishedAt}>{new Date(data.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time>
+                                    <span>Published: <time datetime={data.publishedAt}>{new Date(data.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time></span>
+                                    {data.updatedAt && new Date(data.updatedAt).getTime() > new Date(data.publishedAt).getTime() + 86400000 && (
+                                        <>
+                                            <span class="mx-3 hidden sm:inline">•</span>
+                                            <span class="w-full sm:w-auto">Updated: <time datetime={data.updatedAt}>{new Date(data.updatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time></span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
