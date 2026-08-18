@@ -203,33 +203,56 @@ export const POST: APIRoute = async (ctx) => {
             const colMatch = await db.select().from(collections).where(eq(collections.slug, collectionSlug)).limit(1);
             if (colMatch.length === 0) return new Response(JSON.stringify({ error: 'Collection not found' }), { status: 404 });
             
+            // Fetch only id + slug — never select * on a large table
             const entriesData = await db.select({ id: entries.id, slug: entries.slug }).from(entries).where(eq(entries.collectionId, colMatch[0].id));
             
-            const urls: string[] = [];
             const r2Keys: string[] = [];
+            const edgeUrls: string[] = [];
             
-            // Add collection archive page
-            urls.push(`${PRODUCTION_ORIGIN}/${collectionSlug}`);
+            // Always include the collection archive page itself
             r2Keys.push(`rendered/${collectionSlug}.html`);
+            edgeUrls.push(`${PRODUCTION_ORIGIN}/${collectionSlug}`);
 
             if (entriesData.length > 0) {
-                const entryIds = entriesData.map(e => e.id);
-                const canonicalMap = await getCanonicalUrls(db, entryIds);
+                // getCanonicalUrls uses IN (...) which has a 999-param limit in SQLite.
+                // Chunk into batches of 50 to stay safe.
+                const CHUNK_SIZE = 50;
+                const canonicalMap: Record<number, string> = {};
+                for (let i = 0; i < entriesData.length; i += CHUNK_SIZE) {
+                    const chunk = entriesData.slice(i, i + CHUNK_SIZE);
+                    const partial = await getCanonicalUrls(db, chunk.map(e => e.id));
+                    Object.assign(canonicalMap, partial);
+                }
                 
                 for (const e of entriesData) {
                     const prefix = canonicalMap[e.id];
                     const path = prefix ? `/${prefix}/${e.slug}` : `/${e.slug}`;
-                    urls.push(`${PRODUCTION_ORIGIN}${path}`);
                     r2Keys.push(`rendered${path}.html`);
+                    // Only collect edge URLs if small enough to not blow the subrequest limit
+                    if (entriesData.length <= 300) {
+                        edgeUrls.push(`${PRODUCTION_ORIGIN}${path}`);
+                    }
                 }
             }
             
+            // Delete from R2 in bulk
             for (let i = 0; i < r2Keys.length; i += 1000) {
                 await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
             }
-            await purgeEdgeUrls(env, urls);
             
-            return new Response(JSON.stringify({ success: true, deleted: r2Keys.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            // Only purge edge cache individually for smaller collections.
+            // For large collections (>300 entries), R2 deletion is sufficient —
+            // the next visitor triggers a fresh SSR and re-caches automatically.
+            if (edgeUrls.length > 0) {
+                await purgeEdgeUrls(env, edgeUrls);
+            }
+            
+            return new Response(JSON.stringify({ 
+                success: true, 
+                deleted: r2Keys.length,
+                edgePurged: edgeUrls.length,
+                note: entriesData.length > 300 ? 'R2 cleared. Edge cache will refresh on next visitor request (too many entries for individual URL purge).' : undefined
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
         } catch (e: any) {
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
         }
@@ -246,27 +269,39 @@ export const POST: APIRoute = async (ctx) => {
             const tax = taxMatch[0];
             const termsData = await db.select({ slug: terms.slug }).from(terms).where(eq(terms.taxonomyId, tax.id));
             
-            const urls: string[] = [];
             const r2Keys: string[] = [];
+            const edgeUrls: string[] = [];
             
-            // Add taxonomy umbrella archive page
-            urls.push(`${PRODUCTION_ORIGIN}/${taxonomySlug}`);
+            // Always include the taxonomy umbrella archive page
             r2Keys.push(`rendered/${taxonomySlug}.html`);
+            edgeUrls.push(`${PRODUCTION_ORIGIN}/${taxonomySlug}`);
 
-            if (termsData.length > 0) {
-                for (const t of termsData) {
-                    const path = tax.omitTaxonomySlug ? `/${t.slug}` : `/${tax.slug}/${t.slug}`;
-                    urls.push(`${PRODUCTION_ORIGIN}${path}`);
-                    r2Keys.push(`rendered${path}.html`);
+            for (const t of termsData) {
+                const path = tax.omitTaxonomySlug ? `/${t.slug}` : `/${tax.slug}/${t.slug}`;
+                r2Keys.push(`rendered${path}.html`);
+                // Only collect edge URLs for small taxonomies
+                if (termsData.length <= 300) {
+                    edgeUrls.push(`${PRODUCTION_ORIGIN}${path}`);
                 }
             }
             
+            // Delete from R2 in bulk
             for (let i = 0; i < r2Keys.length; i += 1000) {
                 await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
             }
-            await purgeEdgeUrls(env, urls);
             
-            return new Response(JSON.stringify({ success: true, deleted: r2Keys.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            // For large taxonomies, skip individual URL purging to avoid subrequest limits.
+            // Stale edge pages will be replaced on next visitor request after R2 is cleared.
+            if (edgeUrls.length > 0) {
+                await purgeEdgeUrls(env, edgeUrls);
+            }
+            
+            return new Response(JSON.stringify({ 
+                success: true, 
+                deleted: r2Keys.length,
+                edgePurged: edgeUrls.length,
+                note: termsData.length > 300 ? 'R2 cleared. Edge cache will refresh on next visitor request (too many terms for individual URL purge).' : undefined
+            }), { status: 200, headers: { 'Content-Type': 'application/json' } });
         } catch (e: any) {
             return new Response(JSON.stringify({ error: e.message }), { status: 500 });
         }
