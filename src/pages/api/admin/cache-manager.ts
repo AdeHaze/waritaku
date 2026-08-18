@@ -3,11 +3,11 @@ import { env } from 'cloudflare:workers';
 import { hasPermission } from '../../../lib/permissions';
 import { invalidateCachedPage } from '../../../lib/render-cache';
 import { getDb } from '../../../lib/db';
-import { collections, entries, taxonomies, terms } from '../../../db/schema';
-import { eq } from 'drizzle-orm';
+import { collections, entries, taxonomies, terms, settings } from '../../../db/schema';
+import { eq, and } from 'drizzle-orm';
 import { getCanonicalUrls } from '../../../lib/queries';
 
-const PRODUCTION_ORIGIN = 'https://waritaku.com';
+
 
 /** Convert an R2 key like "rendered/anime/slug.html" back to a URL pathname. */
 function keyToPathname(key: string): string {
@@ -91,6 +91,18 @@ export const POST: APIRoute = async (ctx) => {
 
     const { action } = body;
 
+    // Resolve the canonical site origin from settings, falling back to the
+    // origin of the current request. This avoids any hardcoded domain.
+    let siteOrigin = new URL(request.url).origin;
+    try {
+        const db = getDb(env);
+        const settingsRow = await db.select().from(settings).where(eq(settings.key, 'general_settings')).limit(1);
+        if (settingsRow.length > 0) {
+            const parsed = JSON.parse(settingsRow[0].value);
+            if (parsed.siteUrl) siteOrigin = parsed.siteUrl.replace(/\/$/, '');
+        }
+    } catch { /* use request origin fallback */ }
+
     // ── A. Purge a specific URL ──────────────────────────────────────────────
     if (action === 'purge_url') {
         let { path } = body;
@@ -114,10 +126,18 @@ export const POST: APIRoute = async (ctx) => {
     // ── B. Purge all cached /search/* keys (one-time cleanup) ────────────────
     if (action === 'purge_search') {
         try {
-            const listed = await env.RENDER_CACHE.list({ prefix: 'rendered/search' });
-            const keys: string[] = listed.objects.map((o: any) => o.key);
+            // Use paginated listing to catch more than 1000 search keys
+            const allKeys: string[] = [];
+            let cursor: string | undefined;
+            do {
+                const opts: any = { prefix: 'rendered/search', limit: 1000 };
+                if (cursor) opts.cursor = cursor;
+                const listed = await env.RENDER_CACHE.list(opts);
+                for (const o of listed.objects) allKeys.push(o.key);
+                cursor = listed.truncated ? listed.cursor : undefined;
+            } while (cursor);
 
-            if (keys.length === 0) {
+            if (allKeys.length === 0) {
                 return new Response(JSON.stringify({ success: true, deleted: 0, message: 'No search keys found in R2.' }), {
                     status: 200,
                     headers: { 'Content-Type': 'application/json' },
@@ -125,16 +145,16 @@ export const POST: APIRoute = async (ctx) => {
             }
 
             // Delete from R2 in batches of 1000
-            for (let i = 0; i < keys.length; i += 1000) {
-                await env.RENDER_CACHE.delete(keys.slice(i, i + 1000));
+            for (let i = 0; i < allKeys.length; i += 1000) {
+                await env.RENDER_CACHE.delete(allKeys.slice(i, i + 1000));
             }
 
             // Purge CF edge for each URL
-            const pathnames = keys.map((k: string) => k.replace(/^rendered/, '').replace(/\.html$/, ''));
-            const urls = pathnames.map((p: string) => `${PRODUCTION_ORIGIN}${p}`);
+            const pathnames = allKeys.map((k: string) => k.replace(/^rendered/, '').replace(/\.html$/, ''));
+            const urls = pathnames.map((p: string) => `${siteOrigin}${p}`);
             await purgeEdgeUrls(env, urls);
 
-            return new Response(JSON.stringify({ success: true, deleted: keys.length, paths: pathnames }), {
+            return new Response(JSON.stringify({ success: true, deleted: allKeys.length, paths: pathnames }), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
             });
@@ -183,7 +203,7 @@ export const POST: APIRoute = async (ctx) => {
             }
 
             const pathnames = matching.map(k => keyToPathname(k.key));
-            const urls = pathnames.map(p => `${PRODUCTION_ORIGIN}${p}`);
+            const urls = pathnames.map(p => `${siteOrigin}${p}`);
             await purgeEdgeUrls(env, urls);
 
             return new Response(JSON.stringify({ success: true, deleted: matching.length, paths: pathnames }), {
@@ -203,20 +223,22 @@ export const POST: APIRoute = async (ctx) => {
             const colMatch = await db.select().from(collections).where(eq(collections.slug, collectionSlug)).limit(1);
             if (colMatch.length === 0) return new Response(JSON.stringify({ error: 'Collection not found' }), { status: 404 });
             
-            // Fetch only id + slug — never select * on a large table
-            const entriesData = await db.select({ id: entries.id, slug: entries.slug }).from(entries).where(eq(entries.collectionId, colMatch[0].id));
+            // Only published entries are ever rendered to R2 — filter to match
+            const entriesData = await db.select({ id: entries.id, slug: entries.slug })
+                .from(entries)
+                .where(and(eq(entries.collectionId, colMatch[0].id), eq(entries.status, 'published')));
             
             const r2Keys: string[] = [];
             const edgeUrls: string[] = [];
             
             // Always include the collection archive page itself
             r2Keys.push(`rendered/${collectionSlug}.html`);
-            edgeUrls.push(`${PRODUCTION_ORIGIN}/${collectionSlug}`);
+            edgeUrls.push(`${siteOrigin}/${collectionSlug}`);
 
             if (entriesData.length > 0) {
                 // getCanonicalUrls uses IN (...) which has a 999-param limit in SQLite.
-                // Chunk into batches of 50 to stay safe.
-                const CHUNK_SIZE = 50;
+                // Chunk into batches of 200 to stay well under the 999-param SQLite limit.
+                const CHUNK_SIZE = 200;
                 const canonicalMap: Record<number, string> = {};
                 for (let i = 0; i < entriesData.length; i += CHUNK_SIZE) {
                     const chunk = entriesData.slice(i, i + CHUNK_SIZE);
@@ -230,7 +252,7 @@ export const POST: APIRoute = async (ctx) => {
                     r2Keys.push(`rendered${path}.html`);
                     // Only collect edge URLs if small enough to not blow the subrequest limit
                     if (entriesData.length <= 300) {
-                        edgeUrls.push(`${PRODUCTION_ORIGIN}${path}`);
+                        edgeUrls.push(`${siteOrigin}${path}`);
                     }
                 }
             }
@@ -274,14 +296,14 @@ export const POST: APIRoute = async (ctx) => {
             
             // Always include the taxonomy umbrella archive page
             r2Keys.push(`rendered/${taxonomySlug}.html`);
-            edgeUrls.push(`${PRODUCTION_ORIGIN}/${taxonomySlug}`);
+            edgeUrls.push(`${siteOrigin}/${taxonomySlug}`);
 
             for (const t of termsData) {
                 const path = tax.omitTaxonomySlug ? `/${t.slug}` : `/${tax.slug}/${t.slug}`;
                 r2Keys.push(`rendered${path}.html`);
                 // Only collect edge URLs for small taxonomies
                 if (termsData.length <= 300) {
-                    edgeUrls.push(`${PRODUCTION_ORIGIN}${path}`);
+                    edgeUrls.push(`${siteOrigin}${path}`);
                 }
             }
             
@@ -319,7 +341,7 @@ export const POST: APIRoute = async (ctx) => {
             }
 
             // Purge CF edge for each URL individually (not purge_everything)
-            const urls = allKeys.map(k => `${PRODUCTION_ORIGIN}${keyToPathname(k.key)}`);
+            const urls = allKeys.map(k => `${siteOrigin}${keyToPathname(k.key)}`);
             await purgeEdgeUrls(env, urls);
 
             return new Response(JSON.stringify({ success: true, deleted: allKeys.length }), {
