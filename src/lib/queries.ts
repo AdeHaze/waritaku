@@ -412,31 +412,38 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             const totalItems = Number(countQuery[0]?.count || 0);
             const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-            const articlesResult = await db.select({
-                entry: entries,
-                author: users
-            })
-            .from(entries)
-            .from(entries)
-            .leftJoin(users, eq(entries.authorId, users.id))
-            .where(and(
-                eq(entries.status, 'published'),
-                exists(
-                    db.select({ id: sql`1` })
-                    .from(entryTerms)
-                    .innerJoin(terms, eq(entryTerms.termId, terms.id))
-                    .where(and(
-                        eq(terms.taxonomyId, taxonomy.id),
-                        eq(entryTerms.entryId, entries.id)
-                    ))
-                )
-            ))
-            .orderBy(desc(entries.id))
-            .limit(pageSize)
-            .offset((currentPage - 1) * pageSize);
+            const idResult = await db.select({ id: entries.id })
+                .from(entries)
+                .where(and(
+                    eq(entries.status, 'published'),
+                    exists(
+                        db.select({ id: sql`1` })
+                        .from(entryTerms)
+                        .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                        .where(and(
+                            eq(terms.taxonomyId, taxonomy.id),
+                            eq(entryTerms.entryId, entries.id)
+                        ))
+                    )
+                ))
+                .orderBy(desc(entries.id))
+                .limit(pageSize)
+                .offset((currentPage - 1) * pageSize);
+
+            const entryIds = idResult.map(r => r.id);
+            let articlesResult: any[] = [];
+            if (entryIds.length > 0) {
+                articlesResult = await db.select({
+                    entry: entries,
+                    author: users
+                })
+                .from(entries)
+                .leftJoin(users, eq(entries.authorId, users.id))
+                .where(sql`${entries.id} IN (${sql.join(entryIds.map(id => sql`${id}`), sql`, `)})`)
+                .orderBy(desc(entries.id));
+            }
 
             const categoryArticles = [];
-            const entryIds = articlesResult.map((r: any) => r.entry.id);
             const canonicalMap = await getCanonicalUrls(db, entryIds);
             
             const categoryMap: any = {};
@@ -751,35 +758,53 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         const totalItems = countResult[0]?.count || 0;
         const totalPages = Math.ceil(totalItems / pageSize);
 
-        let articlesQuery = db.select({
-            entry: entries,
-            author: users
-        })
-        .from(entries)
-        .leftJoin(users, eq(entries.authorId, users.id));
-
+        let articlesResult: any[] = [];
+        
         if (data.id) {
-            articlesQuery = articlesQuery
+            // Two-step query to prevent massive row scans and memory sorting
+            const idResult = await db.select({ id: entries.id })
+                .from(entries)
                 .innerJoin(entryTerms, eq(entries.id, entryTerms.entryId))
                 .where(
                     and(
                         eq(entryTerms.termId, data.id),
                         eq(entries.status, 'published')
                     )
-                ) as any;
+                )
+                .orderBy(desc(entries.id))
+                .limit(pageSize)
+                .offset((currentPage - 1) * pageSize);
+
+            const entryIds = idResult.map(r => r.id);
+            
+            if (entryIds.length > 0) {
+                articlesResult = await db.select({
+                    entry: entries,
+                    author: users
+                })
+                .from(entries)
+                .leftJoin(users, eq(entries.authorId, users.id))
+                .where(sql`${entries.id} IN (${sql.join(entryIds.map(id => sql`${id}`), sql`, `)})`)
+                .orderBy(desc(entries.id));
+            }
         } else {
-            articlesQuery = articlesQuery.where(
+            // For /all route
+            articlesResult = await db.select({
+                entry: entries,
+                author: users
+            })
+            .from(entries)
+            .leftJoin(users, eq(entries.authorId, users.id))
+            .where(
                 and(
                     eq(entries.collectionId, articlesCol ? articlesCol.id : 0),
                     eq(entries.status, 'published')
                 )
-            ) as any;
-        }
-
-        const articlesResult = await articlesQuery
+            )
             .orderBy(desc(entries.id))
             .limit(pageSize)
             .offset((currentPage - 1) * pageSize);
+        }
 
         const categoryArticles = [];
         // Batch canonical URL lookup — single query instead of N
