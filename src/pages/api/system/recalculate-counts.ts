@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { syncCounts } from '../../../lib/sync-counts';
+import { env } from 'cloudflare:workers';
 
 export const GET: APIRoute = async ({ request, locals }) => {
     // Only allow superadmin to run this script
@@ -8,13 +9,12 @@ export const GET: APIRoute = async ({ request, locals }) => {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 403, headers: { 'Content-Type': 'application/json' }});
     }
 
-    const env = locals.runtime?.env;
-    if (!env || !env.DB) {
+    if (!env || !(env as any).DB) {
         return new Response(JSON.stringify({ error: 'Database not available' }), { status: 500, headers: { 'Content-Type': 'application/json' }});
     }
 
     try {
-        const db = getDb(env);
+        const db = getDb(env as any);
         
         // This will block and wait for the counts to finish instead of using waitUntil,
         // because we want to return a success message when it's totally done.
