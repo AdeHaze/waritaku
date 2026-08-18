@@ -7,8 +7,22 @@ function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
 }
 
 // Batched version of getCanonicalUrl — single query for all entry IDs
+// Self-chunking at 50 IDs per query to stay within D1's effective IN() limit
+// for multi-join queries (entry_terms JOIN terms JOIN taxonomies).
 export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Record<number, string>> {
     if (!entryIds.length) return {};
+
+    // D1's SQLite chokes on large IN() with multi-join queries.
+    // Chunk internally so all callers are protected without needing to chunk themselves.
+    const D1_SAFE_CHUNK = 50;
+    if (entryIds.length > D1_SAFE_CHUNK) {
+        const merged: Record<number, string> = {};
+        for (let i = 0; i < entryIds.length; i += D1_SAFE_CHUNK) {
+            const partial = await getCanonicalUrls(db, entryIds.slice(i, i + D1_SAFE_CHUNK));
+            Object.assign(merged, partial);
+        }
+        return merged;
+    }
     
     // Split into two queries to avoid confusing the SQLite query planner and causing a full table scan
     const termsResults = await db.select({
