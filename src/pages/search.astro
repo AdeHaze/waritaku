@@ -6,7 +6,7 @@ import { entries as articlesTable, users, collections } from '../db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
-import { getCanonicalUrl } from '../lib/queries';
+import { getCanonicalUrls } from '../lib/queries';
 
 const query = Astro.url.searchParams.get('q') || '';
 const pageParam = Astro.url.searchParams.get('page');
@@ -61,18 +61,23 @@ if (env && (env as any).DB && query.trim() !== '') {
 
         const articlesResult = await articlesQuery;
 
+        const entryIds = articlesResult.map(r => r.article.id);
+        const canonicalMap = await getCanonicalUrls(db, entryIds);
+
         searchResults = await Promise.all(articlesResult.map(async r => {
             let data: any = {};
             try { data = JSON.parse(r.article.data || '{}'); } catch(e){}
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(new RegExp('<[^>]+>', 'g'), '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
-            const canonicalUrl = await getCanonicalUrl(db, r.article.id, r.article.slug);
+            
+            const prefix = canonicalMap[r.article.id];
+            const canonicalUrl = prefix ? `/${prefix}/${r.article.slug}` : `/${r.article.slug}`;
             
             return {
                 ...r.article,
                 ...data,
-                canonicalUrl: `/${canonicalUrl}`,
+                canonicalUrl,
                 authorName: r.author?.name || 'Writer',
                 excerpt
             };
