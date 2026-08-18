@@ -412,6 +412,8 @@ const pageTitle = data.metaTitle || data.title || data.name;
 // NOTE: db is block-scoped inside the route-resolution guard above, so this
 // must re-acquire the handle.
 let siteUrl = Astro.url.origin;
+let siteTitle = 'Waritaku';
+let siteLogo = '/favicon.svg';
 if (env && env.DB) {
     try {
         const db2 = getDb(env);
@@ -419,6 +421,8 @@ if (env && env.DB) {
         if (gs.length > 0) {
             const parsed = JSON.parse(gs[0].value);
             if (parsed.siteUrl) siteUrl = parsed.siteUrl;
+            if (parsed.siteTitle) siteTitle = parsed.siteTitle;
+            if (parsed.faviconUrl) siteLogo = parsed.faviconUrl;
         }
     } catch (e) {}
 }
@@ -440,7 +444,15 @@ if (pageType === 'article') {
             "@type": "Person",
             "name": data.authorName || 'Writer',
             "url": `${siteUrl}/author/${data.authorSlug}`
-        }]
+        }],
+        "publisher": {
+            "@type": "Organization",
+            "name": siteTitle,
+            "logo": {
+                "@type": "ImageObject",
+                "url": siteLogo.startsWith('http') ? siteLogo : `${siteUrl}${siteLogo}`
+            }
+        }
     };
 } else if (pageType === 'page') {
     schemaObj = {
