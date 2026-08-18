@@ -349,39 +349,147 @@ const customFields = Object.keys(data).filter(k =>
         if (!images.length) return;
 
         let lightbox = document.getElementById('waritaku-lightbox');
+        let img;
+        
+        let scale = 1;
+        let panning = false;
+        let pointX = 0;
+        let pointY = 0;
+        let start = { x: 0, y: 0 };
+        
+        function setTransform() {
+            img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        }
+
         if (!lightbox) {
             lightbox = document.createElement('div');
             lightbox.id = 'waritaku-lightbox';
-            lightbox.className = 'fixed inset-0 z-[9999] bg-black/95 hidden items-center justify-center p-4 sm:p-8 cursor-zoom-out backdrop-blur-md transition-opacity duration-300 opacity-0';
+            lightbox.className = 'fixed inset-0 z-[9999] bg-black/95 hidden flex-col items-center justify-center cursor-auto transition-opacity duration-300 opacity-0 select-none touch-none';
             
-            const img = document.createElement('img');
-            img.className = 'max-w-full max-h-full object-contain shadow-2xl rounded-lg transform scale-95 transition-transform duration-300';
+            img = document.createElement('img');
+            img.className = 'max-w-full max-h-full object-contain shadow-2xl rounded-lg cursor-grab transition-transform duration-200';
+            img.style.transformOrigin = '0 0'; // Needed for accurate pointer zooming
             lightbox.appendChild(img);
+            
+            // Add a hint
+            const hint = document.createElement('div');
+            hint.className = 'absolute bottom-4 text-white/50 text-xs tracking-widest uppercase font-mono pointer-events-none text-center px-4';
+            hint.innerText = 'Scroll to zoom • Drag to pan • Double click to zoom • Click outside to close';
+            lightbox.appendChild(hint);
             
             document.body.appendChild(lightbox);
 
-            lightbox.addEventListener('click', () => {
-                lightbox.classList.replace('opacity-100', 'opacity-0');
-                img.classList.replace('scale-100', 'scale-95');
-                setTimeout(() => {
-                    lightbox.classList.replace('flex', 'hidden');
-                }, 300);
+            // Close when clicking outside the image
+            lightbox.addEventListener('click', (e) => {
+                if (e.target === lightbox) {
+                    closeLightbox();
+                }
             });
+
+            // Double click to zoom
+            img.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                if (scale >= 2) {
+                    scale = 1;
+                    pointX = 0;
+                    pointY = 0;
+                } else {
+                    scale = 2;
+                    // Center the zoom
+                    const rect = img.getBoundingClientRect();
+                    pointX = -((rect.width * 2) - window.innerWidth) / 2;
+                    pointY = -((rect.height * 2) - window.innerHeight) / 2;
+                }
+                img.style.transition = 'transform 0.2s ease-out';
+                setTransform();
+            });
+
+            // Wheel to zoom
+            lightbox.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                let delta = (e.wheelDelta ? e.wheelDelta : -e.deltaY);
+                let zoomPointX = e.clientX - pointX;
+                let zoomPointY = e.clientY - pointY;
+                
+                let zoomFactor = (delta > 0) ? 1.1 : 0.9;
+                let newScale = scale * zoomFactor;
+                
+                if (newScale < 1) newScale = 1;
+                if (newScale > 10) newScale = 10;
+                
+                if (newScale === 1) {
+                    pointX = 0;
+                    pointY = 0;
+                } else {
+                    pointX -= zoomPointX * (newScale / scale - 1);
+                    pointY -= zoomPointY * (newScale / scale - 1);
+                }
+                
+                scale = newScale;
+                img.style.transition = 'none'; // instant follow for scroll
+                setTransform();
+            }, { passive: false });
+
+            // Panning
+            img.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                start = { x: e.clientX - pointX, y: e.clientY - pointY };
+                panning = true;
+                img.style.cursor = 'grabbing';
+                img.style.transition = 'none';
+            });
+
+            lightbox.addEventListener('mouseup', () => {
+                panning = false;
+                img.style.cursor = 'grab';
+                img.style.transition = 'transform 0.2s ease-out';
+            });
+
+            lightbox.addEventListener('mousemove', (e) => {
+                if (!panning || scale === 1) return;
+                e.preventDefault();
+                pointX = (e.clientX - start.x);
+                pointY = (e.clientY - start.y);
+                setTransform();
+            });
+            
+            lightbox.addEventListener('mouseleave', () => {
+                panning = false;
+                img.style.cursor = 'grab';
+            });
+        } else {
+            img = lightbox.querySelector('img');
         }
 
-        const lightboxImg = lightbox.querySelector('img');
+        function closeLightbox() {
+            lightbox.classList.replace('opacity-100', 'opacity-0');
+            setTimeout(() => {
+                lightbox.classList.replace('flex', 'hidden');
+                scale = 1;
+                pointX = 0;
+                pointY = 0;
+                img.style.transition = 'none';
+                setTransform();
+            }, 300);
+        }
 
-        images.forEach(img => {
-            img.style.cursor = 'zoom-in';
+        images.forEach(el => {
+            el.style.cursor = 'zoom-in';
             // Prevent multiple listeners if re-initialized
-            if (!img.dataset.zoomInit) {
-                img.dataset.zoomInit = 'true';
-                img.addEventListener('click', () => {
-                    lightboxImg.src = img.src;
+            if (!el.dataset.zoomInit) {
+                el.dataset.zoomInit = 'true';
+                el.addEventListener('click', () => {
+                    img.src = el.src;
+                    scale = 1;
+                    pointX = 0;
+                    pointY = 0;
+                    img.style.transition = 'none';
+                    setTransform();
+                    
                     lightbox.classList.replace('hidden', 'flex');
                     setTimeout(() => {
                         lightbox.classList.replace('opacity-0', 'opacity-100');
-                        lightboxImg.classList.replace('scale-95', 'scale-100');
+                        img.style.transition = 'transform 0.2s ease-out';
                     }, 10);
                 });
             }
