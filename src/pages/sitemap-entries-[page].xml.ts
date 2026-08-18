@@ -29,7 +29,16 @@ export const GET: APIRoute = async ({ params, request }) => {
     const page = parseInt(params.page || '1', 10);
     const CHUNK_SIZE = 1000;
     
-    // Fetch chunk of published entries
+    let allowedColIds: number[] | null = null;
+    if (sitemapCollections !== null) {
+        if (sitemapCollections.length === 0) {
+             allowedColIds = [];
+        } else {
+             const cols = await db.select({ id: collections.id }).from(collections).where(inArray(collections.slug, sitemapCollections));
+             allowedColIds = cols.map(c => c.id);
+        }
+    }
+
     let pageQuery = db.select({ 
         id: entries.id, 
         slug: entries.slug, 
@@ -37,14 +46,13 @@ export const GET: APIRoute = async ({ params, request }) => {
         publishedAt: entries.publishedAt 
     })
     .from(entries)
-    .leftJoin(collections, eq(entries.collectionId, collections.id))
     .where(eq(entries.status, 'published'));
 
-    if (sitemapCollections !== null) {
-        if (sitemapCollections.length === 0) {
+    if (allowedColIds !== null) {
+        if (allowedColIds.length === 0) {
             pageQuery = pageQuery.where(sql`1=0`) as any; // Empty
         } else {
-            pageQuery = pageQuery.where(and(eq(entries.status, 'published'), inArray(collections.slug, sitemapCollections))) as any;
+            pageQuery = pageQuery.where(and(eq(entries.status, 'published'), inArray(entries.collectionId, allowedColIds))) as any;
         }
     }
 
