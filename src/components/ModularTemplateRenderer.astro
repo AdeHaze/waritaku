@@ -344,8 +344,59 @@ const customFields = Object.keys(data).filter(k =>
         }
     }
 
+    function initImageZoom() {
+        const images = document.querySelectorAll('.prose img');
+        if (!images.length) return;
+
+        let lightbox = document.getElementById('waritaku-lightbox');
+        if (!lightbox) {
+            lightbox = document.createElement('div');
+            lightbox.id = 'waritaku-lightbox';
+            lightbox.className = 'fixed inset-0 z-[9999] bg-black/95 hidden items-center justify-center p-4 sm:p-8 cursor-zoom-out backdrop-blur-md transition-opacity duration-300 opacity-0';
+            
+            const img = document.createElement('img');
+            img.className = 'max-w-full max-h-full object-contain shadow-2xl rounded-lg transform scale-95 transition-transform duration-300';
+            lightbox.appendChild(img);
+            
+            document.body.appendChild(lightbox);
+
+            lightbox.addEventListener('click', () => {
+                lightbox.classList.replace('opacity-100', 'opacity-0');
+                img.classList.replace('scale-100', 'scale-95');
+                setTimeout(() => {
+                    lightbox.classList.replace('flex', 'hidden');
+                }, 300);
+            });
+        }
+
+        const lightboxImg = lightbox.querySelector('img');
+
+        images.forEach(img => {
+            img.style.cursor = 'zoom-in';
+            // Prevent multiple listeners if re-initialized
+            if (!img.dataset.zoomInit) {
+                img.dataset.zoomInit = 'true';
+                img.addEventListener('click', () => {
+                    lightboxImg.src = img.src;
+                    lightbox.classList.replace('hidden', 'flex');
+                    setTimeout(() => {
+                        lightbox.classList.replace('opacity-0', 'opacity-100');
+                        lightboxImg.classList.replace('scale-95', 'scale-100');
+                    }, 10);
+                });
+            }
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const containers = document.querySelectorAll('.related-items-container');
         containers.forEach(container => loadRelatedItems(container));
+        initImageZoom();
+    });
+
+    document.addEventListener('astro:page-load', () => {
+        const containers = document.querySelectorAll('.related-items-container');
+        containers.forEach(container => loadRelatedItems(container));
+        initImageZoom();
     });
 </script>
