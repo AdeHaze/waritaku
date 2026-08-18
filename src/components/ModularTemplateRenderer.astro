@@ -368,7 +368,7 @@ const customFields = Object.keys(data).filter(k =>
             
             img = document.createElement('img');
             img.className = 'max-w-full max-h-full object-contain shadow-2xl rounded-lg cursor-grab transition-transform duration-200';
-            img.style.transformOrigin = '0 0'; // Needed for accurate pointer zooming
+            img.style.transformOrigin = 'center'; // Use center for intuitive scaling
             lightbox.appendChild(img);
             
             // Add a hint
@@ -394,11 +394,13 @@ const customFields = Object.keys(data).filter(k =>
                     pointX = 0;
                     pointY = 0;
                 } else {
+                    // Zoom into exactly where the user double-clicked
+                    let mouseX = e.clientX - window.innerWidth / 2;
+                    let mouseY = e.clientY - window.innerHeight / 2;
+                    let ratio = 1 - (2 / scale);
+                    pointX += (mouseX - pointX) * ratio;
+                    pointY += (mouseY - pointY) * ratio;
                     scale = 2;
-                    // Center the zoom
-                    const rect = img.getBoundingClientRect();
-                    pointX = -((rect.width * 2) - window.innerWidth) / 2;
-                    pointY = -((rect.height * 2) - window.innerHeight) / 2;
                 }
                 img.style.transition = 'transform 0.2s ease-out';
                 setTransform();
@@ -408,9 +410,6 @@ const customFields = Object.keys(data).filter(k =>
             lightbox.addEventListener('wheel', (e) => {
                 e.preventDefault();
                 let delta = (e.wheelDelta ? e.wheelDelta : -e.deltaY);
-                let zoomPointX = e.clientX - pointX;
-                let zoomPointY = e.clientY - pointY;
-                
                 let zoomFactor = (delta > 0) ? 1.1 : 0.9;
                 let newScale = scale * zoomFactor;
                 
@@ -421,8 +420,14 @@ const customFields = Object.keys(data).filter(k =>
                     pointX = 0;
                     pointY = 0;
                 } else {
-                    pointX -= zoomPointX * (newScale / scale - 1);
-                    pointY -= zoomPointY * (newScale / scale - 1);
+                    // Calculate pointer position relative to center of screen
+                    let mouseX = e.clientX - window.innerWidth / 2;
+                    let mouseY = e.clientY - window.innerHeight / 2;
+                    
+                    // Adjust pointX and pointY so the pixel under the mouse stays exactly under the mouse
+                    let ratio = 1 - (newScale / scale);
+                    pointX += (mouseX - pointX) * ratio;
+                    pointY += (mouseY - pointY) * ratio;
                 }
                 
                 scale = newScale;
