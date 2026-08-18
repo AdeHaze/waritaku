@@ -33,22 +33,18 @@ export const GET: APIRoute = async ({ request }) => {
     // 1. Count Total Published Entries
     const { sql } = await import('drizzle-orm');
     
-    let countQuery = db.select({ count: sql<number>`count(*)` })
-        .from(entries)
-        .leftJoin(collections, eq(entries.collectionId, collections.id))
-        .where(eq(entries.status, 'published'));
-        
-    if (sitemapCollections !== null) {
-        if (sitemapCollections.length === 0) {
-            countQuery = countQuery.where(sql`1=0`) as any; // Empty means no collections
-        } else {
-            countQuery = countQuery.where(and(eq(entries.status, 'published'), inArray(collections.slug, sitemapCollections))) as any;
+    let totalEntries = 0;
+    
+    if (sitemapCollections !== null && sitemapCollections.length === 0) {
+        totalEntries = 0;
+    } else {
+        let colQuery = db.select({ total: sql<number>`SUM(${collections.entryCount})` }).from(collections);
+        if (sitemapCollections !== null) {
+            colQuery = colQuery.where(inArray(collections.slug, sitemapCollections)) as any;
         }
+        const res = await colQuery;
+        totalEntries = Number(res[0]?.total || 0);
     }
-
-    const countRes = await countQuery;
-        
-    const totalEntries = countRes[0]?.count || 0;
     const CHUNK_SIZE = 1000;
     const totalEntryPages = Math.max(1, Math.ceil(totalEntries / CHUNK_SIZE));
 
