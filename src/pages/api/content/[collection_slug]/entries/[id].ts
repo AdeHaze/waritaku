@@ -6,6 +6,7 @@ import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../../lib/slug';
 import { hasPermission, hasAnyPermission } from '../../../../../lib/permissions';
 import { invalidateEntryCache } from '../../../../../lib/cache-invalidation';
+import { syncCounts } from '../../../../../lib/sync-counts';
 
 export const PUT: APIRoute = async (ctx) => {
     const { request, params, locals } = ctx;
@@ -124,8 +125,10 @@ export const PUT: APIRoute = async (ctx) => {
         
         if (waitCtx && waitCtx.waitUntil) {
             waitCtx.waitUntil(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
+            waitCtx.waitUntil(syncCounts(db));
         } else {
             invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
+            syncCounts(db).catch(console.error);
         }
         
         // Also invalidate old slug if it changed
@@ -199,8 +202,10 @@ export const DELETE: APIRoute = async (ctx) => {
             const waitCtx = (ctx.locals as any).cfContext || ctx;
             if (waitCtx && waitCtx.waitUntil) {
                 waitCtx.waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
+                waitCtx.waitUntil(syncCounts(db));
             } else {
                 invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
+                syncCounts(db).catch(console.error);
             }
 
             return new Response(JSON.stringify({ success: true, permanent: true }), {
@@ -224,8 +229,10 @@ export const DELETE: APIRoute = async (ctx) => {
         const waitCtx = (ctx.locals as any).cfContext || ctx;
         if (waitCtx && waitCtx.waitUntil) {
             waitCtx.waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
+            waitCtx.waitUntil(syncCounts(db));
         } else {
             invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
+            syncCounts(db).catch(console.error);
         }
 
         return new Response(JSON.stringify({ success: true, trashed: true }), {

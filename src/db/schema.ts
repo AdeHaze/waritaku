@@ -73,6 +73,7 @@ export const collections = sqliteTable('collections', {
   fields: text('fields').notNull().default('[]'), // JSON array defining the visual schema
   supports: text('supports').notNull().default('{}'), // JSON object (drafts, revisions, etc)
   authorId: integer('author_id').references(() => users.id, { onDelete: 'set null' }), // NULL = system-owned
+  entryCount: integer('entry_count').notNull().default(0),
 });
 
 export const entries = sqliteTable('entries', {
@@ -130,6 +131,7 @@ export const terms = sqliteTable('terms', {
   authorId: integer('author_id').references(() => users.id, { onDelete: 'set null' }), // NULL = system-owned
   name: text('name').notNull(),
   slug: text('slug').notNull(),
+  entryCount: integer('entry_count').notNull().default(0),
 }, (t) => ({
   taxonomyIdx: index('terms_taxonomy_idx').on(t.taxonomyId),
   parentIdx: index('terms_parent_idx').on(t.parentId),

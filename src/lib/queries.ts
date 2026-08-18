@@ -522,17 +522,15 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 id: terms.id,
                 name: terms.name,
                 slug: terms.slug,
-                entryCount: sql<number>`count(${entryTerms.entryId})`
+                entryCount: terms.entryCount
             })
                 .from(terms)
-                .leftJoin(entryTerms, eq(terms.id, entryTerms.termId))
-                .where(eq(terms.taxonomyId, taxonomy.id))
-                .groupBy(terms.id)
+                .where(eq(terms.taxonomyId, taxonomy.id));
                 
             if (sortTermBy === 'az') {
                 query = query.orderBy(terms.name) as any;
             } else {
-                query = query.orderBy(desc(sql<number>`count(${entryTerms.entryId})`), terms.name) as any;
+                query = query.orderBy(desc(terms.entryCount), terms.name) as any;
             }
 
             if (umbrellaLimit > 0) {
@@ -733,29 +731,14 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             return { redirect: `/${data.slug}` };
         }
         
-        let countQuery = db.select({ count: sql<number>`count(distinct ${entries.id})` })
-            .from(entries);
-
+        let totalItems = 0;
+        
         if (data.id) {
-            countQuery = countQuery
-                .innerJoin(entryTerms, eq(entries.id, entryTerms.entryId))
-                .where(
-                    and(
-                        eq(entryTerms.termId, data.id),
-                        eq(entries.status, 'published')
-                    )
-                ) as any;
+            totalItems = data.entryCount || 0;
         } else {
-            countQuery = countQuery.where(
-                and(
-                    eq(entries.collectionId, articlesCol ? articlesCol.id : 0),
-                    eq(entries.status, 'published')
-                )
-            ) as any;
+            totalItems = articlesCol ? (articlesCol.entryCount || 0) : 0;
         }
         
-        const countResult = await countQuery;
-        const totalItems = countResult[0]?.count || 0;
         const totalPages = Math.ceil(totalItems / pageSize);
 
         let articlesResult: any[] = [];

@@ -6,6 +6,7 @@ import { env } from 'cloudflare:workers';
 import { generateUniqueSlug } from '../../../../lib/slug';
 import { hasPermission } from '../../../../lib/permissions';
 import { invalidateEntryCache } from '../../../../lib/cache-invalidation';
+import { syncCounts } from '../../../../lib/sync-counts';
 
 export const GET: APIRoute = async ({ request, params, locals }) => {
     const user = locals.user;
@@ -202,8 +203,10 @@ export const POST: APIRoute = async (ctx) => {
         const waitCtx = (ctx.locals as any).cfContext || ctx;
         if (waitCtx && waitCtx.waitUntil) {
             waitCtx.waitUntil(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
+            waitCtx.waitUntil(syncCounts(db));
         } else {
             invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
+            syncCounts(db).catch(console.error);
         }
 
         return new Response(JSON.stringify({ success: true, id: entryId, slug: finalSlug }), {
