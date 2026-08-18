@@ -638,6 +638,12 @@ if (Astro.request.method === 'POST') {
                 resultEl.textContent = `✅ Deleted ${data.deleted} cached page${data.deleted !== 1 ? 's' : ''}.`;
               } else if (body.action === 'purge_all') {
                 resultEl.textContent = `✅ Purged ${data.deleted} cached page${data.deleted !== 1 ? 's' : ''} from R2 and Cloudflare.`;
+              } else if (body.action === 'purge_collection') {
+                resultEl.textContent = `✅ Purged ${data.deleted} collection page${data.deleted !== 1 ? 's' : ''}.`;
+              } else if (body.action === 'purge_taxonomy') {
+                resultEl.textContent = `✅ Purged ${data.deleted} taxonomy page${data.deleted !== 1 ? 's' : ''}.`;
+              } else {
+                resultEl.textContent = `✅ Success: ${data.deleted} items deleted.`;
               }
             } else {
               resultEl.className = 'text-xs font-medium mt-2 text-destructive';
@@ -686,7 +692,27 @@ if (Astro.request.method === 'POST') {
         });
       }
 
-      // D — Purge All
+      // D1 — Purge By Collection
+      const colBtn = document.getElementById('cache-purge-collection-btn') as HTMLButtonElement;
+      const colSelect = document.getElementById('cache-collection-select') as HTMLSelectElement;
+      const colRes = document.getElementById('cache-collection-result') as HTMLElement;
+      if (colBtn && colSelect) {
+        colBtn.addEventListener('click', () => {
+          cachePost({ action: 'purge_collection', collectionSlug: colSelect.value }, colRes, colBtn);
+        });
+      }
+
+      // D2 — Purge By Taxonomy
+      const taxBtn = document.getElementById('cache-purge-taxonomy-btn') as HTMLButtonElement;
+      const taxSelect = document.getElementById('cache-taxonomy-select') as HTMLSelectElement;
+      const taxRes = document.getElementById('cache-taxonomy-result') as HTMLElement;
+      if (taxBtn && taxSelect) {
+        taxBtn.addEventListener('click', () => {
+          cachePost({ action: 'purge_taxonomy', taxonomySlug: taxSelect.value }, taxRes, taxBtn);
+        });
+      }
+
+      // E — Purge All
       const allBtn = document.getElementById('cache-purge-all-btn') as HTMLButtonElement;
       const allRes = document.getElementById('cache-all-result') as HTMLElement;
       if (allBtn) {
