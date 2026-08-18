@@ -236,15 +236,8 @@ export const POST: APIRoute = async (ctx) => {
             edgeUrls.push(`${siteOrigin}/${collectionSlug}`);
 
             if (entriesData.length > 0) {
-                // getCanonicalUrls uses IN (...) which has a 999-param limit in SQLite.
-                // Chunk into batches of 200 to stay well under the 999-param SQLite limit.
-                const CHUNK_SIZE = 200;
-                const canonicalMap: Record<number, string> = {};
-                for (let i = 0; i < entriesData.length; i += CHUNK_SIZE) {
-                    const chunk = entriesData.slice(i, i + CHUNK_SIZE);
-                    const partial = await getCanonicalUrls(db, chunk.map(e => e.id));
-                    Object.assign(canonicalMap, partial);
-                }
+                // getCanonicalUrls is now self-chunking at 50 IDs per query internally.
+                const canonicalMap = await getCanonicalUrls(db, entriesData.map(e => e.id));
                 
                 for (const e of entriesData) {
                     const prefix = canonicalMap[e.id];
@@ -257,6 +250,20 @@ export const POST: APIRoute = async (ctx) => {
                 }
             }
             
+            // Also sweep the collection's archive prefix to catch paginated pages
+            // e.g. rendered/articles/page/2.html, rendered/articles/page/3.html ...
+            // These are not knowable without listing R2 under the prefix.
+            {
+                let cursor: string | undefined;
+                do {
+                    const opts: any = { prefix: `rendered/${collectionSlug}/`, limit: 1000 };
+                    if (cursor) opts.cursor = cursor;
+                    const listed = await env.RENDER_CACHE.list(opts);
+                    for (const o of listed.objects) r2Keys.push(o.key);
+                    cursor = listed.truncated ? listed.cursor : undefined;
+                } while (cursor);
+            }
+
             // Delete from R2 in bulk
             for (let i = 0; i < r2Keys.length; i += 1000) {
                 await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
