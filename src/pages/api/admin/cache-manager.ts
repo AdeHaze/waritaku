@@ -2,6 +2,10 @@ import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { hasPermission } from '../../../lib/permissions';
 import { invalidateCachedPage } from '../../../lib/render-cache';
+import { getDb } from '../../../lib/db';
+import { collections, entries, taxonomies, terms } from '../../../db/schema';
+import { eq } from 'drizzle-orm';
+import { getCanonicalUrls } from '../../../lib/queries';
 
 const PRODUCTION_ORIGIN = 'https://waritaku.com';
 
@@ -19,20 +23,26 @@ async function purgeEdgeUrls(env: any, urls: string[]): Promise<void> {
     if (!zoneId || !apiToken || urls.length === 0) return;
 
     // CF purge API accepts max 30 URLs per request
+    // To prevent exceeding Worker subrequest limits (1000 per invocation), we cap edge purging to 15,000 URLs (500 requests).
+    const safeUrls = urls.slice(0, 15000);
     const chunks: string[][] = [];
-    for (let i = 0; i < urls.length; i += 30) {
-        chunks.push(urls.slice(i, i + 30));
+    for (let i = 0; i < safeUrls.length; i += 30) {
+        chunks.push(safeUrls.slice(i, i + 30));
     }
-    await Promise.all(chunks.map(chunk =>
-        fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiToken}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ files: chunk }),
-        })
-    ));
+    
+    // Process in batches of 10 concurrent requests to avoid hitting simultaneous connection limits
+    for (let i = 0; i < chunks.length; i += 10) {
+        await Promise.all(chunks.slice(i, i + 10).map(chunk =>
+            fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ files: chunk }),
+            })
+        ));
+    }
 }
 
 /** List all R2 keys under the rendered/ prefix, paginating with cursor. */
@@ -114,8 +124,10 @@ export const POST: APIRoute = async (ctx) => {
                 });
             }
 
-            // Delete from R2
-            await Promise.all(keys.map((k: string) => env.RENDER_CACHE.delete(k)));
+            // Delete from R2 in batches of 1000
+            for (let i = 0; i < keys.length; i += 1000) {
+                await env.RENDER_CACHE.delete(keys.slice(i, i + 1000));
+            }
 
             // Purge CF edge for each URL
             const pathnames = keys.map((k: string) => k.replace(/^rendered/, '').replace(/\.html$/, ''));
@@ -164,9 +176,10 @@ export const POST: APIRoute = async (ctx) => {
                 });
             }
 
-            // Delete R2 keys in batches of 100
-            for (let i = 0; i < matching.length; i += 100) {
-                await Promise.all(matching.slice(i, i + 100).map(k => env.RENDER_CACHE.delete(k.key)));
+            // Delete R2 keys in batches of 1000 (R2 bulk delete support)
+            const keyStrings = matching.map(k => k.key);
+            for (let i = 0; i < keyStrings.length; i += 1000) {
+                await env.RENDER_CACHE.delete(keyStrings.slice(i, i + 1000));
             }
 
             const pathnames = matching.map(k => keyToPathname(k.key));
@@ -182,14 +195,92 @@ export const POST: APIRoute = async (ctx) => {
         }
     }
 
-    // ── C. Purge everything ──────────────────────────────────────────────────
+    // ── D1. Purge By Collection ───────────────────────────────────────────────
+    if (action === 'purge_collection') {
+        try {
+            const { collectionSlug } = body;
+            const db = getDb(env);
+            const colMatch = await db.select().from(collections).where(eq(collections.slug, collectionSlug)).limit(1);
+            if (colMatch.length === 0) return new Response(JSON.stringify({ error: 'Collection not found' }), { status: 404 });
+            
+            const entriesData = await db.select({ id: entries.id, slug: entries.slug }).from(entries).where(eq(entries.collectionId, colMatch[0].id));
+            
+            const urls: string[] = [];
+            const r2Keys: string[] = [];
+            
+            // Add collection archive page
+            urls.push(`${PRODUCTION_ORIGIN}/${collectionSlug}`);
+            r2Keys.push(`rendered/${collectionSlug}.html`);
+
+            if (entriesData.length > 0) {
+                const entryIds = entriesData.map(e => e.id);
+                const canonicalMap = await getCanonicalUrls(db, entryIds);
+                
+                for (const e of entriesData) {
+                    const prefix = canonicalMap[e.id];
+                    const path = prefix ? `/${prefix}/${e.slug}` : `/${e.slug}`;
+                    urls.push(`${PRODUCTION_ORIGIN}${path}`);
+                    r2Keys.push(`rendered${path}.html`);
+                }
+            }
+            
+            for (let i = 0; i < r2Keys.length; i += 1000) {
+                await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
+            }
+            await purgeEdgeUrls(env, urls);
+            
+            return new Response(JSON.stringify({ success: true, deleted: r2Keys.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        } catch (e: any) {
+            return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        }
+    }
+
+    // ── D2. Purge By Taxonomy ─────────────────────────────────────────────────
+    if (action === 'purge_taxonomy') {
+        try {
+            const { taxonomySlug } = body;
+            const db = getDb(env);
+            const taxMatch = await db.select().from(taxonomies).where(eq(taxonomies.slug, taxonomySlug)).limit(1);
+            if (taxMatch.length === 0) return new Response(JSON.stringify({ error: 'Taxonomy not found' }), { status: 404 });
+            
+            const tax = taxMatch[0];
+            const termsData = await db.select({ slug: terms.slug }).from(terms).where(eq(terms.taxonomyId, tax.id));
+            
+            const urls: string[] = [];
+            const r2Keys: string[] = [];
+            
+            // Add taxonomy umbrella archive page
+            urls.push(`${PRODUCTION_ORIGIN}/${taxonomySlug}`);
+            r2Keys.push(`rendered/${taxonomySlug}.html`);
+
+            if (termsData.length > 0) {
+                for (const t of termsData) {
+                    const path = tax.omitTaxonomySlug ? `/${t.slug}` : `/${tax.slug}/${t.slug}`;
+                    urls.push(`${PRODUCTION_ORIGIN}${path}`);
+                    r2Keys.push(`rendered${path}.html`);
+                }
+            }
+            
+            for (let i = 0; i < r2Keys.length; i += 1000) {
+                await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
+            }
+            await purgeEdgeUrls(env, urls);
+            
+            return new Response(JSON.stringify({ success: true, deleted: r2Keys.length }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        } catch (e: any) {
+            return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+        }
+    }
+
+    // ── E. Purge everything ──────────────────────────────────────────────────
     if (action === 'purge_all') {
         try {
             const allKeys = await listAllRenderedKeys(env.RENDER_CACHE);
 
-            // Delete all R2 keys in batches of 100
-            for (let i = 0; i < allKeys.length; i += 100) {
-                await Promise.all(allKeys.slice(i, i + 100).map(k => env.RENDER_CACHE.delete(k.key)));
+            // Delete all R2 keys in batches of 1000
+            const keyStrings = allKeys.map(k => k.key);
+            for (let i = 0; i < keyStrings.length; i += 1000) {
+                await env.RENDER_CACHE.delete(keyStrings.slice(i, i + 1000));
             }
 
             // Purge CF edge for each URL individually (not purge_everything)

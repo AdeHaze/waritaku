@@ -1,6 +1,6 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { settings } from '../../db/schema';
+import { settings, collections, taxonomies } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
@@ -38,6 +38,9 @@ if (env && (env as any).UPLOADS) {
     imageEnv = 'Cloudflare R2';
 }
 
+let allCollections: any[] = [];
+let allTaxonomies: any[] = [];
+
 // Load existing settings first
 if (db) {
     const allSettings = await db.select().from(settings);
@@ -49,6 +52,8 @@ if (db) {
     if (envSetting) {
         dbEnvironment = envSetting.value;
     }
+    allCollections = await db.select().from(collections);
+    allTaxonomies = await db.select().from(taxonomies);
 }
 
 if (Astro.request.method === 'POST') {
@@ -427,7 +432,55 @@ if (Astro.request.method === 'POST') {
                         <div id="cache-search-result" class="text-xs font-medium mt-2 hidden"></div>
                     </div>
 
-                    {/* D — Purge All */}
+                    {/* D1 — Purge By Collection */}
+                    <div class="p-4 bg-muted/20 border border-border rounded-lg">
+                        <h4 class="font-bold text-sm mb-1">Purge Collection</h4>
+                        <p class="text-xs text-muted-foreground mb-3">Delete R2 cache and Edge cache for every entry inside a specific collection (e.g. all Articles).</p>
+                        <div class="flex gap-2 flex-wrap">
+                            <select
+                                id="cache-collection-select"
+                                class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                                {allCollections.map(c => (
+                                    <option value={c.slug}>{c.label}</option>
+                                ))}
+                            </select>
+                            <button
+                                id="cache-purge-collection-btn"
+                                type="button"
+                                class="px-4 py-2 bg-amber-500 text-white font-semibold text-sm rounded-md hover:bg-amber-600 active:scale-95 transition-all shadow-sm disabled:opacity-60"
+                            >
+                                Purge Collection
+                            </button>
+                        </div>
+                        <div id="cache-collection-result" class="text-xs font-medium mt-2 hidden"></div>
+                    </div>
+
+                    {/* D2 — Purge By Taxonomy */}
+                    <div class="p-4 bg-muted/20 border border-border rounded-lg">
+                        <h4 class="font-bold text-sm mb-1">Purge Taxonomy Terms</h4>
+                        <p class="text-xs text-muted-foreground mb-3">Delete R2 cache and Edge cache for all term archive pages inside a taxonomy (e.g. all Category pages).</p>
+                        <div class="flex gap-2 flex-wrap">
+                            <select
+                                id="cache-taxonomy-select"
+                                class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            >
+                                {allTaxonomies.map(t => (
+                                    <option value={t.slug}>{t.label}</option>
+                                ))}
+                            </select>
+                            <button
+                                id="cache-purge-taxonomy-btn"
+                                type="button"
+                                class="px-4 py-2 bg-amber-500 text-white font-semibold text-sm rounded-md hover:bg-amber-600 active:scale-95 transition-all shadow-sm disabled:opacity-60"
+                            >
+                                Purge Taxonomy
+                            </button>
+                        </div>
+                        <div id="cache-taxonomy-result" class="text-xs font-medium mt-2 hidden"></div>
+                    </div>
+
+                    {/* E — Purge All */}
                     <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 rounded-lg">
                         <h4 class="font-bold text-sm text-destructive mb-1">⚠ Purge All Rendered Cache</h4>
                         <p class="text-xs text-red-700 dark:text-red-400 mb-3">
