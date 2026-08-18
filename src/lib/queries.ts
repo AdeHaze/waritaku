@@ -395,37 +395,25 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         if (taxonomy.umbrellaViewMode === 'all_entries') {
             // Count total entries in this taxonomy
             const countQuery = await db.select({ count: sql<number>`count(distinct ${entries.id})` })
-                .from(entries)
-                .from(entries)
+                .from(entryTerms)
+                .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                .innerJoin(entries, eq(entryTerms.entryId, entries.id))
                 .where(and(
-                    eq(entries.status, 'published'),
-                    exists(
-                        db.select({ id: sql`1` })
-                        .from(entryTerms)
-                        .innerJoin(terms, eq(entryTerms.termId, terms.id))
-                        .where(and(
-                            eq(terms.taxonomyId, taxonomy.id),
-                            eq(entryTerms.entryId, entries.id)
-                        ))
-                    )
+                    eq(terms.taxonomyId, taxonomy.id),
+                    eq(entries.status, 'published')
                 ));
             const totalItems = Number(countQuery[0]?.count || 0);
             const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
             const idResult = await db.select({ id: entries.id })
-                .from(entries)
+                .from(entryTerms)
+                .innerJoin(terms, eq(entryTerms.termId, terms.id))
+                .innerJoin(entries, eq(entryTerms.entryId, entries.id))
                 .where(and(
-                    eq(entries.status, 'published'),
-                    exists(
-                        db.select({ id: sql`1` })
-                        .from(entryTerms)
-                        .innerJoin(terms, eq(entryTerms.termId, terms.id))
-                        .where(and(
-                            eq(terms.taxonomyId, taxonomy.id),
-                            eq(entryTerms.entryId, entries.id)
-                        ))
-                    )
+                    eq(terms.taxonomyId, taxonomy.id),
+                    eq(entries.status, 'published')
                 ))
+                .groupBy(entries.id)
                 .orderBy(desc(entries.id))
                 .limit(pageSize)
                 .offset((currentPage - 1) * pageSize);
