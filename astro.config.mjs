@@ -79,7 +79,7 @@ export default defineConfig({
       }
     }
   },
-  trailingSlash: 'ignore',
+  trailingSlash: 'never',
   output: 'server',
   adapter: cloudflare()
 });

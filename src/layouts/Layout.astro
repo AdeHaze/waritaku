@@ -13,9 +13,10 @@ import { getDb } from "../lib/db";
 interface Props {
 	title: string;
 	metaDescription?: string;
+    noindex?: boolean;
 }
 
-const { title, metaDescription } = Astro.props;
+const { title, metaDescription, noindex } = Astro.props;
 
 let generalConfig = {
 	siteTitle: "Waritaku",
@@ -65,6 +66,7 @@ const canonicalUrl = new URL(cleanPath, generalConfig.siteUrl).toString();
 		<title>{displayTitle}</title>
 		{displayDesc && <meta name="description" content={displayDesc} />}
 		<link rel="canonical" href={canonicalUrl} />
+        {noindex && <meta name="robots" content="noindex, follow" />}
 		{/* Open Graph / Twitter Card */}
 		<meta property="og:type" content="website" />
 		<meta property="og:site_name" content={generalConfig.siteTitle} />

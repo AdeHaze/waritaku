@@ -135,6 +135,21 @@ Run the R2 Sync utility to upload all local images to your live bucket:
 npm run push:media
 ```
 
+## Automated Backups
+
+Cloudflare D1 has built-in Point-in-Time Recovery (Time Travel). Time Travel keeps a continuous backup of the database for 30 days. You can restore the database to any minute in that time.
+
+This repository also includes a GitHub Actions workflow to create an off-platform backup. The workflow creates a standard `.sql` file. Use this file if you must migrate to a different database provider.
+
+The workflow runs every day at 2:00 AM UTC. It exports the database and uploads the file to your `waritaku-uploads` R2 bucket in the `/backups/` folder.
+
+To enable the automated backups, add these secrets to your GitHub repository:
+
+1. `CLOUDFLARE_API_TOKEN`: A Cloudflare API token with D1 read permissions and R2 write permissions.
+2. `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare Account ID.
+
+You can also start the backup manually from the GitHub Actions tab.
+
 ## Development Commands
 
 | Command | Action |

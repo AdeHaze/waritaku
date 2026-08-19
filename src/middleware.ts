@@ -30,6 +30,12 @@ import { env } from 'cloudflare:workers';
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
 
+    // --- Intercept legacy WP /feed URLs ---
+    if (url.pathname.endsWith('/feed') || url.pathname.endsWith('/feed/')) {
+        const cleanPath = url.pathname.replace(/\/feed\/?$/, '');
+        return context.redirect(cleanPath || '/', 301);
+    }
+
     // --- R2 Render Cache short-circuit ---
     // Runs before any D1 query. Visitor read traffic for public HTML pages
     // is served entirely from R2 + Cloudflare edge cache.
