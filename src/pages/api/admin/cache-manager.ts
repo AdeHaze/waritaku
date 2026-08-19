@@ -314,10 +314,28 @@ export const POST: APIRoute = async (ctx) => {
                 }
             }
             
+            // Also sweep each term's prefix to catch paginated term archive pages.
+            // e.g. rendered/kategori/anime/page/2.html, rendered/tag/isekai/page/3.html
+            // We cannot know which page numbers exist without listing R2.
+            for (const t of termsData) {
+                const termPrefix = tax.omitTaxonomySlug
+                    ? `rendered/${t.slug}/`
+                    : `rendered/${tax.slug}/${t.slug}/`;
+                let cursor: string | undefined;
+                do {
+                    const opts: any = { prefix: termPrefix, limit: 1000 };
+                    if (cursor) opts.cursor = cursor;
+                    const listed = await env.RENDER_CACHE.list(opts);
+                    for (const o of listed.objects) r2Keys.push(o.key);
+                    cursor = listed.truncated ? listed.cursor : undefined;
+                } while (cursor);
+            }
+
             // Delete from R2 in bulk
             for (let i = 0; i < r2Keys.length; i += 1000) {
                 await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
             }
+
             
             // For large taxonomies, skip individual URL purging to avoid subrequest limits.
             // Stale edge pages will be replaced on next visitor request after R2 is cleared.
