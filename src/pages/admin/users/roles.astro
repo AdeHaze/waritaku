@@ -154,7 +154,7 @@ if (env && env.DB) {
             <div class={hasPermission(permissions, 'roles', 'create') ? "lg:col-span-3 space-y-6" : "lg:col-span-4 space-y-6"}>
                 {items.map(role => (
                     <Card className="bg-card border-border shadow-sm">
-                        <CardHeader class="flex flex-row items-center justify-between">
+                        <CardHeader className="flex flex-row items-center justify-between">
                             <div>
                                 <h2 class="text-lg font-semibold flex items-center gap-2">
                                     {role.label} <span class="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{role.slug}</span>

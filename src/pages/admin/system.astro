@@ -673,7 +673,7 @@ if (Astro.request.method === 'POST') {
       }
 
       // B — Scoped Bulk Purge
-      const scopeSelect = document.getElementById('cache-scope-select') as HTMLSelectElement;
+      const scopeSelect = document.getElementById('cache-scope-select') as unknown as HTMLSelectElement;
       const scopeBtn    = document.getElementById('cache-purge-scoped-btn') as HTMLButtonElement;
       const scopeRes    = document.getElementById('cache-scoped-result') as HTMLElement;
       if (scopeBtn) {
@@ -694,7 +694,7 @@ if (Astro.request.method === 'POST') {
 
       // D1 — Purge By Collection
       const colBtn = document.getElementById('cache-purge-collection-btn') as HTMLButtonElement;
-      const colSelect = document.getElementById('cache-collection-select') as HTMLSelectElement;
+      const colSelect = document.getElementById('cache-collection-select') as unknown as HTMLSelectElement;
       const colRes = document.getElementById('cache-collection-result') as HTMLElement;
       if (colBtn && colSelect) {
         colBtn.addEventListener('click', () => {
@@ -704,7 +704,7 @@ if (Astro.request.method === 'POST') {
 
       // D2 — Purge By Taxonomy
       const taxBtn = document.getElementById('cache-purge-taxonomy-btn') as HTMLButtonElement;
-      const taxSelect = document.getElementById('cache-taxonomy-select') as HTMLSelectElement;
+      const taxSelect = document.getElementById('cache-taxonomy-select') as unknown as HTMLSelectElement;
       const taxRes = document.getElementById('cache-taxonomy-result') as HTMLElement;
       if (taxBtn && taxSelect) {
         taxBtn.addEventListener('click', () => {

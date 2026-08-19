@@ -25,9 +25,12 @@ if (taxRes.length === 0) {
 }
 const taxonomy = taxRes[0];
 
-const isOwner = taxonomy.authorId === user?.userId;
+if (!user || !permissions) {
+    return Astro.redirect('/admin/login');
+}
+const isOwner = taxonomy.authorId === user.userId;
 const canEdit = isOwner ? hasPermission(permissions, 'taxonomy_builder', 'edit_own') : hasPermission(permissions, 'taxonomy_builder', 'edit_others');
-if (!permissions || !canEdit) {
+if (!canEdit) {
     return Astro.redirect('/admin/login');
 }
 
@@ -288,7 +291,7 @@ try {
                             
                             <label class="flex items-start gap-3 cursor-pointer group">
                                 <div class="mt-0.5">
-                                    <input type="checkbox" name="umbrellaAllowIndexing" value="true" checked={taxonomy.umbrellaAllowIndexing !== false && taxonomy.umbrellaAllowIndexing !== 0} class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background" />
+                                    <input type="checkbox" name="umbrellaAllowIndexing" value="true" checked={taxonomy.umbrellaAllowIndexing !== false} class="w-4 h-4 rounded border-border text-primary focus:ring-primary/50 bg-background" />
                                 </div>
                                 <div>
                                     <div class="font-semibold text-foreground text-sm group-hover:text-primary transition-colors">Allow Search Engine Indexing</div>

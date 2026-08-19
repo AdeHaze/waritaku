@@ -157,7 +157,7 @@ if (env && (env as any).DB) {
         }
         
         // Only batch-fetch categories when no specific filter is active
-        const categoryMap: Record<number, { name: string, slug: string }[]> = {};
+        const categoryMap: Record<number, { id: number, name: string, slug: string }[]> = {};
         const entryIdsForCategory = result.map((r: any) => r.entry.id);
         const canonicalMap = await getCanonicalUrls(db, entryIdsForCategory);
         

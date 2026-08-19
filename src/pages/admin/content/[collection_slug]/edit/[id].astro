@@ -29,7 +29,7 @@ if (entryRes.length === 0) {
     return Astro.redirect('/404');
 }
 
-if (!hasPermission(permissions, 'entries', 'edit_others') && entryRes[0].authorId !== user.id) {
+if (!hasPermission(permissions, 'entries', 'edit_others') && entryRes[0].authorId !== user.userId) {
     return new Response("Forbidden: cannot edit others entries", { status: 403 });
 }
 

@@ -166,7 +166,7 @@ export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: strin
         try { supportsData = JSON.parse(prefixRes[0].supports || '{}'); } catch(e) {}
         const priorityArray: string[] = supportsData.taxonomies || [];
 
-        prefixRes.sort((a, b) => {
+        prefixRes.sort((a: any, b: any) => {
             const idxA = priorityArray.indexOf(a.taxonomySlug);
             const idxB = priorityArray.indexOf(b.taxonomySlug);
             const rankA = idxA === -1 ? 999 : idxA;
@@ -274,7 +274,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         .offset((currentPage - 1) * pageSize);
 
         const categoryArticles = entriesResult.map((r: any) => {
-            const data = safeJsonParse(r.entry.data, {});
+            const data = safeJsonParse(r.entry.data, {} as any);
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
@@ -365,7 +365,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         }
 
         for (const r of articlesResult) {
-            const data = safeJsonParse(r.entry.data, {});
+            const data = safeJsonParse(r.entry.data, {} as any);
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
@@ -432,7 +432,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 .limit(pageSize)
                 .offset((currentPage - 1) * pageSize);
 
-            const entryIds = idResult.map(r => r.id);
+            const entryIds = idResult.map((r: any) => r.id);
             let articlesResult: any[] = [];
             if (entryIds.length > 0) {
                 articlesResult = await db.select({
@@ -441,7 +441,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 })
                 .from(entries)
                 .leftJoin(users, eq(entries.authorId, users.id))
-                .where(sql`${entries.id} IN (${sql.join(entryIds.map(id => sql`${id}`), sql`, `)})`)
+                .where(sql`${entries.id} IN (${sql.join(entryIds.map((id: any) => sql`${id}`), sql`, `)})`)
                 .orderBy(desc(entries.id));
             }
 
@@ -470,7 +470,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             }
 
             for (const r of articlesResult) {
-                const data = safeJsonParse(r.entry.data, {});
+                const data = safeJsonParse(r.entry.data, {} as any);
                 const rawContent = data.content || '';
                 const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
                 const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
@@ -583,7 +583,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             return { redirect: `/${canonicalUrl}` };
         }
 
-        const parsedData = safeJsonParse(entry.data, {});
+        const parsedData = safeJsonParse(entry.data, {} as any);
         const genSlug = author?.name ? author.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : 'writer';
         
         let collectionSupports = {};
@@ -760,7 +760,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 .limit(pageSize)
                 .offset((currentPage - 1) * pageSize);
 
-            const entryIds = idResult.map(r => r.id);
+            const entryIds = idResult.map((r: any) => r.id);
             
             if (entryIds.length > 0) {
                 articlesResult = await db.select({
@@ -769,7 +769,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 })
                 .from(entries)
                 .leftJoin(users, eq(entries.authorId, users.id))
-                .where(sql`${entries.id} IN (${sql.join(entryIds.map(id => sql`${id}`), sql`, `)})`)
+                .where(sql`${entries.id} IN (${sql.join(entryIds.map((id: any) => sql`${id}`), sql`, `)})`)
                 .orderBy(desc(entries.id));
             }
         } else {
@@ -818,7 +818,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         }
         
         for (const r of articlesResult) {
-            const data = safeJsonParse(r.entry.data, {});
+            const data = safeJsonParse(r.entry.data, {} as any);
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;

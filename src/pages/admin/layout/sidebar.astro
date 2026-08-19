@@ -63,7 +63,7 @@ if (Astro.request.method === 'POST') {
             await saveSetting('sidebar_layout_config', JSON.stringify(layoutConfig));
             // Sidebar appears on all pages — purge the entire R2 render cache
             // so visitors see the updated widget layout without manual intervention.
-            if (env?.RENDER_CACHE && !import.meta.env.DEV) {
+            if ((env as any)?.RENDER_CACHE && !import.meta.env.DEV) {
                 invalidateCachedPage(env, ['/', '/beranda']).catch(console.error);
             }
             message = 'Sidebar layout and widgets updated successfully.';

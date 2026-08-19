@@ -267,34 +267,34 @@ const customFields = Object.keys(data).filter(k =>
 </div>
 
 <script>
-    function decodeHtmlRelated(text) {
+    function decodeHtmlRelated(text: string) {
         if (!text) return '';
         const textArea = document.createElement('textarea');
         textArea.innerHTML = text;
         return textArea.value;
     }
 
-    function getThumbnail(content) {
+    function getThumbnail(content: string) {
         if (!content) return null;
         const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
         return match ? match[1] : null;
     }
 
-    async function loadRelatedItems(container) {
+    async function loadRelatedItems(container: HTMLElement) {
         const tax = container.getAttribute('data-tax');
         const terms = container.getAttribute('data-terms');
-        const limit = parseInt(container.getAttribute('data-limit'), 10) || 4;
-        const currentId = parseInt(container.getAttribute('data-current-id'), 10);
+        const limit = parseInt(container.getAttribute('data-limit') || '4', 10);
+        const currentId = parseInt(container.getAttribute('data-current-id') || '0', 10);
         const randomize = container.getAttribute('data-randomize') === 'true';
 
         try {
             const res = await fetch(`/api/widgets/recent.json?tax=${tax}&terms=${terms}&limit=50`);
             if (!res.ok) throw new Error('Failed to fetch');
-            let articles = await res.json();
+            let articles: any[] = await res.json();
 
             // Filter out the current article being viewed
             if (currentId) {
-                articles = articles.filter(a => a.id !== currentId);
+                articles = articles.filter((a: any) => a.id !== currentId);
             }
 
             if (randomize) {
@@ -313,7 +313,7 @@ const customFields = Object.keys(data).filter(k =>
             }
 
             let html = '';
-            articles.forEach(item => {
+            articles.forEach((item: any) => {
                 const imgUrl = item.featuredImageUrl || getThumbnail(item.content) || `https://placehold.co/600x400/333/FFF?text=${encodeURIComponent(item.title)}`;
                 const title = decodeHtmlRelated(item.title);
                 const excerpt = item.excerpt || '';
@@ -351,11 +351,11 @@ const customFields = Object.keys(data).filter(k =>
     }
 
     function initImageZoom() {
-        const images = document.querySelectorAll('.prose img');
+        const images = document.querySelectorAll('.prose img') as NodeListOf<HTMLImageElement>;
         if (!images.length) return;
 
-        let lightbox = document.getElementById('waritaku-lightbox');
-        let img;
+        let lightbox = document.getElementById('waritaku-lightbox') as HTMLElement;
+        let img = null as unknown as HTMLImageElement;
         
         let scale = 1;
         let panning = false;
@@ -415,7 +415,7 @@ const customFields = Object.keys(data).filter(k =>
             // Wheel to zoom
             lightbox.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                let delta = (e.wheelDelta ? e.wheelDelta : -e.deltaY);
+                let delta = ((e as any).wheelDelta ? (e as any).wheelDelta : -e.deltaY);
                 let zoomFactor = (delta > 0) ? 1.1 : 0.9;
                 let newScale = scale * zoomFactor;
                 
@@ -469,7 +469,7 @@ const customFields = Object.keys(data).filter(k =>
                 img.style.cursor = 'grab';
             });
         } else {
-            img = lightbox.querySelector('img');
+            img = lightbox.querySelector('img') as HTMLImageElement;
         }
 
         function closeLightbox() {
@@ -508,13 +508,13 @@ const customFields = Object.keys(data).filter(k =>
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        const containers = document.querySelectorAll('.related-items-container');
+        const containers = document.querySelectorAll('.related-items-container') as NodeListOf<HTMLElement>;
         containers.forEach(container => loadRelatedItems(container));
         initImageZoom();
     });
 
     document.addEventListener('astro:page-load', () => {
-        const containers = document.querySelectorAll('.related-items-container');
+        const containers = document.querySelectorAll('.related-items-container') as NodeListOf<HTMLElement>;
         containers.forEach(container => loadRelatedItems(container));
         initImageZoom();
     });

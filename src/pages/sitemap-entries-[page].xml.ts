@@ -39,24 +39,24 @@ export const GET: APIRoute = async ({ params, request }) => {
         }
     }
 
-    let pageQuery = db.select({ 
+    let condition: any = eq(entries.status, 'published');
+
+    if (allowedColIds !== null) {
+        if (allowedColIds.length === 0) {
+            condition = sql`1=0`; // Empty
+        } else {
+            condition = and(eq(entries.status, 'published'), inArray(entries.collectionId, allowedColIds));
+        }
+    }
+
+    const pageEntries = await db.select({ 
         id: entries.id, 
         slug: entries.slug, 
         updatedAt: entries.updatedAt, 
         publishedAt: entries.publishedAt 
     })
     .from(entries)
-    .where(eq(entries.status, 'published'));
-
-    if (allowedColIds !== null) {
-        if (allowedColIds.length === 0) {
-            pageQuery = pageQuery.where(sql`1=0`) as any; // Empty
-        } else {
-            pageQuery = pageQuery.where(and(eq(entries.status, 'published'), inArray(entries.collectionId, allowedColIds))) as any;
-        }
-    }
-
-    const pageEntries = await pageQuery
+    .where(condition)
     .orderBy(desc(entries.id))
     .limit(CHUNK_SIZE)
     .offset((page - 1) * CHUNK_SIZE);

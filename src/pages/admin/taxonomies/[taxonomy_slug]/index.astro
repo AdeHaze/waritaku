@@ -54,7 +54,7 @@ if (Astro.request.method === 'POST') {
                 isError = true;
             } else {
                 let initialSlug = slug || name;
-                const finalSlug = await generateUniqueSlug(db, initialSlug, 'term', undefined, taxonomy.omitTaxonomySlug === true || taxonomy.omitTaxonomySlug === 1);
+                const finalSlug = await generateUniqueSlug(db, initialSlug, 'term', undefined, Boolean(taxonomy.omitTaxonomySlug));
 
                 await db.insert(terms).values({
                     taxonomyId: taxonomy.id,
@@ -98,7 +98,7 @@ if (Astro.request.method === 'POST') {
             } else {
                 const updateData: any = { name: newName };
                 if (newSlug) {
-                    updateData.slug = await generateUniqueSlug(db, newSlug, 'term', termId, taxonomy.omitTaxonomySlug === true || taxonomy.omitTaxonomySlug === 1);
+                    updateData.slug = await generateUniqueSlug(db, newSlug, 'term', termId, Boolean(taxonomy.omitTaxonomySlug));
                 }
                 await db.update(terms).set(updateData).where(eq(terms.id, termId));
                 const u = new URL(Astro.request.url);

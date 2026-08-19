@@ -18,9 +18,12 @@ if (colRes.length === 0) {
 }
 const collection = colRes[0];
 
-const isOwner = collection.authorId === user?.userId;
+if (!user || !permissions) {
+    return Astro.redirect('/admin/login');
+}
+const isOwner = collection.authorId === user.userId;
 const canEdit = isOwner ? hasPermission(permissions, 'content_builder', 'edit_own') : hasPermission(permissions, 'content_builder', 'edit_others');
-if (!permissions || !canEdit) {
+if (!canEdit) {
     return Astro.redirect('/admin/login');
 }
 

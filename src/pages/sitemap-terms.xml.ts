@@ -25,24 +25,24 @@ export const GET: APIRoute = async ({ request }) => {
         } catch(e) {}
     }
 
-    let termsQuery = db.select({
+    let condition: any = eq(taxonomies.isRouted, true);
+
+    if (sitemapTaxonomies !== null) {
+        if (sitemapTaxonomies.length === 0) {
+            condition = sql`1=0`;
+        } else {
+            condition = and(eq(taxonomies.isRouted, true), inArray(taxonomies.slug, sitemapTaxonomies));
+        }
+    }
+
+    const allTerms = await db.select({
         slug: terms.slug,
         taxonomySlug: taxonomies.slug,
         omitTaxonomySlug: taxonomies.omitTaxonomySlug
     })
     .from(terms)
     .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
-    .where(eq(taxonomies.isRouted, true));
-
-    if (sitemapTaxonomies !== null) {
-        if (sitemapTaxonomies.length === 0) {
-            termsQuery = termsQuery.where(sql`1=0`) as any;
-        } else {
-            termsQuery = termsQuery.where(and(eq(taxonomies.isRouted, true), inArray(taxonomies.slug, sitemapTaxonomies))) as any;
-        }
-    }
-
-    const allTerms = await termsQuery;
+    .where(condition);
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;

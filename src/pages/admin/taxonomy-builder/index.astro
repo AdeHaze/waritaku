@@ -33,7 +33,7 @@ const allTaxonomies = await db.select().from(taxonomies);
         <div class="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
             {allTaxonomies.length === 0 ? (
                 <div class="p-12 text-center flex flex-col items-center">
-                    <FolderTree size={48} class="text-muted-foreground/30 mb-4" />
+                    <FolderTree size={48} className="text-muted-foreground/30 mb-4" />
                     <h3 class="text-xl font-bold text-foreground">No taxonomies found</h3>
                     <p class="text-muted-foreground mt-2 max-w-md mx-auto">You haven't created any custom taxonomies yet. Create your first taxonomy to start classifying your content.</p>
                     <a href="/admin/taxonomy-builder/create" class="mt-6 inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 rounded-full hover:bg-primary/90 font-medium transition-all shadow hover:shadow-md">
@@ -141,7 +141,7 @@ const allTaxonomies = await db.select().from(taxonomies);
                     const statsRes = await fetch(`/api/taxonomy-builder/${id}/stats`);
                     if (!statsRes.ok) throw new Error('Could not fetch taxonomy stats');
                     
-                    const stats = await statsRes.json();
+                    const stats = (await statsRes.json()) as any;
                     
                     let confirmMessage = `Are you sure you want to delete the taxonomy "${name}"?`;
                     
@@ -156,7 +156,7 @@ const allTaxonomies = await db.select().from(taxonomies);
                         if (res.ok) {
                             window.location.reload();
                         } else {
-                            const err = await res.json();
+                            const err = (await res.json()) as any;
                             alert(`Error deleting taxonomy: ${err.error}`);
                             button.style.opacity = '1';
                             button.style.pointerEvents = 'auto';
