@@ -1,14 +1,13 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { settings } from '../../../db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../../lib/db';
 
 import NavigationSettings from '../../../components/admin/NavigationSettings';
 import { hasPermission } from '../../../lib/permissions';
 
-const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
 if (!permissions || !hasPermission(permissions, 'layout', 'read')) {
     return Astro.redirect('/admin/login');
