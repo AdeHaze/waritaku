@@ -1,0 +1,67 @@
+---
+import { getThumbnail } from '../../lib/utils';
+interface Props {
+  articles: any[];
+}
+const { articles } = Astro.props;
+
+
+const featured = articles[0];
+const subFeatured = articles.slice(1, 5); // 4 articles
+---
+
+<div class="mb-12 mt-4">
+    {/* BIG GIANT IMAGE SPANNING FULL WIDTH OF CONTAINER */}
+    {featured && (
+        <a href={featured.canonicalUrl || `/${featured.slug}`} class="group block relative w-full overflow-hidden rounded-t-2xl md:rounded-2xl aspect-video md:aspect-[21/9] lg:h-[450px]">
+            <img 
+                src={featured.featuredImageUrl || getThumbnail(featured.content)} 
+                alt={featured.title}
+                class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
+            <div class="absolute bottom-0 left-0 w-full p-6 md:p-10">
+                <span class="inline-block bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded shadow uppercase tracking-wider mb-4">
+                    {featured.categoryName}
+                </span>
+                <h2 class="text-white text-2xl md:text-5xl font-extrabold leading-tight group-hover:text-primary transition-colors max-w-4xl drop-shadow-lg line-clamp-3">
+                    {featured.title}
+                </h2>
+                <div class="mt-4 text-xs md:text-sm text-gray-300 font-medium flex items-center space-x-2">
+                    <span class="font-bold text-white">{featured.authorName}</span>
+                    <span>&bull;</span>
+                    <time datetime={featured.publishedAt}>{new Date(featured.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time>
+                </div>
+            </div>
+        </a>
+    )}
+
+    {/* DENSE 4-ITEM GRID UNDERNEATH */}
+    {subFeatured.length > 0 && (
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mt-2 md:mt-4">
+            {subFeatured.map(article => (
+                <a href={article.canonicalUrl || `/${article.slug}`} class="group block relative w-full overflow-hidden rounded-b-xl md:rounded-xl aspect-[16/9] md:h-[180px]">
+                    <img 
+                        src={article.featuredImageUrl || getThumbnail(article.content)} 
+                        alt={article.title}
+                        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                    />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
+                    <div class="absolute bottom-0 left-0 w-full p-3 md:p-4">
+                        <div class="hidden md:flex items-center space-x-2 text-[10px] uppercase font-black tracking-wider mb-1">
+                            <span class="text-primary">{article.categoryName}</span>
+                            <span class="text-gray-300">&bull; {article.authorName}</span>
+                        </div>
+                        <span class="md:hidden text-primary text-[10px] font-black uppercase tracking-wider mb-1 block">
+                            {article.categoryName}
+                        </span>
+                        <h3 class="text-white text-xs md:text-sm font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                            {article.title}
+                        </h3>
+                    </div>
+                </a>
+            ))}
+        </div>
+    )}
+</div>
