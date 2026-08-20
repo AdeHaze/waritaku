@@ -78,7 +78,7 @@ export const POST: APIRoute = async (ctx) => {
         return new Response(JSON.stringify({ error: 'Forbidden: system permission required' }), { status: 403 });
     }
 
-    if (!env?.RENDER_CACHE) {
+    if (!(env as any)?.RENDER_CACHE) {
         return new Response(JSON.stringify({ error: 'Render cache not configured in this environment.' }), { status: 503 });
     }
 
@@ -132,7 +132,7 @@ export const POST: APIRoute = async (ctx) => {
             do {
                 const opts: any = { prefix: 'rendered/search', limit: 1000 };
                 if (cursor) opts.cursor = cursor;
-                const listed = await env.RENDER_CACHE.list(opts);
+                const listed = await (env as any).RENDER_CACHE.list(opts);
                 for (const o of listed.objects) allKeys.push(o.key);
                 cursor = listed.truncated ? listed.cursor : undefined;
             } while (cursor);
@@ -146,7 +146,7 @@ export const POST: APIRoute = async (ctx) => {
 
             // Delete from R2 in batches of 1000
             for (let i = 0; i < allKeys.length; i += 1000) {
-                await env.RENDER_CACHE.delete(allKeys.slice(i, i + 1000));
+                await (env as any).RENDER_CACHE.delete(allKeys.slice(i, i + 1000));
             }
 
             // Purge CF edge for each URL
@@ -179,7 +179,7 @@ export const POST: APIRoute = async (ctx) => {
         }
 
         try {
-            const allKeys = await listAllRenderedKeys(env.RENDER_CACHE);
+            const allKeys = await listAllRenderedKeys((env as any).RENDER_CACHE);
             const cutoff = Date.now() - (ms === Infinity ? 0 : ms);
 
             const matching = ms === Infinity
@@ -199,7 +199,7 @@ export const POST: APIRoute = async (ctx) => {
             // Delete R2 keys in batches of 1000 (R2 bulk delete support)
             const keyStrings = matching.map(k => k.key);
             for (let i = 0; i < keyStrings.length; i += 1000) {
-                await env.RENDER_CACHE.delete(keyStrings.slice(i, i + 1000));
+                await (env as any).RENDER_CACHE.delete(keyStrings.slice(i, i + 1000));
             }
 
             const pathnames = matching.map(k => keyToPathname(k.key));
@@ -258,7 +258,7 @@ export const POST: APIRoute = async (ctx) => {
                 do {
                     const opts: any = { prefix: `rendered/${collectionSlug}/`, limit: 1000 };
                     if (cursor) opts.cursor = cursor;
-                    const listed = await env.RENDER_CACHE.list(opts);
+                    const listed = await (env as any).RENDER_CACHE.list(opts);
                     for (const o of listed.objects) r2Keys.push(o.key);
                     cursor = listed.truncated ? listed.cursor : undefined;
                 } while (cursor);
@@ -266,7 +266,7 @@ export const POST: APIRoute = async (ctx) => {
 
             // Delete from R2 in bulk
             for (let i = 0; i < r2Keys.length; i += 1000) {
-                await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
+                await (env as any).RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
             }
             
             // Only purge edge cache individually for smaller collections.
@@ -325,7 +325,7 @@ export const POST: APIRoute = async (ctx) => {
                 do {
                     const opts: any = { prefix: termPrefix, limit: 1000 };
                     if (cursor) opts.cursor = cursor;
-                    const listed = await env.RENDER_CACHE.list(opts);
+                    const listed = await (env as any).RENDER_CACHE.list(opts);
                     for (const o of listed.objects) r2Keys.push(o.key);
                     cursor = listed.truncated ? listed.cursor : undefined;
                 } while (cursor);
@@ -333,7 +333,7 @@ export const POST: APIRoute = async (ctx) => {
 
             // Delete from R2 in bulk
             for (let i = 0; i < r2Keys.length; i += 1000) {
-                await env.RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
+                await (env as any).RENDER_CACHE.delete(r2Keys.slice(i, i + 1000));
             }
 
             
@@ -357,12 +357,12 @@ export const POST: APIRoute = async (ctx) => {
     // ── E. Purge everything ──────────────────────────────────────────────────
     if (action === 'purge_all') {
         try {
-            const allKeys = await listAllRenderedKeys(env.RENDER_CACHE);
+            const allKeys = await listAllRenderedKeys((env as any).RENDER_CACHE);
 
             // Delete all R2 keys in batches of 1000
             const keyStrings = allKeys.map(k => k.key);
             for (let i = 0; i < keyStrings.length; i += 1000) {
-                await env.RENDER_CACHE.delete(keyStrings.slice(i, i + 1000));
+                await (env as any).RENDER_CACHE.delete(keyStrings.slice(i, i + 1000));
             }
 
             // Purge CF edge for each URL individually (not purge_everything)
