@@ -2,7 +2,6 @@
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { hasPermission } from "../../../lib/permissions";
 
-const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
 if (!permissions || !hasPermission(permissions, 'content_builder', 'create')) {
     return Astro.redirect("/admin/login");
