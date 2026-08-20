@@ -111,11 +111,12 @@ export const PUT: APIRoute = async (ctx) => {
             await db.delete(entryTerms).where(eq(entryTerms.entryId, entryId));
             
             // Insert new mappings
-            for (const termId of selectedTerms) {
-                await db.insert(entryTerms).values({
+            if (selectedTerms.length > 0) {
+                const valuesToInsert = selectedTerms.map(termId => ({
                     entryId,
                     termId: parseInt(termId, 10)
-                });
+                }));
+                await db.insert(entryTerms).values(valuesToInsert);
             }
         }
 
