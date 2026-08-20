@@ -10,7 +10,6 @@ import { hasPermission } from '../../lib/permissions';
 const availableLanguagePacks = getRegisteredLanguages();
 
 
-const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
 if (!permissions || !hasPermission(permissions, 'settings', 'read')) {
     return Astro.redirect('/admin/login');
@@ -37,6 +36,7 @@ let generalConfig = {
     footerHtml: '',
     articleUpperHtml: '',
     articleBottomHtml: '',
+    archiveInBetweenHtml: '',
     systemLoginHtml: '',
     copyright: 'Waritaku',
     enableRedirections: true,
@@ -86,6 +86,7 @@ if (Astro.request.method === 'POST') {
             footerHtml: formData.get('footerHtml') as string || '',
             articleUpperHtml: formData.get('articleUpperHtml') as string || '',
             articleBottomHtml: formData.get('articleBottomHtml') as string || '',
+            archiveInBetweenHtml: formData.get('archiveInBetweenHtml') as string || '',
             systemLoginHtml: formData.get('systemLoginHtml') as string || '',
             enableRedirections: formData.get('enableRedirections') === 'on',
             enable404Tracking: formData.get('enable404Tracking') === 'on',
@@ -378,6 +379,17 @@ if (Astro.request.method === 'POST') {
                             class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono"
                         >{generalConfig.articleBottomHtml}</textarea>
                         <p class="text-[11px] text-muted-foreground">This HTML/JS code will automatically be rendered directly at the bottom of every individual Article page.</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-semibold">Archive In-Between HTML</label>
+                        <textarea 
+                            name="archiveInBetweenHtml" 
+                            rows="6"
+                            placeholder="<!-- Paste Google Ads or custom widgets here -->"
+                            class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono"
+                        >{generalConfig.archiveInBetweenHtml}</textarea>
+                        <p class="text-[11px] text-muted-foreground">This HTML/JS code will be rendered between articles in archive pages (e.g. Category, Tag, Date archives). Designed for in-feed/multiplex ads.</p>
                     </div>
                 </div>
             </div>
