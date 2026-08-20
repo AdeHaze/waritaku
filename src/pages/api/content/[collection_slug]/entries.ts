@@ -189,13 +189,12 @@ export const POST: APIRoute = async (ctx) => {
         const entryId = inserted[0].id;
 
         // Map Taxonomy Terms
-        if (selectedTerms && Array.isArray(selectedTerms)) {
-            for (const termId of selectedTerms) {
-                await db.insert(entryTerms).values({
-                    entryId,
-                    termId: parseInt(termId, 10)
-                });
-            }
+        if (selectedTerms && Array.isArray(selectedTerms) && selectedTerms.length > 0) {
+            const valuesToInsert = selectedTerms.map(termId => ({
+                entryId,
+                termId: parseInt(termId, 10)
+            }));
+            await db.insert(entryTerms).values(valuesToInsert);
         }
 
         // Invalidate Cache (non-blocking)
