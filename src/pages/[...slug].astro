@@ -769,5 +769,59 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
             />
         )
     )}
+
+<style is="global">
+/* Utilities */
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+
+  
+
+/* ── WordPress Legacy Image Alignments ── */
+.aligncenter {
+  display: block;
+  margin: 1.5rem auto;
+  text-align: center;
+}
+.alignleft {
+  float: left;
+  margin: 0.5rem 1.5rem 1.5rem 0;
+}
+.alignright {
+  float: right;
+  margin: 0.5rem 0 1.5rem 1.5rem;
+}
+.wp-caption {
+  max-width: 100%;
+  text-align: center;
+  background: var(--muted);
+  padding: 0.5rem;
+  border-radius: var(--radius);
+}
+.wp-caption img {
+  margin: 0 auto;
+}
+.wp-caption-text {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin-top: 0.5rem;
+}
+
+/* ── Responsive iFrames (YouTube, etc) ── */
+.prose iframe,
+.wp-embedded-content {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border-radius: var(--radius);
+}
+</style>
+
 </LayoutArticlePage>
 )}
