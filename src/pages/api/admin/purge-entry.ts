@@ -18,7 +18,7 @@ export const POST: APIRoute = async (ctx) => {
         return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
     }
 
-    if (!env?.RENDER_CACHE) {
+    if (!(env as any)?.RENDER_CACHE) {
         return new Response(JSON.stringify({ error: 'Render cache not available in this environment.' }), { status: 503 });
     }
 
