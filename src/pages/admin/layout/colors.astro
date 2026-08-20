@@ -7,7 +7,6 @@ import { getDb } from '../../../lib/db';
 import { hasPermission } from '../../../lib/permissions';
 
 
-const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
 if (!permissions || !hasPermission(permissions, 'layout', 'read')) {
     return Astro.redirect('/admin/login');
