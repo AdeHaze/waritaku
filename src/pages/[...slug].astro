@@ -69,8 +69,25 @@ if (!isHomepageFallback && env && env.DB && slug) {
       categoryArticles = resolved.categoryArticles;
       termsList = resolved.termsList || [];
       totalPages = resolved.totalPages || 1;
-      articleUpperHtml = resolved.articleUpperHtml || '';
+            articleUpperHtml = resolved.articleUpperHtml || '';
       articleBottomHtml = resolved.articleBottomHtml || '';
+
+      if (data && data.canonicalUrl && (pageType === 'category' || pageType === 'taxonomy_archive')) {
+          let expectedPath = data.canonicalUrl;
+          if (currentPage > 1) {
+              expectedPath = `${expectedPath}/page/${currentPage}`;
+          }
+          
+          let currentPath = Astro.url.pathname;
+          if (currentPath.endsWith('/') && currentPath !== '/') {
+              currentPath = currentPath.slice(0, -1);
+          }
+          
+          if (currentPath !== expectedPath) {
+              return Astro.redirect(expectedPath, 301);
+          }
+      }
+
   }
   
   if (pageType) {
@@ -642,7 +659,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                     <Pagination 
                         currentPage={currentPage} 
                         totalPages={totalPages} 
-                        baseUrl={`/${data.slug || slug}`} 
+                        baseUrl={data.canonicalUrl || `/${data.slug || slug}`} 
                     />
                 </div>
 
