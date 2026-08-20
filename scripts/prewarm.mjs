@@ -108,9 +108,9 @@ async function main() {
     console.log(`${entries.length} found`);
 
     // 2. Collect category term slugs (omit_taxonomy_slug=1 → no prefix in URL)
-    process.stdout.write('Querying category terms... ');
+        process.stdout.write('Querying category terms... ');
     const categories = queryLocal(`
-        SELECT t.slug as term_slug
+        SELECT t.slug as term_slug, t.entry_count
         FROM terms t
         JOIN taxonomies tx ON tx.id = t.taxonomy_id
         WHERE tx.slug = 'categories' AND tx.is_routed = 1
@@ -120,9 +120,9 @@ async function main() {
     // 3. Optionally collect tag slugs
     let tags = [];
     if (WARM_TAGS) {
-        process.stdout.write('Querying tag terms... ');
+                process.stdout.write('Querying tag terms... ');
         tags = queryLocal(`
-            SELECT t.slug as term_slug
+            SELECT t.slug as term_slug, t.entry_count
             FROM terms t
             JOIN taxonomies tx ON tx.id = t.taxonomy_id
             WHERE tx.slug = 'tag' AND tx.is_routed = 1
@@ -131,12 +131,29 @@ async function main() {
     }
 
     // 4. Build URL list
+    const PAGE_SIZE = 12;
     const urls = [
         `${ORIGIN}/`,
-        ...entries.map(e => `${ORIGIN}/${e.slug}`),
-        ...categories.map(c => `${ORIGIN}/${c.term_slug}`),
-        ...tags.map(t => `${ORIGIN}/tag/${t.term_slug}`),
+        ...entries.map(e => `${ORIGIN}/${e.slug}`)
     ];
+
+    // Categories and their pagination
+    for (const c of categories) {
+        urls.push(`${ORIGIN}/${c.term_slug}`);
+        const totalPages = Math.ceil((c.entry_count || 0) / PAGE_SIZE);
+        for (let p = 2; p <= totalPages; p++) {
+            urls.push(`${ORIGIN}/${c.term_slug}/page/${p}`);
+        }
+    }
+
+    // Tags and their pagination
+    for (const t of tags) {
+        urls.push(`${ORIGIN}/tag/${t.term_slug}`);
+        const totalPages = Math.ceil((t.entry_count || 0) / PAGE_SIZE);
+        for (let p = 2; p <= totalPages; p++) {
+            urls.push(`${ORIGIN}/tag/${t.term_slug}/page/${p}`);
+        }
+    }
 
     console.log(`\nTotal URLs to warm: ${urls.length}`);
     if (DRY_RUN) {
