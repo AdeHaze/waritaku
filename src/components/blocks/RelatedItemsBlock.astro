@@ -1,0 +1,26 @@
+---
+export interface Props {
+    block: any;
+    data: any;
+}
+const { block, data } = Astro.props;
+
+const targetTaxSlug = block.config?.targetTaxonomy || 'categories';
+let termIdsToMatch: number[] = [];
+if (data.taxonomyTerms && data.taxonomyTerms[targetTaxSlug]) {
+    termIdsToMatch = data.taxonomyTerms[targetTaxSlug].map((t: any) => t.id);
+}
+---
+<div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-border mt-12 bg-muted/10">
+    <h3 class="text-2xl font-bold mb-8 uppercase tracking-widest text-center">Related Items</h3>
+    <div 
+        class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 related-items-container min-h-[300px]"
+        data-tax={targetTaxSlug}
+        data-terms={termIdsToMatch.length > 0 ? termIdsToMatch.join(',') : 'all'}
+        data-current-id={data.id || ''}
+        data-limit="4"
+        data-randomize="true"
+    >
+        {/* Client-Side Shuffle will inject articles here */}
+    </div>
+</div>
