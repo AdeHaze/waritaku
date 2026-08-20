@@ -9,7 +9,7 @@ import type { APIRoute } from 'astro';
 //
 // Local dev (PUBLIC_MEDIA_BASE_URL not set):
 //   Proxy the object from the local R2 simulation via env.UPLOADS.
-export const GET: APIRoute = async ({ params, request }) => {
+export const GET: APIRoute = async ({ params }) => {
   const path = params.path;
   if (!path) {
     return new Response('Not Found', { status: 404 });
