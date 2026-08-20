@@ -9,7 +9,6 @@ import SidebarSettings from '../../../components/admin/SidebarSettings';
 import { hasPermission } from '../../../lib/permissions';
 import { invalidateCachedPage } from '../../../lib/render-cache';
 
-const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
 if (!permissions || !hasPermission(permissions, 'layout', 'read')) {
     return Astro.redirect('/admin/login');
