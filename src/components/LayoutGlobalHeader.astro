@@ -6,6 +6,7 @@ import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
 
 let { headerStyle = 'default' } = Astro.props;
+const t = Astro.locals.t || ((k: string, f?: string) => f || k);
 
 let generalConfig = {
     siteTitle: 'Waritaku',
@@ -43,7 +44,7 @@ if (env && env.DB) {
                     <div class="flex items-center w-1/3">
                         <form action="/search" method="GET" class="relative hidden md:block w-full max-w-[200px]">
                             <svg class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                            <input type="text" name="q" placeholder="Search..." class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pl-9 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                            <input type="text" name="q" placeholder={t('header.search_placeholder', 'Search...')} class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pl-9 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
                         </form>
                         <button class="md:hidden p-2 text-foreground focus:outline-none" aria-label="Search">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -65,11 +66,11 @@ if (env && env.DB) {
                     <div class="flex items-center justify-end w-1/3 space-x-4 md:space-x-6">
                         <a href="/contact" class="flex items-center text-muted-foreground hover:text-primary transition-colors">
                             <svg class="w-5 h-5 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            <span class="hidden md:inline text-sm font-medium">Find Us</span>
+                            <span class="hidden md:inline text-sm font-medium">{t('header.find_us', 'Find Us')}</span>
                         </a>
                         <a href="tel:+123456789" class="flex items-center text-muted-foreground hover:text-primary transition-colors">
                             <svg class="w-5 h-5 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
-                            <span class="hidden md:inline text-sm font-medium">Contact</span>
+                            <span class="hidden md:inline text-sm font-medium">{t('header.contact', 'Contact')}</span>
                         </a>
                         <div class="lg:hidden flex items-center">
                             <button id="mobile-menu-btn" onclick="document.getElementById('mobile-menu').classList.toggle('hidden'); document.body.classList.toggle('overflow-hidden');" class="p-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary rounded-md" aria-label="Toggle menu">
