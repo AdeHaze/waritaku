@@ -3,7 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import pkg from '../../../package.json';
 import { hasPermission } from '../../lib/permissions';
 
-const user = Astro.locals.user;
+
 const permissions = Astro.locals.permissions;
 
 // Role gate: only admin or superadmin may access
@@ -44,6 +44,11 @@ const lastUpdated = 'August 2026';
                             <p class="text-sm text-destructive/90">
                                 <strong>Never run <code>wrangler d1 migrations apply --local</code> blindly.</strong> 
                                 If the <code>d1_migrations</code> table is empty or missing (e.g., if tables were created manually or via <code>drizzle-kit push</code>), Wrangler may forcefully wipe and recreate the local SQLite file from scratch to apply migrations, resulting in total data loss. Always verify the migration state before running apply.
+                            </p>
+                            <h4 class="font-bold text-destructive mb-1 mt-3">CRITICAL SYSTEM RULE: Database Concurrency</h4>
+                            <p class="text-sm text-destructive/90">
+                                <strong>Never run heavy SQLite updates in a loop.</strong> 
+                                The <code>better-sqlite3</code> driver blocks the Node.js event loop during synchronous operations. For mass updates (like syncing counts), you must use raw SQL bulk commands (e.g. <code>db.run(sql)</code>). This prevents the dev server from freezing and stalling HTTP requests.
                             </p>
                         </div>
 
@@ -169,10 +174,10 @@ waritaku/
                         <div class="bg-muted/30 p-4 rounded-md border border-border space-y-3">
                             <h4 class="font-bold text-foreground mb-2">Routing & Rendering</h4>
                             <ul class="list-disc pl-5 space-y-1">
-                                <li><strong class="text-foreground"><code>[...slug].astro</code></strong> — the catch-all frontend router. Resolves entries, taxonomy archives, and date archives (<code>/2025/03</code>). Enforces canonical URLs with taxonomy prefixes (301 redirect).</li>
-                                <li><strong class="text-foreground"><code>src/lib/queries.ts</code></strong> — `resolveRouteData()` is the router's brain; also batches canonical URL lookups (single query per page, not per article).</li>
-                                <li><strong class="text-foreground"><code>src/middleware.ts</code></strong> — runs on every request: redirect engine, trailing-slash normalization, `/admin` + `/api` JWT auth guard, security headers, 404 logging.</li>
-                                <li><strong class="text-foreground">Block-builder pages</strong> — pages (and the front page) can be assembled from layout blocks (heroes, category blocks, article grids) via <code>BlockRenderer.astro</code>.</li>
+                                <li><strong class="text-foreground"><code>[...slug].astro</code></strong> - The catch-all frontend router. It resolves entries, taxonomy archives, and date archives (<code>/2025/03</code>). It automatically injects the <code>archiveInBetweenHtml</code> variable into taxonomy loops to display multiplex ads every four articles.</li>
+                                <li><strong class="text-foreground"><code>src/lib/queries.ts</code></strong> - The <code>resolveRouteData()</code> function acts as the brain for the router. It batches canonical URL lookups to run one query per page instead of one query per article.</li>
+                                <li><strong class="text-foreground"><code>src/middleware.ts</code></strong> - This file runs on every request. It controls the redirect engine, trailing-slash normalization, JWT authentication for the <code>/admin</code> and <code>/api</code> routes, security headers, and 404 logging. The system natively enforces 301 redirects for trailing slashes via the <code>trailingSlash: 'never'</code> configuration to protect SEO.</li>
+                                <li><strong class="text-foreground">Modular Block Builder</strong> - The system builds custom pages and the front page from decoupled Astro components. The <code>BlockRenderer.astro</code> file and the <code>ModularTemplateRenderer.astro</code> file load these components safely via Vite <code>import.meta.glob()</code>.</li>
                             </ul>
                         </div>
 
@@ -186,7 +191,7 @@ waritaku/
                                 <li><code>Accept: text/markdown</code> → content served as Markdown (via Turndown) for AI/LLM consumption.</li>
                                 <li>JSON-LD schema: NewsArticle, WebPage, CollectionPage, BreadcrumbList; `customSchema` override (validated, script-tag-safe).</li>
                                 <li>Password-protected articles (SHA-256 HMAC cookie gate).</li>
-                                <li>HTML sanitization via <code>sanitize-html</code> on all user-editable output (TipTap content, widget HTML).</li>
+                                <li>HTML sanitization via <code>sanitize-html</code>. The system uses the <code>allowVulnerableTags: true</code> setting to safely permit script tags and style tags in custom widget HTML and TipTap content.</li>
                             </ul>
                         </div>
 
@@ -387,12 +392,12 @@ waritaku/
                 {/* 13. Front Page Builder */}
                 <section id="docs-frontpage" class="bg-card border border-border rounded-2xl p-8 shadow-sm relative overflow-hidden group hover:border-lime-500/50 transition-colors scroll-mt-24">
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-lime-500/80 group-hover:bg-lime-500 transition-colors"></div>
-                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-lime-500">Appearance: Front Page Builder</h3>
+                    <h3 class="text-2xl font-black mb-4 border-b border-border/50 pb-3 uppercase tracking-wider text-lime-500">Appearance: Modular Block Builder</h3>
                     <div class="space-y-4 text-muted-foreground leading-relaxed text-sm">
-                        <p><strong class="text-foreground">Function:</strong> Configures section blocks on the front page.</p>
-                        <p><strong class="text-foreground">Database Structure:</strong> Saves block configurations to `settings` under `frontpage_layout`.</p>
-                        <p><strong class="text-foreground">Technology:</strong> `index.astro` reads block configurations and fetches article data with `Promise.all()` queries.</p>
-                        <p><strong class="text-foreground">Rendering:</strong> Renders Astro components (such as `NewHeroType3.astro` and `CategoryBlock.astro`) based on configured block types.</p>
+                        <p><strong class="text-foreground">Function:</strong> This system configures the layout of the front page and custom pages. You assemble independent blocks to build the page structure.</p>
+                        <p><strong class="text-foreground">Database Structure:</strong> The system saves block configuration data to the <code>settings</code> table under the <code>frontpage_layout</code> key or the <code>layout_blocks</code> JSON property of a page.</p>
+                        <p><strong class="text-foreground">Technology:</strong> The <code>BlockRenderer.astro</code> file and the <code>ModularTemplateRenderer.astro</code> file read the configuration. These renderers use the <code>import.meta.glob()</code> function to load components safely across all operating systems. This method prevents the Windows path separation errors that occur with <code>Astro.glob()</code>.</p>
+                        <p><strong class="text-foreground">Rendering:</strong> The system loads decoupled Astro components from the <code>src/components/frontpage-blocks/</code> folder and the <code>src/components/blocks/</code> folder. You can add new custom blocks to these folders to extend the system.</p>
                     </div>
                 </section>
 
