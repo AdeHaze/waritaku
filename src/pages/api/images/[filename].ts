@@ -1,7 +1,7 @@
 import { StorageAdapter } from '../../../lib/storage';
 import type { APIRoute } from 'astro';
 
-export const GET: APIRoute = async ({ params, locals }) => {
+export const GET: APIRoute = async ({ params }) => {
   const filename = params.filename;
   if (!filename) {
     return new Response('Not Found', { status: 404 });
