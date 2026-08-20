@@ -219,7 +219,7 @@ if (env && (env as any).DB) {
         });
     };
 
-    const promises = layoutBlocks.map(async (block) => {
+    const promises = layoutBlocks.filter((b: any) => b && b.type).map(async (block) => {
         if (block.type === 'hero' || block.type === 'hero_2' || block.type === 'hero_3') {
             blockData[block.id] = await fetchArticles({ limit: block.limit || 5 });
         } else if (block.type === 'category_block') {
