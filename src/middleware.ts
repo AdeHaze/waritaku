@@ -34,6 +34,14 @@ import { env } from 'cloudflare:workers';
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
 
+    
+    // 1. Force trailing slash redirect (except root)
+    if (url.pathname !== '/' && url.pathname.endsWith('/')) {
+        url.pathname = url.pathname.slice(0, -1);
+        return context.redirect(url.toString(), 301);
+    }
+
+
     // --- Intercept legacy WP /feed URLs ---
     if (url.pathname.endsWith('/feed') || url.pathname.endsWith('/feed/')) {
         const cleanPath = url.pathname.replace(/\/feed\/?$/, '');
@@ -131,12 +139,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
             }
             return context.redirect(redirect.targetUrl, redirect.statusCode as 301 | 302);
         }
-    }
-    
-    // 1. Force trailing slash redirect (except root)
-    if (url.pathname !== '/' && url.pathname.endsWith('/')) {
-        url.pathname = url.pathname.slice(0, -1);
-        return context.redirect(url.toString(), 301);
     }
 
     // 2. Protect /admin and /api routes (except public auth routes)
