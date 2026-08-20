@@ -25,6 +25,10 @@ function isPublicHtmlPath(pathname: string): boolean {
 let settingsCache: { config: any; timestamp: number } | null = null;
 const SETTINGS_CACHE_TTL = 60_000; // 60 seconds
 
+// Simple in-memory redirects cache with 60s TTL
+let redirectsCache: { map: Record<string, any>; timestamp: number } | null = null;
+const REDIRECTS_CACHE_TTL = 60_000;
+
 import { env } from 'cloudflare:workers';
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -95,7 +99,21 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     // --- 0. Redirect Engine ---
     if (db && enableRedirections) {
-        const redirect = await db.select().from(redirects).where(eq(redirects.sourceUrl, url.pathname)).get();
+        const now = Date.now();
+        if (!redirectsCache || (now - redirectsCache.timestamp) > REDIRECTS_CACHE_TTL) {
+            try {
+                const allRedirects = await db.select().from(redirects).all();
+                const map: Record<string, any> = {};
+                for (const r of allRedirects) {
+                    map[r.sourceUrl] = r;
+                }
+                redirectsCache = { map, timestamp: now };
+            } catch (e) {
+                console.error("Failed to fetch redirects cache", e);
+            }
+        }
+        
+        const redirect = redirectsCache?.map[url.pathname];
         if (redirect) {
             // Increment hit counter asynchronously without blocking the response
             const updatePromise = db.update(redirects).set({ hits: sql`${redirects.hits} + 1` }).where(eq(redirects.id, redirect.id)).execute();
