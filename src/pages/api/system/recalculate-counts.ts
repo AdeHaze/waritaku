@@ -3,7 +3,7 @@ import { getDb } from '../../../lib/db';
 import { syncCounts } from '../../../lib/sync-counts';
 import { env } from 'cloudflare:workers';
 
-export const GET: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ locals }) => {
     // Only allow superadmin to run this script
     if (locals.user?.role !== 'superadmin') {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 403, headers: { 'Content-Type': 'application/json' }});
