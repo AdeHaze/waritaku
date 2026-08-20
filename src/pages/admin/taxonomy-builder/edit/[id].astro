@@ -5,7 +5,7 @@ import { collections, taxonomies } from "../../../../db/schema";
 import { eq } from "drizzle-orm";
 import { env } from 'cloudflare:workers';
 import { Save, ArrowLeft } from "lucide-react";
-import { hasPermission, hasAnyPermission } from '../../../../lib/permissions';
+import { hasPermission } from '../../../../lib/permissions';
 
 const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
