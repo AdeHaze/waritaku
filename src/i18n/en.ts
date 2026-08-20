@@ -66,6 +66,43 @@ export const enPack = {
     'analytics.writing_patterns': 'Writing Patterns & Stats',
     'analytics.most_productive_day': 'Most Productive Day',
     'analytics.least_productive_day': 'Least Productive Day',
-    'analytics.weekly_distribution': 'Weekly Writing Distribution'
+    'analytics.weekly_distribution': 'Weekly Writing Distribution',
+
+    // Header & Navigation
+    'header.search_placeholder': 'Search...',
+    'header.find_us': 'Find Us',
+    'header.contact': 'Contact',
+    
+    // Pagination
+    'pagination.go_to': 'Go to:',
+
+    // Search Page
+    'search.results_for': 'Search Results for "{query}"',
+    'search.found_articles': 'Found {total} articles',
+    'search.no_results': 'No results found',
+    'search.try_adjusting': 'Try adjusting your search query or finding something else.',
+
+    // 404 Page
+    '404.title': '404',
+    '404.page_not_found': 'Page Not Found',
+    '404.description': 'The link you followed may be broken, or the page may have been removed.',
+    '404.return_home': 'Return to Homepage',
+
+    // Article & Content
+    'article.protected_content': 'Protected Content',
+    'article.password_prompt': 'This content is password protected. To view it please enter your password below:',
+    'article.password_placeholder': 'Password',
+    'article.submit': 'Submit',
+    'article.incorrect_password': 'Incorrect password.',
+    'article.table_of_contents': 'Table of Contents',
+
+    // Taxonomy & Category
+    'taxonomy.directory': 'Directory: {title}',
+    'taxonomy.all_tags': 'All Tags',
+    'taxonomy.sort_by': 'Sort By:',
+    'taxonomy.most_popular': 'Most Popular',
+    'taxonomy.a_z': 'A - Z',
+    'category.title': 'Category: {name}'
+
   }
 };
