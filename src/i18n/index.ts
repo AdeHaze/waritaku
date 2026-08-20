@@ -1,5 +1,6 @@
 import { idPack } from './id';
 import { enPack } from './en';
+import { jpPack } from './jp';
 
 export interface LanguagePack {
   code: string;
@@ -9,7 +10,8 @@ export interface LanguagePack {
 
 const languageRegistry: Record<string, LanguagePack> = {
   id: idPack,
-  en: enPack
+  en: enPack,
+  jp: jpPack
 };
 
 /**
