@@ -17,252 +17,38 @@ const { data, parsedContent, showLeftSidebar, showRightSidebar, articleUpperHtml
 
 const layoutBlocks = data.supports?.layoutBlocks || [];
 
-// Custom Fields Extractor (excludes built-in fields like content)
-const customFields = Object.keys(data).filter(k => 
-    !['id', 'slug', 'canonicalUrl', 'status', 'publishedAt', 'updatedAt', 'authorName', 'authorSlug', 'tags', 'supports', 'categoryName', 'categorySlug', 'categories', 'content', 'title', 'name', 'metaTitle', 'metaDescription', 'featuredImageUrl', 'layout_config', 'is_block_builder', 'layout_blocks', 'customSchema', 'visibility', 'password'].includes(k)
-).map(k => ({ key: k, value: data[k] })).filter(f => f.value !== null && f.value !== undefined && f.value !== '');
+const blockFiles = import.meta.glob('./blocks/*.astro', { eager: true });
+const Blocks: Record<string, any> = {};
 
+for (const path in blockFiles) {
+  const name = path.split('/').pop()?.replace('.astro', '');
+  if (name) {
+    const mod = blockFiles[path] as any;
+    Blocks[name] = mod.default;
+  }
+}
+
+const typeToComponent = (type: string) => {
+    return type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('') + 'Block';
+};
 ---
 <div class={`w-full ${!showLeftSidebar && !showRightSidebar ? 'max-w-7xl mx-auto' : ''}`}>
     {layoutBlocks.map((block: any, index: number) => {
+        const ComponentName = typeToComponent(block.type);
+        const Component = Blocks[ComponentName];
         
-        // 1. BREADCRUMBS
-        if (block.type === 'breadcrumbs') {
-            return (
-                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <nav class={`flex text-sm text-muted-foreground/80 font-medium ${block.config?.visibility === 'hidden' ? 'sr-only' : ''}`} aria-label="Breadcrumb">
-                        <ol class="inline-flex items-center space-x-1 md:space-x-3">
-                            <li class="inline-flex items-center">
-                                <a href="/" class="inline-flex items-center hover:text-foreground transition-colors">
-                                    <svg class="w-3 h-3 mr-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path d="m19.707 9.293-2-2-7-7a1 1 0 0 0-1.414 0l-7 7-2 2a1 1 0 0 0 1.414 1.414L2 10.414V18a2 2 0 0 0 2 2h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a2 2 0 0 0 2-2v-7.586l.293.293a1 1 0 0 0 1.414-1.414Z"/></svg>
-                                    Home
-                                </a>
-                            </li>
-                            {data.categorySlug && data.categorySlug !== 'all' && (
-                                <li>
-                                    <div class="flex items-center">
-                                        <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
-                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
-                                        </svg>
-                                        <a href={`/${data.categorySlug}`} class="ml-1 hover:text-primary md:ml-2 transition-colors">{data.categoryName}</a>
-                                    </div>
-                                </li>
-                            )}
-                            <li aria-current="page">
-                                <div class="flex items-center">
-                                    <svg class="w-3 h-3 text-muted-foreground/50 mx-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 6 10">
-                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4"/>
-                                    </svg>
-                                    <span class="ml-1 text-foreground md:ml-2 truncate max-w-[200px] sm:max-w-[300px] inline-block">{data.title || data.name}</span>
-                                </div>
-                            </li>
-                        </ol>
-                    </nav>
-                </div>
-            );
-        }
-
-        // 2. HERO HEADER (Article Style)
-        if (block.type === 'hero') {
-            return (
-                <div class="w-full h-[45vh] md:h-[65vh] relative overflow-hidden bg-muted mb-12">
-                    <img 
-                        src={headerImage} 
-                        alt={data.title || data.name}
-                        class="w-full h-full object-cover"
-                        onerror="this.src='https://placehold.co/1920x1080/333/FFF?text=Waritaku'"
-                    />
-                    <div class="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent"></div>
-                    <div class="absolute bottom-0 left-0 w-full">
-                        <div class="container mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-                            <div class="max-w-4xl space-y-4">
-                                {data.categories && data.categories.length > 0 && (
-                                    <div class="flex flex-wrap gap-2">
-                                        {data.categories.map((cat: any) => (
-                                            <a href={`/${cat.slug}`} class="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-semibold tracking-wide uppercase backdrop-blur-sm hover:bg-primary hover:text-primary-foreground transition-colors">
-                                                {cat.name}
-                                            </a>
-                                        ))}
-                                    </div>
-                                )}
-                                <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-tight drop-shadow-sm">
-                                    {data.title || data.name}
-                                </h1>
-                                <div class="flex flex-wrap items-center text-muted-foreground pt-4 font-medium gap-y-2">
-                                    <span>By <a href={`/author/${data.authorSlug}`} class="hover:text-primary transition-colors">{data.authorName}</a></span>
-                                    <span class="mx-3">•</span>
-                                    <span>Published: <time datetime={data.publishedAt}>{new Date(data.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time></span>
-                                    {data.updatedAt && new Date(data.updatedAt).getTime() > new Date(data.publishedAt).getTime() + 86400000 && (
-                                        <>
-                                            <span class="mx-3 hidden sm:inline">•</span>
-                                            <span class="w-full sm:w-auto">Updated: <time datetime={data.updatedAt}>{new Date(data.updatedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</time></span>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // 3. PRODUCT SPLIT HEADER (Image Left, Info Right)
-        if (block.type === 'product_split') {
-            return (
-                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
-                        <div class="relative rounded-2xl overflow-hidden shadow-xl border border-border bg-card">
-                            <img 
-                                src={headerImage} 
-                                alt={data.title || data.name}
-                                class="w-full h-auto object-cover"
-                                onerror="this.src='https://placehold.co/800x800/333/FFF?text=Image'"
-                            />
-                        </div>
-                        <div class="flex flex-col space-y-6">
-                            {data.categoryName && (
-                                <div class="text-sm font-bold text-primary uppercase tracking-widest">
-                                    <a href={`/${data.categorySlug}`} class="hover:underline">{data.categoryName}</a>
-                                </div>
-                            )}
-                            <h1 class="text-3xl md:text-5xl font-extrabold text-foreground leading-tight">
-                                {data.title || data.name}
-                            </h1>
-                            
-                            {/* Render custom fields quickly in the split header */}
-                            {customFields.length > 0 && (
-                                <div class="bg-muted/30 border border-border rounded-xl p-6 space-y-4">
-                                    {customFields.map(field => {
-                                        // Skip if it looks like rich text/html or a large array
-                                        if (typeof field.value === 'string' && field.value.length > 200) return null;
-                                        if (typeof field.value === 'object') return null;
-                                        return (
-                                            <div class="flex justify-between border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                                                <span class="font-semibold text-muted-foreground capitalize">{field.key.replace(/_/g, ' ')}</span>
-                                                <span class="font-bold text-foreground text-right">{field.value.toString()}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // 4. BODY CONTENT (with Sidebars)
-        if (block.type === 'body_content') {
-            return (
-                <div class={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 ${!showLeftSidebar && !showRightSidebar ? 'max-w-4xl' : ''}`}>
-                    <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
-                        
-                        {showLeftSidebar && (
-                            <aside class="lg:col-span-1 mt-12 lg:mt-0 order-last lg:order-first">
-                                <GlobalSidebar zone="left" context="article" />
-                            </aside>
-                        )}
-
-                        <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'} overflow-hidden prose prose-neutral dark:prose-invert prose-lg md:prose-xl prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-xl prose-img:shadow-lg max-w-none`}>
-                            {articleUpperHtml && <div class="mb-8" set:html={sanitizeHtml(articleUpperHtml)} />}
-                            
-                            <div set:html={sanitizeHtml(parsedContent)} />
-                            
-
-
-                            {articleBottomHtml && (
-                                <div class="mt-16 pt-12 border-t border-border">
-                                    <div class="bg-card border border-border p-6 rounded-xl shadow-sm" set:html={sanitizeHtml(articleBottomHtml)} />
-                                </div>
-                            )}
-                        </div>
-
-                        {showRightSidebar && (
-                            <aside class="lg:col-span-1 mt-12 lg:mt-0">
-                                <GlobalSidebar zone="right" context="article" />
-                            </aside>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        // 4.5 AUTHOR BOX
-        if (block.type === 'author_box') {
-            if (!data.authorName) return null;
-            return (
-                <div class={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 ${!showLeftSidebar && !showRightSidebar ? 'max-w-4xl' : ''}`}>
-                    <div class="bg-card border border-border rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 shadow-sm">
-                        <div class="w-24 h-24 sm:w-32 sm:h-32 shrink-0">
-                            <img 
-                                src={data.authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.authorName)}&background=random`}
-                                alt={data.authorName}
-                                class="w-full h-full object-cover rounded-full border-4 border-muted"
-                                onerror="this.src='https://ui-avatars.com/api/?name=Writer&background=random'"
-                            />
-                        </div>
-                        <div class="flex-1 text-center sm:text-left">
-                            <h3 class="text-xl font-bold mb-2 text-foreground">{data.authorName}</h3>
-                            {data.authorBio ? (
-                                <p class="text-muted-foreground text-sm leading-relaxed mb-4">{data.authorBio}</p>
-                            ) : (
-                                <p class="text-muted-foreground text-sm italic mb-4">This author has not written a bio yet.</p>
-                            )}
-                            <a href={`/author/${data.authorSlug}`} class="inline-flex items-center text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
-                                View all posts by {data.authorName}
-                                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // 5. TAXONOMY TERMS
-        if (block.type === 'taxonomy_terms') {
-            const taxSlug = block.config?.targetTaxonomy;
-            if (!taxSlug || !data.taxonomyTerms || !data.taxonomyTerms[taxSlug]) return null;
-            const terms = data.taxonomyTerms[taxSlug];
-            
-            return (
-                <div class={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 ${!showLeftSidebar && !showRightSidebar ? 'max-w-4xl' : ''}`}>
-                    <div class="flex flex-wrap gap-2">
-                        {terms.map((term: any) => (
-                            <a href={term.url} class="inline-flex items-center justify-center px-4 py-2 border border-border rounded-lg text-sm font-semibold bg-muted/30 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-sm">
-                                {term.name}
-                            </a>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-
-        // 6. RELATED ITEMS
-        if (block.type === 'related_items') {
-            const targetTaxSlug = block.config?.targetTaxonomy || 'categories';
-            let termIdsToMatch: number[] = [];
-            if (data.taxonomyTerms && data.taxonomyTerms[targetTaxSlug]) {
-                termIdsToMatch = data.taxonomyTerms[targetTaxSlug].map((t: any) => t.id);
-            }
-            
-            return (
-                <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-border mt-12 bg-muted/10">
-                    <h3 class="text-2xl font-bold mb-8 uppercase tracking-widest text-center">Related Items</h3>
-                    <div 
-                        class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 related-items-container min-h-[300px]"
-                        data-tax={targetTaxSlug}
-                        data-terms={termIdsToMatch.length > 0 ? termIdsToMatch.join(',') : 'all'}
-                        data-current-id={data.id || ''}
-                        data-limit="4"
-                        data-randomize="true"
-                    >
-                        {/* Client-Side Shuffle will inject articles here */}
-                    </div>
-                </div>
-            );
-        }
-
-        return null;
+        if (!Component) return null;
+        
+        return <Component 
+            block={block} 
+            data={data} 
+            parsedContent={parsedContent} 
+            showLeftSidebar={showLeftSidebar} 
+            showRightSidebar={showRightSidebar} 
+            articleUpperHtml={articleUpperHtml} 
+            articleBottomHtml={articleBottomHtml} 
+            headerImage={headerImage} 
+        />;
     })}
 </div>
 
