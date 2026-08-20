@@ -172,12 +172,94 @@
     margin-top: 1.75em;
     margin-bottom: 1.75em;
   }
+
+  /* Utilities */
+  .hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+
+  /* Article Archive View Modes */
+  html[data-archive-view="grid"] .article-archive-layout {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  @media (min-width: 768px) {
+    html[data-archive-view="grid"] .article-archive-layout {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  html[data-archive-view="grid"] .article-archive-card {
+    flex-direction: column;
+  }
+  html[data-archive-view="grid"] .article-archive-card-img-wrapper {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  html[data-archive-view="list"] .article-archive-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  html[data-archive-view="list"] .article-archive-card {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  html[data-archive-view="list"] .article-archive-card-img-wrapper {
+    width: 33%;
+    min-width: 120px;
+    max-width: 200px;
+    aspect-ratio: 1 / 1;
+    border-right: 1px solid var(--border);
+  }
+  @media (min-width: 640px) {
+    html[data-archive-view="list"] .article-archive-card-img-wrapper {
+      aspect-ratio: 16 / 9;
+    }
+  }
 }
 
-@utility hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
+/* ── WordPress Legacy Image Alignments ── */
+.aligncenter {
+  display: block;
+  margin: 1.5rem auto;
+  text-align: center;
+}
+.alignleft {
+  float: left;
+  margin: 0.5rem 1.5rem 1.5rem 0;
+}
+.alignright {
+  float: right;
+  margin: 0.5rem 0 1.5rem 1.5rem;
+}
+.wp-caption {
+  max-width: 100%;
+  text-align: center;
+  background: var(--muted);
+  padding: 0.5rem;
+  border-radius: var(--radius);
+}
+.wp-caption img {
+  margin: 0 auto;
+}
+.wp-caption-text {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin-top: 0.5rem;
+}
+
+/* ── Responsive iFrames (YouTube, etc) ── */
+.prose iframe,
+.wp-embedded-content {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border-radius: var(--radius);
 }
