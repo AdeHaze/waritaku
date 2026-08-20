@@ -5,7 +5,6 @@ import { sql } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { hasPermission } from '../../lib/permissions';
 
-const user = Astro.locals.user;
 const permissions = Astro.locals.permissions;
 if (!permissions || !hasPermission(permissions, 'system', 'read')) {
     return Astro.redirect('/admin');
