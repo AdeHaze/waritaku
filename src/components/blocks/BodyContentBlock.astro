@@ -1,0 +1,43 @@
+---
+import GlobalSidebar from '../GlobalSidebar.astro';
+import { sanitizeHtml } from '../../utils/sanitize';
+
+export interface Props {
+    block: any;
+    data: any;
+    parsedContent: string;
+    showLeftSidebar: boolean;
+    showRightSidebar: boolean;
+    articleUpperHtml?: string;
+    articleBottomHtml?: string;
+}
+const { block, data, parsedContent, showLeftSidebar, showRightSidebar, articleUpperHtml, articleBottomHtml } = Astro.props;
+---
+<div class={`container mx-auto px-4 sm:px-6 lg:px-8 py-8 ${!showLeftSidebar && !showRightSidebar ? 'max-w-4xl' : ''}`}>
+    <div class={`grid grid-cols-1 gap-8 md:gap-12 ${showLeftSidebar && showRightSidebar ? 'lg:grid-cols-4' : (showLeftSidebar || showRightSidebar) ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
+        
+        {showLeftSidebar && (
+            <aside class="lg:col-span-1 mt-12 lg:mt-0 order-last lg:order-first">
+                <GlobalSidebar zone="left" context="article" />
+            </aside>
+        )}
+
+        <div class={`${showLeftSidebar && showRightSidebar ? 'lg:col-span-2' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2' : 'lg:col-span-1'} overflow-hidden prose prose-neutral dark:prose-invert prose-lg md:prose-xl prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-xl prose-img:shadow-lg max-w-none`}>
+            {articleUpperHtml && <div class="mb-8" set:html={sanitizeHtml(articleUpperHtml)} />}
+            
+            <div set:html={sanitizeHtml(parsedContent)} />
+            
+            {articleBottomHtml && (
+                <div class="mt-16 pt-12 border-t border-border">
+                    <div class="bg-card border border-border p-6 rounded-xl shadow-sm" set:html={sanitizeHtml(articleBottomHtml)} />
+                </div>
+            )}
+        </div>
+
+        {showRightSidebar && (
+            <aside class="lg:col-span-1 mt-12 lg:mt-0">
+                <GlobalSidebar zone="right" context="article" />
+            </aside>
+        )}
+    </div>
+</div>
