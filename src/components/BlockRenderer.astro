@@ -1,21 +1,33 @@
 ---
-import { getThumbnail } from '../lib/utils';
-import CategoryBlock from './CategoryBlock.astro';
-import CategoryBlockType2 from './CategoryBlockType2.astro';
-import NewHero from './NewHero.astro';
-import NewHeroType2 from './NewHeroType2.astro';
-import NewHeroType3 from './NewHeroType3.astro';
-import LandingHero from './LandingHero.astro';
-import FeaturedImageParty from './FeaturedImageParty.astro';
 import GlobalSidebar from './GlobalSidebar.astro';
 
-const { layoutBlocks = [], blockData = {}, showLeftSidebar = false, showRightSidebar = true } = Astro.props;
+const { layoutBlocks: rawLayoutBlocks, blockData = {}, showLeftSidebar = false, showRightSidebar = true } = Astro.props;
+const layoutBlocks = Array.isArray(rawLayoutBlocks) ? rawLayoutBlocks : [];
 
+// Dynamically import all block components
+const rawBlocks = import.meta.glob('./frontpage-blocks/*.astro', { eager: true });
+const Blocks: Record<string, any> = {};
+
+for (const [path, module] of Object.entries(rawBlocks)) {
+  const name = path.split('/').pop()?.replace('.astro', '');
+  if (name) Blocks[name] = (module as any).default;
+}
+
+const typeToComponent = (type: string) => {
+    if (!type) return '';
+    let name = type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+    // Handle the specific naming mapping we did
+    if (name === 'CategoryBlock2') name = 'CategoryBlock2'; 
+    else if (name === 'Hero2') name = 'Hero2Block';
+    else if (name === 'Hero3') name = 'Hero3Block';
+    else if (!name.endsWith('Block')) name = name + 'Block';
+    return name;
+};
 
 const layoutSections: any[] = [];
 let currentMainColumnGroup: any[] = [];
-
-for (const block of layoutBlocks) {
+const validBlocks = layoutBlocks.filter((b: any) => b && b.type);
+for (const block of validBlocks) {
     const isMainColumn = block.type === 'category_block' || block.type === 'category_block_2';
     if (isMainColumn) {
         currentMainColumnGroup.push(block);
@@ -44,16 +56,22 @@ if (currentMainColumnGroup.length > 0) {
                     )}
                     <div class={showLeftSidebar && showRightSidebar ? 'lg:col-span-2 space-y-12' : (showLeftSidebar || showRightSidebar) ? 'lg:col-span-2 space-y-12' : 'lg:col-span-1 space-y-12'}>
                         {section.blocks.map((block: any) => {
+                            const ComponentName = typeToComponent(block.type);
+                            const Component = Blocks[ComponentName];
+                            if (!Component) return <div class="text-red-500">Block {ComponentName} not found</div>;
+
                             const hasFilter = block.config?.targetTaxonomy || block.config?.targetTerm || block.tagSlug || block.categoryId;
                             const archiveUrl = hasFilter 
                                 ? (block.tagSlug ? `tag/${block.tagSlug}` : (blockData[block.id]?.[0]?.categories?.[0]?.slug || 'category'))
                                 : (block.config?.targetCollection || 'articles');
                             
-                            return block.type === 'category_block' ? (
-                                <CategoryBlock title={block.title || 'Category'} categorySlug={archiveUrl} articles={blockData[block.id] || []} />
-                            ) : (
-                                <CategoryBlockType2 title={block.title || 'Category'} categorySlug={archiveUrl} articles={blockData[block.id] || []} showExcerpt={block.showExcerpt} />
-                            );
+                            return <Component 
+                                block={block}
+                                title={block.title || 'Category'} 
+                                categorySlug={archiveUrl} 
+                                articles={blockData[block.id] || []} 
+                                showExcerpt={block.showExcerpt} 
+                            />;
                         })}
                     </div>
                     {showRightSidebar && (
@@ -65,120 +83,21 @@ if (currentMainColumnGroup.length > 0) {
             );
         } else {
             const block = section.block;
+            const ComponentName = typeToComponent(block.type);
+            const Component = Blocks[ComponentName];
+            
+            if (!Component) return <div class="text-red-500">Block {ComponentName} not found ({block.type})</div>;
+
             return (
                 <div class="w-full">
-                    {block.type === 'hero' ? (
-                        <NewHero articles={blockData[block.id] || []} />
-                    ) : block.type === 'hero_2' ? (
-                        <NewHeroType2 articles={blockData[block.id] || []} />
-                    ) : block.type === 'hero_3' ? (
-                        <NewHeroType3 articles={blockData[block.id] || []} />
-                    ) : block.type === 'landing_hero' ? (
-                        <LandingHero {...block} />
-                    ) : block.type === 'image_party' ? (
-                        <FeaturedImageParty {...block} />
-                    ) : block.type === 'separator' ? (
-                        <div class="w-full h-[2px] bg-border my-8"></div>
-                    ) : block.type === 'categories_grid' ? (
-                        <div class="border-t-4 border-primary pt-12">
-                            <h2 class="text-2xl font-extrabold uppercase tracking-tight mb-8 text-center text-foreground">{block.title || 'Kategori Pilihan'}</h2>
-                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                {(blockData[block.id] || []).map((cat: any) => (
-                                    <a href={`/${cat.slug}`} class="flex items-center justify-center p-4 bg-muted hover:bg-primary hover:text-primary-foreground transition-colors rounded-xl text-sm font-bold uppercase text-center h-20 shadow-sm border border-border">
-                                        {cat.name}
-                                    </a>
-                                ))}
-                            </div>
-                        </div>
-                    ) : block.type === 'article_grid' ? (
-                        <div class="border-t-4 border-primary pt-12">
-                            <h2 class="text-2xl font-extrabold uppercase tracking-tight mb-8 text-center text-foreground">{block.title || 'Mungkin Anda Suka'}</h2>
-                            <div 
-                                class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 article-grid-container min-h-[300px]"
-                                data-tax={block.taxonomySlug || 'all'}
-                                data-terms={block.termIds || 'all'}
-                                data-limit={block.limit || 12}
-                                data-randomize={!!block.randomize}
-                            >
-                                {/* Client-Side Shuffle will inject articles here */}
-                            </div>
-                        </div>
-                    ) : null}
+                    <Component 
+                        block={block}
+                        blockData={blockData}
+                        articles={blockData[block.id] || []}
+                        {...block}
+                    />
                 </div>
             );
         }
     })}
 </div>
-
-<script>
-    function decodeHtml(text) {
-        if (!text) return '';
-        const textArea = document.createElement('textarea');
-        textArea.innerHTML = text;
-        return textArea.value;
-    }
-
-    function extractThumb(content) {
-        if (!content) return '/placeholder.jpg';
-        const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
-        return match ? match[1] : '/placeholder.jpg';
-    }
-
-    async function loadArticleGrid(container) {
-        const tax = container.getAttribute('data-tax');
-        const terms = container.getAttribute('data-terms');
-        const limit = parseInt(container.getAttribute('data-limit'), 10);
-        const randomize = container.getAttribute('data-randomize') === 'true';
-
-        try {
-            const res = await fetch(`/api/widgets/recent.json?tax=${tax}&terms=${terms}&limit=50`);
-            if (!res.ok) throw new Error('Failed to fetch');
-            let articles = await res.json();
-
-            if (randomize) {
-                for (let i = articles.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [articles[i], articles[j]] = [articles[j], articles[i]];
-                }
-            }
-
-            articles = articles.slice(0, limit);
-
-            if (articles.length === 0) {
-                container.innerHTML = '<div class="col-span-full text-sm text-muted-foreground text-center py-8">No articles found.</div>';
-                container.classList.remove('min-h-[300px]');
-                return;
-            }
-
-            let html = '';
-            articles.forEach(article => {
-                const imgUrl = article.featuredImageUrl || extractThumb(article.content);
-                const title = decodeHtml(article.title);
-
-                html += `
-                    <a href="${article.canonicalUrl}" class="group flex flex-col gap-2">
-                        <div class="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted">
-                            <img src="${imgUrl}" alt="Thumbnail" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                        </div>
-                        <span class="text-primary text-[10px] font-black uppercase tracking-wider mt-2">${article.categoryName || ''}</span>
-                        <h3 class="text-sm md:text-base font-bold leading-snug group-hover:text-primary transition-colors line-clamp-2">
-                            ${title}
-                        </h3>
-                    </a>
-                `;
-            });
-
-            container.innerHTML = html;
-            container.classList.remove('min-h-[300px]');
-        } catch (e) {
-            console.error('Error loading article grid:', e);
-            container.innerHTML = '<div class="col-span-full text-sm text-destructive text-center py-8">Error loading articles.</div>';
-            container.classList.remove('min-h-[300px]');
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        const containers = document.querySelectorAll('.article-grid-container');
-        containers.forEach(container => loadArticleGrid(container));
-    });
-</script>
