@@ -25,5 +25,6 @@ export function sanitizeHtml(dirty: string): string {
         allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com', 'open.spotify.com', 'w.soundcloud.com', 'platform.twitter.com', 'googleads.g.doubleclick.net', 'tpc.googlesyndication.com'],
         allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel', 'data'],
         allowProtocolRelative: true,
+        allowVulnerableTags: true
     });
 }
