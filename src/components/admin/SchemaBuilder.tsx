@@ -196,8 +196,79 @@ export default function SchemaBuilder({ collection, availableTaxonomies }: Schem
                 </div>
             </div>
 
+            
             <div className="space-y-6">
+                <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden mb-6">
+                    <div className="bg-muted/30 p-4 border-b border-border">
+                        <h3 className="font-bold text-foreground flex items-center gap-2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                            Collection Field Mappings
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Map your custom fields to core system roles (used in archive layouts and SEO).
+                        </p>
+                    </div>
+                    <div className="p-4 space-y-4">
+                        <div>
+                            <label className="block text-sm font-semibold mb-1 text-foreground">Primary Title Field</label>
+                            <select 
+                                value={supports?.mappings?.titleField || ''} 
+                                onChange={e => setSupports({ ...supports, mappings: { ...supports.mappings, titleField: e.target.value } })}
+                                className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                            >
+                                <option value="">-- Fallback to Entry Slug --</option>
+                                {fields.filter(f => ['text', 'textarea', 'richtext'].includes(f.type)).map(f => (
+                                    <option key={f.name} value={f.name}>{f.label} ({f.name})</option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-semibold mb-1 text-foreground">Featured Image Field</label>
+                            <select 
+                                value={supports?.mappings?.imageField || ''} 
+                                onChange={e => setSupports({ ...supports, mappings: { ...supports.mappings, imageField: e.target.value } })}
+                                className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                            >
+                                <option value="">-- None --</option>
+                                {fields.filter(f => ['image', 'file'].includes(f.type)).map(f => (
+                                    <option key={f.name} value={f.name}>{f.label} ({f.name})</option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-semibold mb-1 text-foreground">Excerpt / Summary Field</label>
+                            <select 
+                                value={supports?.mappings?.excerptField || ''} 
+                                onChange={e => setSupports({ ...supports, mappings: { ...supports.mappings, excerptField: e.target.value } })}
+                                className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                            >
+                                <option value="">-- None (Auto-generate if possible) --</option>
+                                {fields.filter(f => ['text', 'textarea', 'richtext'].includes(f.type)).map(f => (
+                                    <option key={f.name} value={f.name}>{f.label} ({f.name})</option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-semibold mb-1 text-foreground">Main Content Field (for indexing)</label>
+                            <select 
+                                value={supports?.mappings?.contentField || ''} 
+                                onChange={e => setSupports({ ...supports, mappings: { ...supports.mappings, contentField: e.target.value } })}
+                                className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-primary"
+                            >
+                                <option value="">-- None --</option>
+                                {fields.filter(f => ['richtext', 'textarea', 'blockbuilder'].includes(f.type)).map(f => (
+                                    <option key={f.name} value={f.name}>{f.label} ({f.name})</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
                 <div className="bg-card border border-border rounded-xl shadow-sm p-6">
+
                     <h3 className="text-sm font-bold uppercase tracking-wider mb-4 pb-2 border-b border-border">Configuration</h3>
                     
                     <div className="space-y-4">
