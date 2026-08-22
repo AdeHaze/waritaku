@@ -1,4 +1,6 @@
 ---
+
+function safeJsonParse(str: string, fallback: any) { try { return JSON.parse(str); } catch(e) { return fallback; } }
 import { getThumbnail } from '../lib/utils';
 import LayoutArticlePage from '../layouts/LayoutArticlePage.astro';
 import GlobalSidebar from '../components/GlobalSidebar.astro';
@@ -10,7 +12,7 @@ import { env } from 'cloudflare:workers';
 import { getDb } from '../lib/db';
 import { resolveRouteData } from '../lib/queries';
 import { settings, entries, collections, users, taxonomies, terms, entryTerms } from '../db/schema';
-import { eq, and, or, desc, sql, inArray, exists } from 'drizzle-orm';
+import {  eq, and, or, desc, sql, inArray, exists , ne } from 'drizzle-orm';
 
 import { parseEmbeds } from '../utils/embedParser';
 import IndexPage from './index.astro';
@@ -143,12 +145,17 @@ if (!isHomepageFallback && env && env.DB && slug) {
                   isRandom?: boolean, 
                   tagSlug?: string 
               } = {}) => {
-                  const { categoryId, filterTaxonomyId, filterTermId, filters = [], filterMatchType = 'AND', collectionId = 'articles', limit = 5, offset = 0, isRandom = false, tagSlug } = options;
+                  const { categoryId, filterTaxonomyId, filterTermId, filters = [], filterMatchType = 'AND', collectionId = null, limit = 5, offset = 0, isRandom = false, tagSlug } = options;
                   
-                  const targetColResult = await db.select({ id: collections.id, labelSingular: collections.labelSingular }).from(collections).where(eq(collections.slug, collectionId)).limit(1);
-                  const targetColId = targetColResult[0]?.id;
-                  
-                  if (!targetColId) return [];
+                  let contentColIds = [];
+                    if (collectionId) {
+                        const targetColResult = await db.select({ id: collections.id }).from(collections).where(eq(collections.slug, collectionId)).limit(1);
+                        if (targetColResult.length > 0) contentColIds.push(targetColResult[0].id);
+                    } else {
+                        const allCols = await db.select({ id: collections.id }).from(collections).where(ne(collections.slug, 'pages'));
+                        contentColIds = allCols.map(c => c.id);
+                    }
+                    if (contentColIds.length === 0) return [];
                   
                   let query = db.select({
                       entry: entries,
@@ -157,7 +164,7 @@ if (!isHomepageFallback && env && env.DB && slug) {
                   .from(entries)
                   .leftJoin(users, eq(entries.authorId, users.id));
 
-                  let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, targetColId));
+                  let conditions: any = and(eq(entries.status, 'published'), inArray(entries.collectionId, contentColIds));
 
                   const hasLegacyFilter = (categoryId && categoryId !== 'all') || tagSlug;
                   const hasTaxonomyFilter = filterTaxonomyId && filterTaxonomyId !== 'all';
@@ -249,7 +256,7 @@ if (!isHomepageFallback && env && env.DB && slug) {
                           slug: r.entry.slug,
                           publishedAt: r.entry.publishedAt,
                           ...blkData,
-                          categoryName: targetColResult[0]?.labelSingular || 'Entry', // Dynamically use collection label
+                          categoryName: 'Entry', // Dynamically use collection label
                           categorySlug: 'all',
                           authorName: r.author?.name || 'Admin',
                           authorId: r.author?.id || 1,
@@ -287,7 +294,19 @@ if (!isHomepageFallback && env && env.DB && slug) {
                       blockData[block.id] = await fetchArticles({ limit: block.limit || 12, isRandom: true });
                   } else if (block.type === 'categories_grid') {
                       // Fetch categories from terms where taxonomy is 'categories'
-                      const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+                      let priorityTax = block.taxonomySlug || 'categories';
+        if (priorityTax === 'all') {
+            const allColsForTax = await db.select().from(collections).where(ne(collections.slug, 'pages'));
+            priorityTax = 'categories';
+            for(const col of allColsForTax) {
+                const supports = safeJsonParse(col.supports || '{}', {});
+                if (supports.taxonomies && supports.taxonomies.length > 0) {
+                    priorityTax = supports.taxonomies[0];
+                    break;
+                }
+            }
+        }
+        const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, priorityTax)).limit(1);
                       if (catTax.length > 0) {
                           blockData[block.id] = await db.select().from(terms).where(eq(terms.taxonomyId, catTax[0].id)).limit(block.limit || 12).offset(5);
                       } else {
@@ -630,8 +649,8 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                                 <a href={article.canonicalUrl} class="article-archive-card group flex bg-muted/20 border border-border rounded-xl overflow-hidden hover:shadow-lg transition-all hover:-translate-y-1">
                                 <div class="article-archive-card-img-wrapper relative overflow-hidden flex-shrink-0">
                                     <img 
-                                        src={article.featuredImageUrl || getThumbnail(article.content)} 
-                                        alt={article.title} 
+                                        src={article.displayImage || getThumbnail(article.displayContent)} 
+                                        alt={article.displayTitle} 
                                         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                                         loading="lazy" 
                                     />
@@ -645,10 +664,10 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                                         <span class="hidden md:inline text-primary truncate max-w-[120px]">{article.categoryName || data.name}</span>
                                     </div>
                                     <h3 class="text-base md:text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-3 mb-2">
-                                        {article.title}
+                                        {article.displayTitle}
                                     </h3>
                                     <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
-                                        {article.excerpt}
+                                        {article.displayExcerpt}
                                     </p>
                                 </div>
                             </a>
@@ -687,8 +706,8 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                             {(article.featuredImageUrl || getThumbnail(article.content)) && (
                                 <div class="aspect-video w-full overflow-hidden bg-muted">
                                     <img 
-                                        src={article.featuredImageUrl || getThumbnail(article.content)} 
-                                        alt={article.title} 
+                                        src={article.displayImage || getThumbnail(article.displayContent)} 
+                                        alt={article.displayTitle} 
                                         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                         loading="lazy"
                                     />
@@ -703,10 +722,10 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600'
                                     <span class="hidden md:inline text-primary truncate max-w-[120px]">{article.categoryName || data.title}</span>
                                 </div>
                                 <h3 class="text-base md:text-lg font-bold leading-snug group-hover:text-primary transition-colors line-clamp-3 mb-2">
-                                    {article.title}
+                                    {article.displayTitle}
                                 </h3>
                                 <p class="text-xs text-muted-foreground line-clamp-2 mt-auto">
-                                    {article.excerpt}
+                                    {article.displayExcerpt}
                                 </p>
                             </div>
                         </a>
