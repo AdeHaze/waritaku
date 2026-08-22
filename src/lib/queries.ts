@@ -188,15 +188,19 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         return res.length > 0 ? res[0] : null;
     };
 
-    const articlesCol = await getCollection('articles');
-    const pagesCol = await getCollection('pages');
+    
+    const allCollections = await db.select().from(collections);
+    const contentCollections = allCollections.filter((c: any) => c.slug !== 'pages');
+    const contentCollectionIds = contentCollections.map((c: any) => c.id);
+    const totalContentItems = contentCollections.reduce((sum: any, c: any) => sum + (c.entryCount || 0), 0);
+
 
     // 0. Check Date Archive (e.g., 2025/03 or 2025/03/15) — WIB (UTC+7) aware
     let dateArchiveMode = options.dateArchiveMode || 'date';
 
     if (dateArchiveMode !== 'off') {
     const dateMatch = slug.match(/^(\d{4})(?:\/(\d{1,2}))?(?:\/(\d{1,2}))?$/);
-    if (dateMatch && articlesCol) {
+    if (dateMatch && contentCollectionIds.length > 0) {
         const year = dateMatch[1];
         const month = dateMatch[2];
         const day = dateMatch[3];
@@ -244,7 +248,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             .from(entries)
             .where(
                 and(
-                    eq(entries.collectionId, articlesCol.id),
+                    inArray(entries.collectionId, contentCollectionIds),
                     eq(entries.status, 'published'),
                     gte(entries.publishedAt, utcStart),
                     lte(entries.publishedAt, utcEnd)
@@ -263,7 +267,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         .leftJoin(users, eq(entries.authorId, users.id))
         .where(
             and(
-                eq(entries.collectionId, articlesCol.id),
+                inArray(entries.collectionId, contentCollectionIds),
                 eq(entries.status, 'published'),
                 gte(entries.publishedAt, utcStart),
                 lte(entries.publishedAt, utcEnd)
@@ -278,14 +282,24 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
+            
+            const collection = allCollections.find(c => c.id === r.entry.collectionId);
+            let collectionSupports = {};
+            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
+            const mappings = collectionSupports.mappings || {};
+            
             return {
                 id: r.entry.id,
                 slug: r.entry.slug,
                 canonicalUrl: `/${r.entry.slug}`,
                 publishedAt: r.entry.publishedAt,
                 ...data,
+                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
+                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
+                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
+                displayContent: data[mappings.contentField || 'content'] || '',
                 authorName: r.author?.name || 'Writer',
-                categoryName: 'Article', // Can be enriched with terms
+                categoryName: 'Article',
                 excerpt
             };
         });
@@ -348,7 +362,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         // Batch fetch primary categories for display
         let categoryMap: Record<number, any[]> = {};
         if (entryIds.length > 0) {
-            const catTax = await db.select({ id: taxonomies.id }).from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
+            const catTax = await db.select({ id: taxonomies.id }).from(taxonomies).where().limit(1);
             if (catTax.length > 0) {
                 const catTermRows = await db.select({ entryId: entryTerms.entryId, id: terms.id, name: terms.name, slug: terms.slug })
                     .from(entryTerms)
@@ -380,12 +394,22 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 categoryName = primary ? primary.name : cats[0].name;
             }
 
+            
+            const collection = allCollections.find(c => c.id === r.entry.collectionId);
+            let collectionSupports = {};
+            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
+            const mappings = collectionSupports.mappings || {};
+            
             categoryArticles.push({
                 id: r.entry.id,
                 slug: r.entry.slug,
                 canonicalUrl: canonicalPath,
                 publishedAt: r.entry.publishedAt,
                 ...data,
+                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
+                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
+                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
+                displayContent: data[mappings.contentField || 'content'] || '',
                 authorName: r.author?.name || 'Writer',
                 categoryName,
                 excerpt
@@ -460,7 +484,6 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 .innerJoin(terms, eq(entryTerms.termId, terms.id))
                 .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
                 .where(and(
-                    eq(taxonomies.slug, 'categories'),
                     sql`${entryTerms.entryId} IN (${sql.join(entryIds.map((id: any) => sql`${id}`), sql`, `)})`
                 ));
                 for (const row of catTermRows) {
@@ -485,16 +508,26 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                     categoryName = primary ? primary.name : cats[0].name;
                 }
                 
-                categoryArticles.push({
-                    id: r.entry.id,
-                    slug: r.entry.slug,
-                    canonicalUrl: canonicalPath,
-                    publishedAt: r.entry.publishedAt,
-                    ...data,
-                    authorName: r.author?.name || 'Writer',
-                    categoryName,
-                    excerpt
-                });
+                
+            const collection = allCollections.find(c => c.id === r.entry.collectionId);
+            let collectionSupports = {};
+            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
+            const mappings = collectionSupports.mappings || {};
+            
+            categoryArticles.push({
+                id: r.entry.id,
+                slug: r.entry.slug,
+                canonicalUrl: canonicalPath,
+                publishedAt: r.entry.publishedAt,
+                ...data,
+                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
+                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
+                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
+                displayContent: data[mappings.contentField || 'content'] || '',
+                authorName: r.author?.name || 'Writer',
+                categoryName,
+                excerpt
+            });
             }
 
             return { 
@@ -609,7 +642,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
         // Generic taxonomy mapping
         const collTaxonomies: string[] = (collectionSupports as any).taxonomies || [];
-        if (collTaxonomies.length > 0 || collection.slug === 'articles') {
+        if (contentCollectionIds.includes(collection.id) || collTaxonomies.length > 0) {
             const entryTermsResult = await db.select({
                 term: terms,
                 taxonomy: taxonomies
@@ -636,7 +669,10 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             });
 
             // Backwards compatibility for templates expecting data.categories and data.tags
-            const cats = entryTermsResult.filter((t: any) => t.taxonomy.slug === 'categories');
+            const targetCol = collection;
+             const supports = safeJsonParse(targetCol?.supports || '{}', {});
+             const priorityTax = (supports.taxonomies && supports.taxonomies.length > 0) ? supports.taxonomies[0] : 'categories';
+             const cats = entryTermsResult.filter((t: any) => t.taxonomy.slug === priorityTax);
             const primaryTermId = parsedData.primaryTermId;
             if (primaryTermId) {
                 cats.sort((a: any, b: any) => {
@@ -738,7 +774,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         if (data.id) {
             totalItems = data.entryCount || 0;
         } else {
-            totalItems = articlesCol ? (articlesCol.entryCount || 0) : 0;
+            totalItems = totalContentItems;
         }
         
         const totalPages = Math.ceil(totalItems / pageSize);
@@ -782,7 +818,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             .leftJoin(users, eq(entries.authorId, users.id))
             .where(
                 and(
-                    eq(entries.collectionId, articlesCol ? articlesCol.id : 0),
+                    inArray(entries.collectionId, contentCollectionIds),
                     eq(entries.status, 'published')
                 )
             )
@@ -808,7 +844,6 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             .innerJoin(terms, eq(entryTerms.termId, terms.id))
             .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
             .where(and(
-                eq(taxonomies.slug, 'categories'),
                 sql`${entryTerms.entryId} IN (${sql.join(entryIds.map((id: any) => sql`${id}`), sql`, `)})`
             ));
             for (const row of catTermRows) {
@@ -833,12 +868,22 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 categoryName = primary ? primary.name : cats[0].name;
             }
 
+            
+            const collection = allCollections.find(c => c.id === r.entry.collectionId);
+            let collectionSupports = {};
+            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
+            const mappings = collectionSupports.mappings || {};
+            
             categoryArticles.push({
                 id: r.entry.id,
                 slug: r.entry.slug,
                 canonicalUrl: canonicalPath,
                 publishedAt: r.entry.publishedAt,
                 ...data,
+                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
+                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
+                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
+                displayContent: data[mappings.contentField || 'content'] || '',
                 authorName: r.author?.name || 'Writer',
                 categoryName,
                 excerpt
@@ -846,6 +891,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         }
 
         // Extend data with taxonomy context for SEO/indexing
+        console.log('CATEGORY ARTICLES LENGTH:', categoryArticles.length);
         const archiveData = {
             ...data,
             taxonomy: taxonomyData,
@@ -857,3 +903,5 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
     return null;
 }
+
+
