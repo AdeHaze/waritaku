@@ -3,7 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { hasPermission } from '../../lib/permissions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { entries, terms, collections, taxonomies, users as usersTable, settings } from '../../db/schema';
-import { desc, sql, eq, and } from 'drizzle-orm';
+import { desc, sql, eq, and, ne } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
 import DashboardCalendarAnalytics from '../../components/admin/DashboardCalendarAnalytics';
@@ -32,7 +32,7 @@ if (env && (env as any).DB) {
   const db = getDb(env as any);
   
   // We need the collections/taxonomies to count specific entries/terms
-  const articlesCollection = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
+  const articlesCollection = await db.select().from(collections).where(ne(collections.slug, 'pages')).limit(1);
   const pagesCollection = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
   const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
   const tagTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'tags')).limit(1);
@@ -207,3 +207,4 @@ const activeWidgets = dashboardLayout.filter(w => w.enabled);
     })}
   </div>
 </AdminLayout>
+
