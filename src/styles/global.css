@@ -223,3 +223,24 @@
     }
   }
 }
+
+.prose blockquote {
+  border-left: 4px solid hsl(var(--primary));
+  padding-left: 1rem;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+  margin: 1.5rem 0;
+  background: hsl(var(--muted) / 0.5);
+  padding: 1rem 1.5rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.prose blockquote p:before, .prose blockquote p:after {
+  content: none !important;
+}
+
+/* Force center all images within prose */
+.prose img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
