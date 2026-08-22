@@ -60,6 +60,7 @@ export const blockRegistry: BlockConfig[] = [
         defaultData: { title: 'New Content List (Vertical)', collectionId: 'articles', filters: [], filterMatchType: 'AND', limit: 5 },
         fields: [
             { name: 'title', label: 'Section Title', type: 'text' },
+            { name: 'taxonomySlug', label: 'Taxonomy Source', type: 'taxonomy_term_selector', helpText: 'Select which taxonomy to display in this grid' },
             { name: 'collectionId', label: 'Content Source', type: 'collection_selector', helpText: 'Select the Content Type to fetch data from.' },
             { name: 'filters', label: 'Taxonomy Filters', type: 'taxonomy_filter_builder' },
             { name: 'limit', label: 'Number of Articles', type: 'number', min: 1, max: 20, defaultValue: 5 }
@@ -85,7 +86,7 @@ export const blockRegistry: BlockConfig[] = [
         label: '+ Cats Grid',
         group: 'FULL WIDTH (100%)',
         colorClass: 'bg-primary/10 text-primary hover:bg-primary/20',
-        defaultData: { title: 'Kategori Pilihan', limit: 12 },
+        defaultData: { title: 'Kategori Pilihan', limit: 12, taxonomySlug: 'categories' },
         fields: [
             { name: 'title', label: 'Section Title', type: 'text' },
             { name: 'limit', label: 'Items Limit', type: 'number', min: 1, max: 50, defaultValue: 12 }
