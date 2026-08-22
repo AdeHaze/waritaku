@@ -32,7 +32,7 @@ if (env?.DB) {
         const db = getDb(env);
 
         // Article counts
-        const sc = await db.run(sql`SELECT status, COUNT(*) as cnt FROM entries WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles') GROUP BY status`);
+        const sc = await db.run(sql`SELECT status, COUNT(*) as cnt FROM entries WHERE collection_id IN (SELECT id FROM collections WHERE slug != 'pages') GROUP BY status`);
         for (const r of (sc as any).results || []) {
             if (r.status === 'published') publishedArticles = Number(r.cnt);
             else if (r.status === 'draft') draftArticles = Number(r.cnt);
@@ -42,7 +42,7 @@ if (env?.DB) {
         // Missing featured image (published only)
         const nfi = await db.run(sql`
             SELECT id, json_extract(data, '$.title') as title, slug FROM entries
-            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+            WHERE collection_id IN (SELECT id FROM collections WHERE slug != 'pages')
               AND status = 'published' AND (json_extract(data, '$.featuredImage') IS NULL OR json_extract(data, '$.featuredImage') = '')
             ORDER BY id LIMIT 500`);
         noFeaturedImage = (nfi as any).results || [];
@@ -50,7 +50,7 @@ if (env?.DB) {
         // Own-domain unrewritten WP URLs — articles where old site domain wp-content/uploads survived
         const ownWp = await db.run(sql`
             SELECT id, json_extract(data, '$.title') as title, slug FROM entries
-            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+            WHERE collection_id IN (SELECT id FROM collections WHERE slug != 'pages')
                AND (json_extract(data, '$.content') LIKE '%waritaku.com/wp-content/uploads%'
                OR json_extract(data, '$.content') LIKE '%128.199.139.85/wp-content/uploads%')
             ORDER BY id LIMIT 500`);
@@ -59,7 +59,7 @@ if (env?.DB) {
         // External hotlinks — articles that embed images from OTHER websites' WP uploads
         const extHl = await db.run(sql`
             SELECT id, json_extract(data, '$.title') as title, slug FROM entries
-            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+            WHERE collection_id IN (SELECT id FROM collections WHERE slug != 'pages')
               AND (json_extract(data, '$.content') LIKE '%/wp-content/uploads%' OR json_extract(data, '$.content') LIKE '%.wordpress.com%')
               AND json_extract(data, '$.content') NOT LIKE '%waritaku.com%'
               AND json_extract(data, '$.content') NOT LIKE '%128.199.139.85%'
@@ -71,7 +71,7 @@ if (env?.DB) {
         // Unresolved shortcodes (common plugin shortcodes)
         const sc2 = await db.run(sql`
             SELECT id, json_extract(data, '$.title') as title, slug FROM entries
-            WHERE collection_id = (SELECT id FROM collections WHERE slug = 'articles')
+            WHERE collection_id IN (SELECT id FROM collections WHERE slug != 'pages')
                AND (json_extract(data, '$.content') LIKE '%[caption%'
                OR json_extract(data, '$.content') LIKE '%[gallery%'
                OR json_extract(data, '$.content') LIKE '%[vc_%'
@@ -409,4 +409,6 @@ const metrics: Metric[] = [
         )}
     </div>
 </AdminLayout>
+
+
 
