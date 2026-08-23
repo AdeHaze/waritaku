@@ -32,7 +32,11 @@ if (env && (env as any).DB) {
   const db = getDb(env as any);
   
   // We need the collections/taxonomies to count specific entries/terms
-  const articlesCollection = await db.select().from(collections).where(ne(collections.slug, 'pages')).limit(1);
+  const _allC = await db.select().from(collections);
+  const articlesCollection = [_allC.find((c: any) => {
+      const fields = JSON.parse(c.fields || '[]');
+      return !fields.some((f: any) => f.slug === 'isBlockBuilder' || f.slug === 'is_block_builder');
+  }) || _allC[0]];
   const pagesCollection = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
   const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
   const tagTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'tags')).limit(1);
