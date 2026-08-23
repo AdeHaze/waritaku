@@ -201,10 +201,15 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                 {/* Dynamically Render Fields based on Schema */}
                 {schema
                     .filter(f => f.type !== 'taxonomy')
-                    .filter(f => !(formData.is_block_builder && f.type === 'richtext'))
-                    .filter(f => !(!formData.is_block_builder && f.type === 'blockbuilder'))
+                    .filter(f => !((formData.is_block_builder || formData.isBlockBuilder) && f.type === 'richtext'))
+                    .filter(f => {
+        // If there is no isBlockBuilder field in schema, don't hide it
+        const hasToggle = schema.some(s => (s.name || s.slug) === 'is_block_builder' || (s.name || s.slug) === 'isBlockBuilder');
+        if (!hasToggle) return true;
+        return (formData.is_block_builder || formData.isBlockBuilder);
+    })
                     .map((field) => (
-                    <div key={field.name} className="bg-card border border-border rounded-xl shadow-sm p-6 space-y-3">
+                    <div key={(field.name || field.slug)} className="bg-card border border-border rounded-xl shadow-sm p-6 space-y-3">
                         <label className="block text-sm font-bold uppercase tracking-wide text-foreground">
                             {field.label} {field.required && <span className="text-red-500">*</span>}
                         </label>
@@ -212,8 +217,8 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                         {field.type === 'text' && (
                             <input 
                                 type="text"
-                                value={formData[field.name] || ''}
-                                onChange={(e) => handleChange(field.name, e.target.value)}
+                                value={formData[(field.name || field.slug)] || ''}
+                                onChange={(e) => handleChange((field.name || field.slug), e.target.value)}
                                 required={field.required}
                                 className="w-full px-4 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                             />
@@ -221,8 +226,8 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
 
                         {field.type === 'textarea' && (
                             <textarea 
-                                value={formData[field.name] || ''}
-                                onChange={(e) => handleChange(field.name, e.target.value)}
+                                value={formData[(field.name || field.slug)] || ''}
+                                onChange={(e) => handleChange((field.name || field.slug), e.target.value)}
                                 required={field.required}
                                 rows={4}
                                 className="w-full px-4 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -231,8 +236,8 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
 
                         {field.type === 'richtext' && (
                             <Editor 
-                                content={formData[field.name] || ''} 
-                                onChange={(val) => handleChange(field.name, val)} 
+                                content={formData[(field.name || field.slug)] || ''} 
+                                onChange={(val) => handleChange((field.name || field.slug), val)} 
                             />
                         )}
 
@@ -241,28 +246,28 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                                 <div className="flex gap-2">
                                     <input 
                                         type="text"
-                                        value={formData[field.name] || ''}
-                                        onChange={(e) => handleChange(field.name, e.target.value)}
+                                        value={formData[(field.name || field.slug)] || ''}
+                                        onChange={(e) => handleChange((field.name || field.slug), e.target.value)}
                                         placeholder="Image or File URL"
                                         className="flex-1 px-4 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                                     />
-                                    <label className={`cursor-pointer px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center ${uploadingField === field.name ? 'bg-muted text-muted-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'}`}>
-                                        {uploadingField === field.name ? 'Uploading...' : 'Upload File'}
+                                    <label className={`cursor-pointer px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center justify-center ${uploadingField === (field.name || field.slug) ? 'bg-muted text-muted-foreground' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'}`}>
+                                        {uploadingField === (field.name || field.slug) ? 'Uploading...' : 'Upload File'}
                                         <input 
                                             type="file" 
                                             accept="image/*,application/pdf" 
                                             className="hidden" 
-                                            onChange={(e) => handleImageUpload(e, field.name)} 
-                                            disabled={uploadingField === field.name}
+                                            onChange={(e) => handleImageUpload(e, (field.name || field.slug))} 
+                                            disabled={uploadingField === (field.name || field.slug)}
                                         />
                                     </label>
                                 </div>
-                                {formData[field.name] && !formData[field.name].endsWith('.pdf') && (
-                                    <img src={formData[field.name]} alt="Preview" className="max-h-48 rounded-md border border-border object-cover" />
+                                {formData[(field.name || field.slug)] && !formData[(field.name || field.slug)].endsWith('.pdf') && (
+                                    <img src={formData[(field.name || field.slug)]} alt="Preview" className="max-h-48 rounded-md border border-border object-cover" />
                                 )}
-                                {formData[field.name] && formData[field.name].endsWith('.pdf') && (
+                                {formData[(field.name || field.slug)] && formData[(field.name || field.slug)].endsWith('.pdf') && (
                                     <div className="p-3 bg-muted rounded-md text-sm break-all">
-                                        📄 PDF Document: <a href={formData[field.name]} target="_blank" className="text-primary hover:underline">{formData[field.name]}</a>
+                                        📄 PDF Document: <a href={formData[(field.name || field.slug)]} target="_blank" className="text-primary hover:underline">{formData[(field.name || field.slug)]}</a>
                                     </div>
                                 )}
                             </div>
@@ -272,18 +277,18 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input 
                                     type="checkbox"
-                                    checked={formData[field.name] || false}
-                                    onChange={(e) => handleChange(field.name, e.target.checked)}
+                                    checked={formData[(field.name || field.slug)] || false}
+                                    onChange={(e) => handleChange((field.name || field.slug), e.target.checked)}
                                     className="w-4 h-4 text-primary bg-background border-input rounded focus:ring-primary focus:ring-2"
                                 />
                                 <span className="text-sm font-medium">{field.label}</span>
                             </label>
                         )}
 
-                        {field.type === 'blockbuilder' && formData.is_block_builder && (
+                        {field.type === 'blockbuilder' && (
                             <BlockBuilder 
-                                blocks={parseBlocks(formData.layout_blocks)}
-                                setBlocks={(val: any) => handleChange('layout_blocks', JSON.stringify(val))}
+                                blocks={parseBlocks(formData[field.name || field.slug] || formData.layout_blocks)}
+                                setBlocks={(val: any) => handleChange(field.name || field.slug, JSON.stringify(val))}
                             />
                         )}
                     </div>
