@@ -28,9 +28,8 @@ if (env && (env as any).DB) {
     
     // 2. Fetch the Page
     if (homepageId && !isNaN(homepageId)) {
-        const pageCol = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
-        if (pageCol.length > 0) {
-            const pageRes = await db.select().from(entries).where(and(eq(entries.id, homepageId), eq(entries.collectionId, pageCol[0].id))).limit(1);
+        const pageRes = await db.select().from(entries).where(eq(entries.id, homepageId)).limit(1);
+        if (pageRes) {
             if (pageRes.length > 0) {
                 const page = pageRes[0];
                 const data = JSON.parse(page.data || '{}');
@@ -39,10 +38,31 @@ if (env && (env as any).DB) {
                 headerStyle = data.headerStyle || 'default';
                 footerStyle = data.footerStyle || 'default';
                 
-                if (data.is_block_builder && data.layout_blocks) {
-                    try {
-                        layoutBlocks = Array.isArray(data.layout_blocks) ? data.layout_blocks : JSON.parse(data.layout_blocks);
-                    } catch(e) {
+                let isBlockBuilderPage = false;
+          let layoutBlocksData = null;
+          
+          if (pageRes[0].collectionId) {
+             const colRes = await db.select({ fields: collections.fields }).from(collections).where(eq(collections.id, pageRes[0].collectionId)).limit(1);
+             if (colRes.length > 0) {
+                 const fields = JSON.parse(colRes[0].fields || '[]');
+                 const blockField = fields.find((f: any) => f.type === 'blockbuilder');
+                 if (blockField) {
+                     isBlockBuilderPage = true;
+                     const key = blockField.name || blockField.slug;
+                     layoutBlocksData = data[key];
+                 }
+             }
+          }
+          // Fallback to legacy
+          if (!isBlockBuilderPage && data.is_block_builder) {
+              isBlockBuilderPage = true;
+              layoutBlocksData = data.layout_blocks || data.layoutBlocks;
+          }
+
+          if (isBlockBuilderPage && layoutBlocksData) {
+              try {
+                  layoutBlocks = Array.isArray(layoutBlocksData) ? layoutBlocksData : JSON.parse(layoutBlocksData);
+              } catch(e) {
                         console.error("Failed to parse layoutBlocks", e);
                     }
                 }
@@ -71,7 +91,11 @@ if (env && (env as any).DB) {
         }
     }
 
-    const contentColsResult = await db.select({ id: collections.id }).from(collections).where(ne(collections.slug, 'pages'));
+    const _allCols = await db.select({ id: collections.id, fields: collections.fields }).from(collections);
+    const contentColsResult = _allCols.filter((c: any) => {
+        const fields = safeJsonParse(c.fields || '[]', []);
+        return !fields.some((f: any) => f.slug === 'isBlockBuilder' || f.slug === 'is_block_builder');
+    });
     const contentColIds = contentColsResult.map(c => c.id);
 
     const fetchArticles = async (options: { 
@@ -243,7 +267,11 @@ if (env && (env as any).DB) {
         } else if (block.type === 'categories_grid') {
             let priorityTax = block.taxonomySlug || 'categories';
         if (priorityTax === 'all') {
-            const allColsForTax = await db.select().from(collections).where(ne(collections.slug, 'pages'));
+            const _allCols = await db.select().from(collections);
+            const allColsForTax = _allCols.filter((c: any) => {
+                const fields = safeJsonParse(c.fields || '[]', []);
+                return !fields.some((f: any) => f.slug === 'isBlockBuilder' || f.slug === 'is_block_builder');
+            });
             priorityTax = 'categories';
             for(const col of allColsForTax) {
                 const supports = safeJsonParse(col.supports || '{}', {});
