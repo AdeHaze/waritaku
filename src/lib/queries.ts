@@ -190,7 +190,10 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
     
     const allCollections = await db.select().from(collections);
-    const contentCollections = allCollections.filter((c: any) => c.slug !== 'pages');
+    const contentCollections = allCollections.filter((c: any) => {
+        const fields = safeJsonParse(c.fields || '[]', []);
+        return !fields.some((f: any) => f.slug === 'isBlockBuilder' || f.slug === 'is_block_builder');
+    });
     const contentCollectionIds = contentCollections.map((c: any) => c.id);
     const totalContentItems = contentCollections.reduce((sum: any, c: any) => sum + (c.entryCount || 0), 0);
 
