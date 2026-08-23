@@ -1,7 +1,7 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { settings, entries, collections } from '../../../db/schema';
-import { eq, and, like } from 'drizzle-orm';
+import { eq, and, like, inArray } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../../lib/db';
 import { hasPermission } from '../../../lib/permissions';
@@ -44,14 +44,20 @@ let blockPages: any[] = [];
 let currentHomepageId = null;
 
 if (db) {
-    const pagesCol = await db.select().from(collections).where(eq(collections.slug, 'pages')).limit(1);
-    if (pagesCol.length > 0) {
-        const results = await db.select().from(entries).where(
-            and(
-                eq(entries.collectionId, pagesCol[0].id),
-                like(entries.data, '%"is_block_builder":true%')
-            )
-        );
+    const allCols = await db.select().from(collections);
+    const blockBuilderColIds = allCols.filter(c => {
+        try {
+            const fields = JSON.parse(c.fields || '[]');
+            return fields.some((f: any) => f.type === 'blockbuilder');
+        } catch(e) { return false; }
+    }).map(c => c.id);
+
+    let results = [];
+    if (blockBuilderColIds.length > 0) {
+        results = await db.select().from(entries).where(inArray(entries.collectionId, blockBuilderColIds));
+    }
+
+    if (results) {
         blockPages = results.map(r => {
             const data = JSON.parse(r.data || '{}');
             return {
