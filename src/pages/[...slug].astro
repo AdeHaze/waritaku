@@ -296,7 +296,11 @@ if (!isHomepageFallback && env && env.DB && slug) {
                       // Fetch categories from terms where taxonomy is 'categories'
                       let priorityTax = block.taxonomySlug || 'categories';
         if (priorityTax === 'all') {
-            const allColsForTax = await db.select().from(collections).where(ne(collections.slug, 'pages'));
+            const _allCols = await db.select().from(collections);
+            const allColsForTax = _allCols.filter((c: any) => {
+                const fields = safeJsonParse(c.fields || '[]', []);
+                return !fields.some((f: any) => f.slug === 'isBlockBuilder' || f.slug === 'is_block_builder');
+            });
             priorityTax = 'categories';
             for(const col of allColsForTax) {
                 const supports = safeJsonParse(col.supports || '{}', {});
