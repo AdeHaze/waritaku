@@ -203,11 +203,12 @@ export default function DynamicEntryEditor({ collectionSlug, schema, initialEntr
                     .filter(f => f.type !== 'taxonomy')
                     .filter(f => !((formData.is_block_builder || formData.isBlockBuilder) && f.type === 'richtext'))
                     .filter(f => {
-        // If there is no isBlockBuilder field in schema, don't hide it
-        const hasToggle = schema.some(s => (s.name || s.slug) === 'is_block_builder' || (s.name || s.slug) === 'isBlockBuilder');
-        if (!hasToggle) return true;
-        return (formData.is_block_builder || formData.isBlockBuilder);
-    })
+          if (f.type !== 'blockbuilder') return true;
+          // If there is no isBlockBuilder field in schema, don't hide it
+          const hasToggle = schema.some(s => (s.name || s.slug) === 'is_block_builder' || (s.name || s.slug) === 'isBlockBuilder');
+          if (!hasToggle) return true;
+          return (formData.is_block_builder || formData.isBlockBuilder);
+      })
                     .map((field) => (
                     <div key={(field.name || field.slug)} className="bg-card border border-border rounded-xl shadow-sm p-6 space-y-3">
                         <label className="block text-sm font-bold uppercase tracking-wide text-foreground">
