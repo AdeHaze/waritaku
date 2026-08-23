@@ -568,9 +568,14 @@ if (Astro.request.method === 'POST') {
                   <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
                     ${[
                       ['Users',       r.users ?? 0],
-                      ['Categories',  r.categories ?? 0],
+                      ['Taxonomy Terms', r.categories || 0 + (r.tags || 0)],
                       ['Tags',        r.tags ?? 0],
-                      ['Articles',    r.articles ?? 0],
+                      ['Content Entries', Object.keys(r).reduce((sum, k) => {
+        const col = collectionsList.find((c: any) => c.slug === k);
+        const fields = col ? JSON.parse(col.fields || '[]') : [];
+        const isPage = fields.some((f: any) => f.slug === 'isBlockBuilder' || f.slug === 'is_block_builder');
+        return (!isPage && k !== 'blocks' && !['users', 'categories', 'tags'].includes(k)) ? sum + (r[k] || 0) : sum;
+    }, 0)],
                       ['Pages',       r.pages ?? 0],
                       ['Cat. Links',  r.article_categories ?? 0],
                       ['Tag Links',   r.article_tags ?? 0],
