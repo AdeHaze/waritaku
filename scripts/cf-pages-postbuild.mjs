@@ -6,8 +6,22 @@ const workerDest = 'dist/_worker.js';
 
 // Check if Astro generated a server entrypoint
 if (fs.existsSync(workerSrc)) {
-  // Re-export the worker so Cloudflare Pages recognizes it as a function
-  fs.writeFileSync(workerDest, 'export { default } from \'./server/entry.mjs\';');
+  // Re-export the worker with a scheduled handler for D1 PRAGMA optimize
+  const workerCode = `
+import astroApp from './server/entry.mjs';
+
+export default {
+  fetch: astroApp.fetch,
+  async scheduled(event, env, ctx) {
+    if (env.DB) {
+      console.log('Running PRAGMA optimize on D1...');
+      await env.DB.prepare('PRAGMA optimize;').run();
+      console.log('PRAGMA optimize complete.');
+    }
+  }
+};
+`;
+  fs.writeFileSync(workerDest, workerCode);
   console.log('✓ Generated dist/_worker.js for Cloudflare Pages compatibility');
 }
 
