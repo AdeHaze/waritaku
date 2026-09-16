@@ -92,6 +92,7 @@ export const entries = sqliteTable('entries', {
   statusIdx: index('entries_status_idx').on(t.status),
   collectionIdx: index('entries_collection_idx').on(t.collectionId),
   authorIdx: index('entries_author_idx').on(t.authorId),
+  authorCollectionStatusIdx: index('entries_author_collection_status_idx').on(t.authorId, t.collectionId, t.status),
   compositeSortIdx: index('entries_collection_status_published_idx').on(t.collectionId, t.status, t.publishedAt),
   collectionStatusIdIdx: index('entries_collection_status_id_idx').on(t.collectionId, t.status, t.id),
   statusIdIdx: index('entries_status_id_idx').on(t.status, t.id),

@@ -124,12 +124,13 @@ export const PUT: APIRoute = async (ctx) => {
         const tIds = selectedTerms && Array.isArray(selectedTerms) ? selectedTerms.map(t => parseInt(t, 10)) : [];
         const waitCtx = (ctx.locals as any).cfContext || ctx;
         
+        const allTIds = Array.from(new Set([...tIds, ...oldTerms.map(t => t.termId)]));
         if (waitCtx && waitCtx.waitUntil) {
             waitCtx.waitUntil(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
-            waitCtx.waitUntil(syncCounts(db));
+            waitCtx.waitUntil(syncCounts(db, collectionId, allTIds));
         } else {
             invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
-            syncCounts(db).catch(console.error);
+            syncCounts(db, collectionId, allTIds).catch(console.error);
         }
         
         // Also invalidate old slug if it changed
@@ -203,10 +204,10 @@ export const DELETE: APIRoute = async (ctx) => {
             const waitCtx = (ctx.locals as any).cfContext || ctx;
             if (waitCtx && waitCtx.waitUntil) {
                 waitCtx.waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
-                waitCtx.waitUntil(syncCounts(db));
+                waitCtx.waitUntil(syncCounts(db, colRes[0].id, tIds));
             } else {
                 invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
-                syncCounts(db).catch(console.error);
+                syncCounts(db, colRes[0].id, tIds).catch(console.error);
             }
 
             return new Response(JSON.stringify({ success: true, permanent: true }), {
@@ -230,10 +231,10 @@ export const DELETE: APIRoute = async (ctx) => {
         const waitCtx = (ctx.locals as any).cfContext || ctx;
         if (waitCtx && waitCtx.waitUntil) {
             waitCtx.waitUntil(invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds));
-            waitCtx.waitUntil(syncCounts(db));
+            waitCtx.waitUntil(syncCounts(db, colRes[0].id, tIds));
         } else {
             invalidateEntryCache(env, colRes[0].id, entryId, entryRes[0].slug, tIds).catch(console.error);
-            syncCounts(db).catch(console.error);
+            syncCounts(db, colRes[0].id, tIds).catch(console.error);
         }
 
         return new Response(JSON.stringify({ success: true, trashed: true }), {

@@ -202,10 +202,10 @@ export const POST: APIRoute = async (ctx) => {
         const waitCtx = (ctx.locals as any).cfContext || ctx;
         if (waitCtx && waitCtx.waitUntil) {
             waitCtx.waitUntil(invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds));
-            waitCtx.waitUntil(syncCounts(db));
+            waitCtx.waitUntil(syncCounts(db, collectionId, tIds));
         } else {
             invalidateEntryCache(env, collectionId, entryId, finalSlug, tIds).catch(console.error);
-            syncCounts(db).catch(console.error);
+            syncCounts(db, collectionId, tIds).catch(console.error);
         }
 
         return new Response(JSON.stringify({ success: true, id: entryId, slug: finalSlug }), {
