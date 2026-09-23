@@ -190,10 +190,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
     
     const allCollections = await db.select().from(collections);
-    const contentCollections = allCollections.filter((c: any) => {
-        const fields = safeJsonParse(c.fields || '[]', []);
-        return !fields.some((f: any) => f.slug === 'isBlockBuilder' || f.slug === 'is_block_builder');
-    });
+    const contentCollections = allCollections.filter((c: any) => c.slug !== 'pages');
     const contentCollectionIds = contentCollections.map((c: any) => c.id);
     const totalContentItems = contentCollections.reduce((sum: any, c: any) => sum + (c.entryCount || 0), 0);
 
@@ -285,24 +282,14 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             const rawContent = data.content || '';
             const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
-            
-            const collection = allCollections.find(c => c.id === r.entry.collectionId);
-            let collectionSupports = {};
-            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
-            const mappings = collectionSupports.mappings || {};
-            
             return {
                 id: r.entry.id,
                 slug: r.entry.slug,
                 canonicalUrl: `/${r.entry.slug}`,
                 publishedAt: r.entry.publishedAt,
                 ...data,
-                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
-                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
-                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
-                displayContent: data[mappings.contentField || 'content'] || '',
                 authorName: r.author?.name || 'Writer',
-                categoryName: 'Article',
+                categoryName: 'Article', // Can be enriched with terms
                 excerpt
             };
         });
@@ -397,22 +384,12 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 categoryName = primary ? primary.name : cats[0].name;
             }
 
-            
-            const collection = allCollections.find(c => c.id === r.entry.collectionId);
-            let collectionSupports = {};
-            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
-            const mappings = collectionSupports.mappings || {};
-            
             categoryArticles.push({
                 id: r.entry.id,
                 slug: r.entry.slug,
                 canonicalUrl: canonicalPath,
                 publishedAt: r.entry.publishedAt,
                 ...data,
-                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
-                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
-                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
-                displayContent: data[mappings.contentField || 'content'] || '',
                 authorName: r.author?.name || 'Writer',
                 categoryName,
                 excerpt
@@ -511,26 +488,16 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                     categoryName = primary ? primary.name : cats[0].name;
                 }
                 
-                
-            const collection = allCollections.find(c => c.id === r.entry.collectionId);
-            let collectionSupports = {};
-            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
-            const mappings = collectionSupports.mappings || {};
-            
-            categoryArticles.push({
-                id: r.entry.id,
-                slug: r.entry.slug,
-                canonicalUrl: canonicalPath,
-                publishedAt: r.entry.publishedAt,
-                ...data,
-                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
-                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
-                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
-                displayContent: data[mappings.contentField || 'content'] || '',
-                authorName: r.author?.name || 'Writer',
-                categoryName,
-                excerpt
-            });
+                categoryArticles.push({
+                    id: r.entry.id,
+                    slug: r.entry.slug,
+                    canonicalUrl: canonicalPath,
+                    publishedAt: r.entry.publishedAt,
+                    ...data,
+                    authorName: r.author?.name || 'Writer',
+                    categoryName,
+                    excerpt
+                });
             }
 
             return { 
@@ -672,10 +639,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             });
 
             // Backwards compatibility for templates expecting data.categories and data.tags
-            const targetCol = collection;
-             const supports = safeJsonParse(targetCol?.supports || '{}', {});
-             const priorityTax = (supports.taxonomies && supports.taxonomies.length > 0) ? supports.taxonomies[0] : 'categories';
-             const cats = entryTermsResult.filter((t: any) => t.taxonomy.slug === priorityTax);
+            const cats = entryTermsResult.filter((t: any) => t.taxonomy.slug === 'categories');
             const primaryTermId = parsedData.primaryTermId;
             if (primaryTermId) {
                 cats.sort((a: any, b: any) => {
@@ -871,22 +835,12 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 categoryName = primary ? primary.name : cats[0].name;
             }
 
-            
-            const collection = allCollections.find(c => c.id === r.entry.collectionId);
-            let collectionSupports = {};
-            try { collectionSupports = JSON.parse(collection?.supports || '{}'); } catch(e) {}
-            const mappings = collectionSupports.mappings || {};
-            
             categoryArticles.push({
                 id: r.entry.id,
                 slug: r.entry.slug,
                 canonicalUrl: canonicalPath,
                 publishedAt: r.entry.publishedAt,
                 ...data,
-                displayTitle: data[mappings.titleField || 'title'] || r.entry.slug,
-                displayExcerpt: data[mappings.excerptField || 'excerpt'] || excerpt,
-                displayImage: data[mappings.featuredImageField || 'featuredImageUrl'] || '',
-                displayContent: data[mappings.contentField || 'content'] || '',
                 authorName: r.author?.name || 'Writer',
                 categoryName,
                 excerpt
@@ -894,7 +848,6 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         }
 
         // Extend data with taxonomy context for SEO/indexing
-        console.log('CATEGORY ARTICLES LENGTH:', categoryArticles.length);
         const archiveData = {
             ...data,
             taxonomy: taxonomyData,
@@ -906,5 +859,3 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
     return null;
 }
-
-
