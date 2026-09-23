@@ -1,0 +1,1 @@
+CREATE INDEX `entries_author_collection_status_idx` ON `entries` (`author_id`,`collection_id`,`status`);
