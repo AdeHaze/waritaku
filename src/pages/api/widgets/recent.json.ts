@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { entries, collections, taxonomies, terms, entryTerms } from '../../../db/schema';
-import {  eq, and, desc, inArray , ne } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getCanonicalUrls } from '../../../lib/queries';
 
@@ -16,95 +16,155 @@ export const GET: APIRoute = async ({ request }) => {
     const limit = Math.min(100, Math.max(1, limitParam)); // Cap at 100 max for the pool
     
     try {
-        const articlesCol = await db.select().from(collections).where(eq(collections.slug, 'articles')).limit(1);
+        // Step 1: Get the articles collection — PK lookup via slug unique index, 1 row read
+        const articlesCol = await db.select({ id: collections.id, entryCount: collections.entryCount })
+            .from(collections).where(eq(collections.slug, 'articles')).limit(1);
         if (articlesCol.length === 0) {
-            return new Response(JSON.stringify({ error: 'Articles collection not found' }), { status: 404 });
+            return new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=86400' }
+            });
         }
 
-        let query: any = db.select({ entry: entries }).from(entries);
-        let conditions: any = and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCol[0].id));
+        const collectionId = articlesCol[0].id;
+        let entryIds: number[] = [];
 
-        // Apply Taxonomy Filter if specific terms are selected
+        // Step 2: Fetch entry IDs only (narrow select) — uses entries_collection_status_id_idx
         if (taxSlug !== 'all' && termsParam !== 'all') {
             const termIds = termsParam.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+
             if (termIds.length > 0) {
-                // Use a subquery-like approach or distinct innerJoin. We'll use innerJoin and groupBy only when filtering.
-                query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
-                conditions = and(conditions, inArray(entryTerms.termId, termIds));
-                query = query.where(conditions).groupBy(entries.id);
-            } else {
-                query = query.where(conditions);
+                // Two-step approach: first get matching entry_ids via term index,
+                // then filter by collection + status using the composite index.
+                // Avoids the JOIN+GROUP BY full-scan pattern entirely.
+                const etRows = await db.select({ entryId: entryTerms.entryId })
+                    .from(entryTerms)
+                    .where(inArray(entryTerms.termId, termIds));
+
+                const candidateIds = Array.from(new Set(etRows.map(r => r.entryId)));
+
+                if (candidateIds.length > 0) {
+                    // Fetch in chunks of 50 to stay within D1 IN() safe limit
+                    const D1_CHUNK = 50;
+                    let confirmedRows: any[] = [];
+                    for (let i = 0; i < candidateIds.length; i += D1_CHUNK) {
+                        const chunk = candidateIds.slice(i, i + D1_CHUNK);
+                        const rows = await db.select({ id: entries.id })
+                            .from(entries)
+                            .where(and(
+                                inArray(entries.id, chunk),
+                                eq(entries.collectionId, collectionId),
+                                eq(entries.status, 'published')
+                            ));
+                        confirmedRows = confirmedRows.concat(rows);
+                    }
+                    // Sort by id desc (newest first) and slice to limit
+                    confirmedRows.sort((a, b) => b.id - a.id);
+                    entryIds = confirmedRows.slice(0, limit).map(r => r.id);
+                }
             }
         } else {
-            query = query.where(conditions);
+            // No term filter — use composite index directly
+            const idRows = await db.select({ id: entries.id })
+                .from(entries)
+                .where(and(
+                    eq(entries.collectionId, collectionId),
+                    eq(entries.status, 'published')
+                ))
+                .orderBy(desc(entries.id))
+                .limit(limit);
+            entryIds = idRows.map(r => r.id);
         }
 
-        // Order by primary key (id) descending for massive performance gains instead of publishedAt
-        const result = await query.orderBy(desc(entries.id)).limit(limit);
+        if (entryIds.length === 0) {
+            return new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=86400' }
+            });
+        }
 
-        // Batch-fetch the primary category term for all results (to show on the card badge)
-        const entryIds = result.map((r: any) => r.entry.id);
+        // Step 3: Fetch full entry data — PK lookups only, no scan
+        const D1_CHUNK = 50;
+        let entryRows: any[] = [];
+        for (let i = 0; i < entryIds.length; i += D1_CHUNK) {
+            const chunk = entryIds.slice(i, i + D1_CHUNK);
+            const rows = await db.select().from(entries).where(inArray(entries.id, chunk));
+            entryRows = entryRows.concat(rows);
+        }
+        // Restore sort order after chunked fetches
+        const entryMap = new Map(entryRows.map(e => [e.id, e]));
+        const sortedEntries = entryIds.map(id => entryMap.get(id)).filter(Boolean);
+
+        // Step 4: Fetch category names — separate queries, no JOIN+IN scan
         let categoryMap: Record<number, any[]> = {};
-        
         if (entryIds.length > 0) {
-            const catTax = await db.select({ id: taxonomies.id })
-                .from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
-                
-            if (catTax.length > 0) {
-                const catTermRows = await db.select({ entryId: entryTerms.entryId, id: terms.id, name: terms.name })
-                    .from(entryTerms)
-                    .innerJoin(terms, eq(entryTerms.termId, terms.id))
-                    .where(and(
-                        eq(terms.taxonomyId, catTax[0].id),
-                        inArray(entryTerms.entryId, entryIds)
-                    ));
-                for (const row of catTermRows) {
-                    if (!categoryMap[row.entryId]) categoryMap[row.entryId] = [];
-                    categoryMap[row.entryId].push(row);
+            // 4a: Get all entry_terms for these entries — uses entry_terms PK index
+            const etRows = await db.select().from(entryTerms).where(inArray(entryTerms.entryId, entryIds));
+            const termIds = Array.from(new Set(etRows.map(r => r.termId)));
+
+            if (termIds.length > 0) {
+                // 4b: Fetch the terms — PK lookups only
+                const tRows = await db.select({ id: terms.id, name: terms.name, taxonomyId: terms.taxonomyId })
+                    .from(terms).where(inArray(terms.id, termIds));
+
+                // 4c: Get taxonomy IDs to filter by 'categories' only
+                const taxIds = Array.from(new Set(tRows.map(t => t.taxonomyId)));
+                const taxRows = taxIds.length > 0
+                    ? await db.select({ id: taxonomies.id, slug: taxonomies.slug })
+                        .from(taxonomies).where(inArray(taxonomies.id, taxIds))
+                    : [];
+                const catTaxIds = new Set(taxRows.filter(t => t.slug === 'categories').map(t => t.id));
+
+                // JS join — zero DB reads
+                const termMap = new Map(tRows.filter(t => catTaxIds.has(t.taxonomyId)).map(t => [t.id, t]));
+                for (const r of etRows) {
+                    const t = termMap.get(r.termId);
+                    if (!t) continue;
+                    if (!categoryMap[r.entryId]) categoryMap[r.entryId] = [];
+                    categoryMap[r.entryId].push({ id: t.id, name: t.name });
                 }
             }
         }
 
-        // Batch-fetch canonical URLs
+        // Step 5: Batch-fetch canonical URLs (already optimized in getCanonicalUrls)
         const canonicalUrlMap = await getCanonicalUrls(db, entryIds);
 
-        // Format the output specifically for the client-side widget
-        const formattedArticles = await Promise.all(result.map(async (r: any) => {
-            const data = JSON.parse(r.entry.data || '{}');
+        // Step 6: Format output
+        const formattedArticles = sortedEntries.map((entry: any) => {
+            const data = JSON.parse(entry.data || '{}');
             const rawContent = data.content || '';
-            const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+            const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 80 ? textOnly.substring(0, 80) + '...' : textOnly;
             
-            const prefixSlug = canonicalUrlMap[r.entry.id];
-            const canonicalUrl = prefixSlug ? `${prefixSlug}/${r.entry.slug}` : r.entry.slug;
+            const prefixSlug = canonicalUrlMap[entry.id];
+            const canonicalUrl = prefixSlug ? `${prefixSlug}/${entry.slug}` : entry.slug;
             
             let categoryName = '';
-            const cats = categoryMap[r.entry.id] || [];
+            const cats = categoryMap[entry.id] || [];
             if (cats.length > 0) {
                 const primary = data.primaryTermId ? cats.find((c: any) => c.id === data.primaryTermId) : null;
                 categoryName = primary ? primary.name : cats[0].name;
             }
 
             return { 
-                id: r.entry.id, 
-                slug: r.entry.slug, 
+                id: entry.id, 
+                slug: entry.slug, 
                 canonicalUrl: `/${canonicalUrl}`, 
-                publishedAt: r.entry.publishedAt, 
+                publishedAt: entry.publishedAt, 
                 title: data.title,
                 featuredImageUrl: data.featuredImageUrl,
-                content: rawContent, // For thumbnail extraction if featuredImageUrl is missing
+                content: rawContent,
                 categoryName, 
                 excerpt 
             };
-        }));
+        });
 
-        // Aggressively cache at the edge for 1 hour (3600 seconds)
-        // Allow serving stale content for up to 1 day while revalidating in background
+        // Cache at edge for 1 day — stale-while-revalidate means visitors never wait
         return new Response(JSON.stringify(formattedArticles), {
             status: 200,
             headers: { 
                 'Content-Type': 'application/json',
-                'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400'
+                'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=86400'
             }
         });
 
