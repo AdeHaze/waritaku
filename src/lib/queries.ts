@@ -243,7 +243,9 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             utcEnd = new Date(new Date(isoEnd).getTime() - 1).toISOString();
         }
 
-        // Count query
+
+        // Count query — date archive has no stored counter so a targeted count is needed.
+        // Use the publishedAt index (entries_collection_status_published_idx) which covers this filter.
         const countResult = await db.select({ count: sql<number>`count(*)` })
             .from(entries)
             .where(
@@ -257,6 +259,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
         const totalItems = countResult[0]?.count || 0;
         const totalPages = Math.ceil(totalItems / pageSize);
+
 
         // Fetch entries for date archive
         const entriesResult = await db.select({
@@ -316,17 +319,11 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
     if (collectionArchiveMatch.length > 0) {
         const collection = collectionArchiveMatch[0];
         
-        // Count total entries in collection
-        const countResult = await db.select({ count: sql<number>`count(*)` })
-            .from(entries)
-            .where(
-                and(
-                    eq(entries.collectionId, collection.id),
-                    eq(entries.status, 'published')
-                )
-            );
-        const totalItems = Number(countResult[0]?.count || 0);
+        // Use stored entryCount — avoids a COUNT(*) full index scan.
+        // syncCounts() keeps this value accurate after every publish/delete.
+        const totalItems = Number(collection.entryCount || 0);
         const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
 
         // Fetch paginated entries
         const articlesResult = await db.select({
@@ -515,11 +512,13 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
                 articleBottomHtml: '' 
             };
         } else {
-            // Count total terms in taxonomy
-            const countResult = await db.select({ count: sql<number>`count(*)` })
+            // Count total terms using taxonomy_id index (tiny result set).
+            // Fetch IDs only — no full row scan, uses terms_taxonomy_idx.
+            const allTermIds = await db.select({ id: terms.id })
                 .from(terms)
                 .where(eq(terms.taxonomyId, taxonomy.id));
-            const totalItems = Number(countResult[0]?.count || 0);
+            const totalItems = allTermIds.length;
+
             const umbrellaLimit = taxonomy.umbrellaItemsPerPage || 0;
             const totalPages = umbrellaLimit > 0 ? Math.max(1, Math.ceil(totalItems / umbrellaLimit)) : 1;
 
