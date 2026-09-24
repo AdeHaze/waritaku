@@ -49,9 +49,21 @@ export function hasAnyPermission(permissions: PermissionSet, resource: Resource,
  * Returns an empty set if the role has no permissions configured,
  * allowing safe fallback without crashing.
  */
+// In-memory permission cache keyed by role slug.
+// Permissions change rarely so a 5-minute TTL keeps DB queries almost to zero.
+const _permCache = new Map<string, { set: PermissionSet; ts: number }>();
+const PERM_CACHE_TTL = 5 * 60_000; // 5 minutes
+
 export async function loadUserPermissions(db: any, roleSlug: string): Promise<PermissionSet> {
     const set: PermissionSet = new Set();
     if (!db || !roleSlug) return set;
+
+    // Return cached result if still fresh
+    const cached = _permCache.get(roleSlug);
+    if (cached && Date.now() - cached.ts < PERM_CACHE_TTL) {
+        return cached.set;
+    }
+
     try {
         const { roles, rolePermissions } = await import('../db/schema');
         const { eq } = await import('drizzle-orm');
@@ -68,6 +80,9 @@ export async function loadUserPermissions(db: any, roleSlug: string): Promise<Pe
         for (const p of perms) {
             set.add(`${p.resource}:${p.action}`);
         }
+
+        // Store in cache
+        _permCache.set(roleSlug, { set, ts: Date.now() });
     } catch (e) {
         console.error('[permissions] Failed to load permissions for role:', roleSlug, e);
     }
