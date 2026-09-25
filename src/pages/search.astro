@@ -18,7 +18,7 @@ let searchResults: any[] = [];
 let totalPages = 1;
 let totalItems = 0;
 
-if (env && (env as any).DB && query.trim() !== '') {
+if (env && (env as any).DB && query.trim().length >= 3) {
     const db = getDb(env as any);
     const searchTerm = `%${query}%`;
     
