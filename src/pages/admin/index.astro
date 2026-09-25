@@ -41,24 +41,20 @@ if (env && (env as any).DB) {
   const catTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'categories')).limit(1);
   const tagTax = await db.select().from(taxonomies).where(eq(taxonomies.slug, 'tags')).limit(1);
   
+  // Use stored entryCount — avoids 4x COUNT(*) full index scans
   if (articlesCollection.length > 0) {
-    const [articlesCount] = await db.select({ count: sql<number>`count(*)` }).from(entries).where(eq(entries.collectionId, articlesCollection[0].id));
-    totalArticles = articlesCount?.count || 0;
+    totalArticles = articlesCollection[0].entryCount || 0;
   }
-  
   if (catTax.length > 0) {
-    const [categoriesCount] = await db.select({ count: sql<number>`count(*)` }).from(terms).where(eq(terms.taxonomyId, catTax[0].id));
-    totalCategories = categoriesCount?.count || 0;
+    const catTerms = await db.select({ id: terms.id }).from(terms).where(eq(terms.taxonomyId, catTax[0].id));
+    totalCategories = catTerms.length;
   }
-  
   if (tagTax.length > 0) {
-    const [tagsCount] = await db.select({ count: sql<number>`count(*)` }).from(terms).where(eq(terms.taxonomyId, tagTax[0].id));
-    totalTags = tagsCount?.count || 0;
+    const tagTerms = await db.select({ id: terms.id }).from(terms).where(eq(terms.taxonomyId, tagTax[0].id));
+    totalTags = tagTerms.length;
   }
-
-  const [usersCount] = await db.select({ count: sql<number>`count(*)` }).from(usersTable);
-  totalWriters = usersCount?.count || 0;
-
+  const userIds = await db.select({ id: usersTable.id }).from(usersTable);
+  totalWriters = userIds.length;
   if (articlesCollection.length > 0) {
       // Attempt to parse JSON data for better titles
       const fullEntries = await db.select().from(entries).where(eq(entries.collectionId, articlesCollection[0].id)).orderBy(desc(entries.id)).limit(5);
@@ -72,7 +68,13 @@ if (env && (env as any).DB) {
       });
   }
 
-  const allArticles = articlesCollection.length > 0 ? await db.select({ publishedAt: entries.publishedAt }).from(entries).where(and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCollection[0].id))) : [];
+  // Limit to last 365 days — avoids reading all entries for a chart
+  const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+  const allArticles = articlesCollection.length > 0
+    ? await db.select({ publishedAt: entries.publishedAt })
+        .from(entries)
+        .where(and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCollection[0].id), sql\ >= \))
+    : [];
   allPublishedDates = allArticles.filter(a => a.publishedAt).map(a => new Date(a.publishedAt as string).toISOString().split('T')[0]);
 
   const existingLayout = await db.select().from(settings).where(eq(settings.key, 'dashboard_layout'));
