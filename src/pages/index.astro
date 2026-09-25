@@ -108,118 +108,128 @@ if (env && (env as any).DB) {
     } = {}) => {
         const { categoryId, filterTaxonomyId, filterTermId, limit = 5, offset = 0, tagSlug } = options;
         if (contentColIds.length === 0) return [];
-        
-        let query = db.select({
-            entry: entries,
-            author: users
-        })
-        .from(entries)
-        .leftJoin(users, eq(entries.authorId, users.id));
-
-        let conditions: any = and(eq(entries.status, 'published'), inArray(entries.collectionId, contentColIds));
 
         const hasLegacyFilter = (categoryId && categoryId !== 'all') || tagSlug;
         const hasTaxonomyFilter = filterTaxonomyId && filterTaxonomyId !== 'all';
         const hasTermFilter = filterTermId && filterTermId !== 'all';
+        const hasActiveFilter = hasTermFilter || hasTaxonomyFilter || hasLegacyFilter;
 
-        if (hasLegacyFilter || hasTaxonomyFilter || hasTermFilter) {
-            query = query.innerJoin(entryTerms, eq(entries.id, entryTerms.entryId));
-            query = query.innerJoin(terms, eq(entryTerms.termId, terms.id));
-            
-            const termConditions = [];
-            
-            // New Filter System
+        let entryIds: number[] = [];
+
+        if (hasActiveFilter) {
+            // Step 1: Resolve which term IDs to filter by — no JOIN, pure PK lookups
+            let targetTermIds: number[] = [];
             if (hasTermFilter) {
-                termConditions.push(eq(terms.id, parseInt(filterTermId as string)));
+                targetTermIds = [parseInt(filterTermId as string)];
             } else if (hasTaxonomyFilter) {
-                termConditions.push(eq(terms.taxonomyId, parseInt(filterTaxonomyId as string)));
+                const taxTerms = await db.select({ id: terms.id })
+                    .from(terms)
+                    .where(eq(terms.taxonomyId, parseInt(filterTaxonomyId as string)));
+                targetTermIds = taxTerms.map((t: any) => t.id);
+            } else if (categoryId && categoryId !== 'all') {
+                targetTermIds = [parseInt(categoryId as string)];
+            } else if (tagSlug) {
+                const tagRow = await db.select({ id: terms.id }).from(terms).where(eq(terms.slug, tagSlug)).limit(1);
+                targetTermIds = tagRow.map((t: any) => t.id);
             }
-            
-            // Legacy Backwards Compatibility
-            if (!hasTermFilter && !hasTaxonomyFilter) {
-                if (categoryId && categoryId !== 'all') {
-                    termConditions.push(eq(terms.id, parseInt(categoryId as string)));
-                }
-                if (tagSlug) {
-                    termConditions.push(eq(terms.slug, tagSlug));
-                }
-            }
+            if (targetTermIds.length === 0) return [];
 
-            if (termConditions.length > 0) {
-                conditions = and(conditions, ...termConditions);
+            // Step 2: Fetch matching entry IDs via entry_terms PK index — zero JOIN, zero scan
+            const etRows = await db.select({ entryId: entryTerms.entryId })
+                .from(entryTerms)
+                .where(inArray(entryTerms.termId, targetTermIds));
+            const candidateIds = Array.from(new Set(etRows.map((r: any) => r.entryId)));
+            if (candidateIds.length === 0) return [];
+
+            // Step 3: Verify by collection + status — PK lookup chunks
+            const D1_CHUNK = 50;
+            let confirmed: { id: number }[] = [];
+            for (let i = 0; i < candidateIds.length; i += D1_CHUNK) {
+                const chunk = candidateIds.slice(i, i + D1_CHUNK);
+                const rows = await db.select({ id: entries.id })
+                    .from(entries)
+                    .where(and(inArray(entries.id, chunk), inArray(entries.collectionId, contentColIds), eq(entries.status, 'published')));
+                confirmed = confirmed.concat(rows);
             }
+            confirmed.sort((a: any, b: any) => b.id - a.id);
+            entryIds = confirmed.slice(offset, offset + limit).map((r: any) => r.id);
+        } else {
+            // No filter — composite index: status + collection_id + id
+            const idRows = await db.select({ id: entries.id })
+                .from(entries)
+                .where(and(eq(entries.status, 'published'), inArray(entries.collectionId, contentColIds)))
+                .orderBy(desc(entries.id))
+                .limit(limit)
+                .offset(offset);
+            entryIds = idRows.map((r: any) => r.id);
         }
 
-        query = query.where(conditions) as any;
-        const hasJoin = hasLegacyFilter || hasTaxonomyFilter || hasTermFilter;
-        if (hasJoin) {
-            query = query.groupBy(entries.id) as any;
+        if (entryIds.length === 0) return [];
+
+        // Step 4: Fetch full entry + author rows by PK — no scan
+        const D1_CHUNK = 50;
+        let fullRows: any[] = [];
+        for (let i = 0; i < entryIds.length; i += D1_CHUNK) {
+            const chunk = entryIds.slice(i, i + D1_CHUNK);
+            const rows = await db.select({ entry: entries, author: users })
+                .from(entries)
+                .leftJoin(users, eq(entries.authorId, users.id))
+                .where(inArray(entries.id, chunk));
+            fullRows = fullRows.concat(rows);
         }
+        const entryMap = new Map(fullRows.map((r: any) => [r.entry.id, r]));
+        const result = entryIds.map(id => entryMap.get(id)).filter(Boolean);
 
-        query = query.orderBy(desc(entries.id)) as any;
+        // Step 5: Canonical URLs (already optimized)
+        const canonicalMap = await getCanonicalUrls(db, entryIds);
 
-        const result = await query.limit(limit).offset(offset);
-        
-        // Determine category context: use filter term if active, otherwise batch-query the DB
+        // Step 6: Category display names — separate PK queries, no JOIN+IN
         let filterCategoryName = '';
         let filterCategorySlug = '';
-        const hasActiveFilter = hasTermFilter || hasTaxonomyFilter || (categoryId && categoryId !== 'all') || tagSlug;
-        
-        if (hasActiveFilter) {
-            // Look up the filter term to use as the category display name
-            let lookupTermId = filterTermId ? parseInt(filterTermId as string) : (categoryId && categoryId !== 'all' ? parseInt(categoryId as string) : null);
-            if (lookupTermId) {
-                const termRow = await db.select({ name: terms.name, slug: terms.slug })
-                    .from(terms).where(eq(terms.id, lookupTermId)).limit(1);
-                if (termRow.length > 0) {
-                    filterCategoryName = termRow[0].name;
-                    filterCategorySlug = termRow[0].slug;
+        const categoryMap: Record<number, { id: number, name: string, slug: string }[]> = {};
+
+        if (hasTermFilter) {
+            const row = await db.select({ name: terms.name, slug: terms.slug }).from(terms).where(eq(terms.id, parseInt(filterTermId as string))).limit(1);
+            if (row.length > 0) { filterCategoryName = row[0].name; filterCategorySlug = row[0].slug; }
+        } else if (categoryId && categoryId !== 'all') {
+            const row = await db.select({ name: terms.name, slug: terms.slug }).from(terms).where(eq(terms.id, parseInt(categoryId as string))).limit(1);
+            if (row.length > 0) { filterCategoryName = row[0].name; filterCategorySlug = row[0].slug; }
+        } else if (tagSlug) {
+            filterCategoryName = tagSlug;
+            filterCategorySlug = `tag/${tagSlug}`;
+        } else if (!hasActiveFilter && entryIds.length > 0) {
+            // Batch fetch: entry_terms → terms → taxonomies, all PK — no JOIN+IN
+            const etRows2 = await db.select().from(entryTerms).where(inArray(entryTerms.entryId, entryIds));
+            const tIds = Array.from(new Set(etRows2.map((r: any) => r.termId)));
+            if (tIds.length > 0) {
+                const tRows = await db.select({ id: terms.id, name: terms.name, slug: terms.slug, taxonomyId: terms.taxonomyId })
+                    .from(terms).where(inArray(terms.id, tIds));
+                const taxIds = Array.from(new Set(tRows.map((t: any) => t.taxonomyId)));
+                const taxRows = taxIds.length > 0
+                    ? await db.select({ id: taxonomies.id, slug: taxonomies.slug }).from(taxonomies).where(inArray(taxonomies.id, taxIds))
+                    : [];
+                const catTaxIds = new Set(taxRows.filter((t: any) => t.slug === 'categories').map((t: any) => t.id));
+                const termMap = new Map(tRows.filter((t: any) => catTaxIds.has(t.taxonomyId)).map((t: any) => [t.id, t]));
+                for (const r of etRows2) {
+                    const t = termMap.get((r as any).termId);
+                    if (!t) continue;
+                    const eid = (r as any).entryId;
+                    if (!categoryMap[eid]) categoryMap[eid] = [];
+                    categoryMap[eid].push({ id: (t as any).id, name: (t as any).name, slug: (t as any).slug });
                 }
             }
-            if (tagSlug) {
-                filterCategoryName = tagSlug;
-                filterCategorySlug = `tag/${tagSlug}`;
-            }
         }
-        
-        // Only batch-fetch categories when no specific filter is active
-        const categoryMap: Record<number, { id: number, name: string, slug: string }[]> = {};
-        const entryIdsForCategory = result.map((r: any) => r.entry.id);
-        const canonicalMap = await getCanonicalUrls(db, entryIdsForCategory);
-        
-        if (!hasActiveFilter && entryIdsForCategory.length > 0) {
-            const termResults = await db.select({
-                entryId: entryTerms.entryId,
-                termId: terms.id,
-                termName: terms.name,
-                termSlug: terms.slug
-            })
-            .from(entryTerms)
-            .innerJoin(terms, eq(entryTerms.termId, terms.id))
-            .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
-            .where(and(
-                inArray(entryTerms.entryId, entryIdsForCategory),
-                eq(taxonomies.slug, 'categories')
-            ));
-            for (const t of termResults) {
-                if (!categoryMap[t.entryId]) categoryMap[t.entryId] = [];
-                categoryMap[t.entryId].push({ id: t.termId, name: t.termName, slug: t.termSlug });
-            }
-        }
-        
+
         return result.map((r: any) => {
             const data = JSON.parse(r.entry.data || '{}');
             const rawContent = data.content || '';
-            const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\[\/caption\]/g, '').trim();
+            const textOnly = rawContent.replace(/<[^>]+>/g, '').replace(/\[caption[^\]]*\]|\/caption\]/g, '').trim();
             const excerpt = textOnly.length > 120 ? textOnly.substring(0, 120) + '...' : textOnly;
-            
             const prefixSlug = canonicalMap[r.entry.id];
             const canonicalUrl = prefixSlug ? `${prefixSlug}/${r.entry.slug}` : r.entry.slug;
-            
             let cats = hasActiveFilter
                 ? [{ name: filterCategoryName, slug: filterCategorySlug }]
                 : (categoryMap[r.entry.id] || []);
-
             const primaryTermId = data.primaryTermId;
             if (primaryTermId && !hasActiveFilter) {
                 cats = [...cats].sort((a: any, b: any) => {
@@ -228,7 +238,6 @@ if (env && (env as any).DB) {
                     return 0;
                 });
             }
-
             return {
                 id: r.entry.id,
                 slug: r.entry.slug,
