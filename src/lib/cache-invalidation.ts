@@ -82,15 +82,21 @@ export async function invalidateEntryCache(env: any, collectionId: number, entry
         pathsToInvalidate.add(`/${canonical}`);
 
         // Category/Term archive URLs + their paginations
+        // Separate PK queries instead of JOIN+IN — avoids full-scan on terms table
         if (termIds.length > 0) {
-            const termsRes = await db.select({
-                termSlug: terms.slug,
-                taxSlug: taxonomies.slug,
-                omitTax: taxonomies.omitTaxonomySlug
-            })
-            .from(terms)
-            .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
-            .where(inArray(terms.id, termIds));
+            const termRows = await db.select({ id: terms.id, slug: terms.slug, taxonomyId: terms.taxonomyId })
+                .from(terms).where(inArray(terms.id, termIds));
+            const taxIds = Array.from(new Set(termRows.map((t: any) => t.taxonomyId)));
+            const taxRows = taxIds.length > 0
+                ? await db.select({ id: taxonomies.id, slug: taxonomies.slug, omitTaxonomySlug: taxonomies.omitTaxonomySlug })
+                    .from(taxonomies).where(inArray(taxonomies.id, taxIds))
+                : [];
+            const taxMap = new Map(taxRows.map((t: any) => [t.id, t]));
+            const termsRes = termRows.map((t: any) => ({
+                termSlug: t.slug,
+                taxSlug: taxMap.get(t.taxonomyId)?.slug || '',
+                omitTax: taxMap.get(t.taxonomyId)?.omitTaxonomySlug || false
+            })).filter((t: any) => t.taxSlug);
 
             for (const t of termsRes) {
                 const basePath = t.omitTax ? `/${t.termSlug}` : `/${t.taxSlug}/${t.termSlug}`;
