@@ -3,7 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { hasPermission } from '../../lib/permissions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { entries, terms, collections, taxonomies, users as usersTable, settings } from '../../db/schema';
-import { desc, sql, eq, and, ne } from 'drizzle-orm';
+import { desc, sql, eq, and, ne, gte } from 'drizzle-orm';
 import { env } from 'cloudflare:workers';
 import { getDb } from '../../lib/db';
 import DashboardCalendarAnalytics from '../../components/admin/DashboardCalendarAnalytics';
@@ -68,12 +68,13 @@ if (env && (env as any).DB) {
       });
   }
 
+
   // Limit to last 365 days — avoids reading all entries for a chart
   const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
   const allArticles = articlesCollection.length > 0
     ? await db.select({ publishedAt: entries.publishedAt })
         .from(entries)
-        .where(and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCollection[0].id), sql\ >= \))
+        .where(and(eq(entries.status, 'published'), eq(entries.collectionId, articlesCollection[0].id), gte(entries.publishedAt, oneYearAgo)))
     : [];
   allPublishedDates = allArticles.filter(a => a.publishedAt).map(a => new Date(a.publishedAt as string).toISOString().split('T')[0]);
 
