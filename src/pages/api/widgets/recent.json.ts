@@ -6,14 +6,29 @@ import { env } from 'cloudflare:workers';
 import { getCanonicalUrls } from '../../../lib/queries';
 
 export const GET: APIRoute = async ({ request }) => {
-    const db = getDb(env as any);
     const url = new URL(request.url);
-    
+
     // Parse query params
     const taxSlug = url.searchParams.get('tax') || 'all';
     const termsParam = url.searchParams.get('terms') || 'all';
     const limitParam = parseInt(url.searchParams.get('limit') || '50');
     const limit = Math.min(100, Math.max(1, limitParam)); // Cap at 100 max for the pool
+
+    // ── Cloudflare Cache API ──────────────────────────────────────────────────
+    // s-maxage alone does NOT cache Worker responses at the CF edge (cf-cache-status
+    // stays DYNAMIC). We must use caches.default explicitly so D1 is only hit
+    // once per day per unique param combination (tax + terms + limit).
+    const CF_CACHE_TTL = 86400; // 24 hours
+    const cfCache = (typeof caches !== 'undefined') ? caches.default : null;
+    const cacheKey = new Request(url.toString(), { method: 'GET' });
+
+    if (cfCache) {
+        const cached = await cfCache.match(cacheKey);
+        if (cached) return cached;
+    }
+    // ── Cache MISS — fall through to D1 ──────────────────────────────────────
+
+    const db = getDb(env as any);
     
     try {
         // Step 1: Get the articles collection — PK lookup via slug unique index, 1 row read
@@ -159,14 +174,21 @@ export const GET: APIRoute = async ({ request }) => {
             };
         });
 
-        // Cache at edge for 1 day — stale-while-revalidate means visitors never wait
-        return new Response(JSON.stringify(formattedArticles), {
+        // Store in Cloudflare Cache API so subsequent calls are edge-served (zero D1)
+        const response = new Response(JSON.stringify(formattedArticles), {
             status: 200,
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
-                'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=86400'
+                'Cache-Control': `public, s-maxage=${CF_CACHE_TTL}, stale-while-revalidate=${CF_CACHE_TTL}`
             }
         });
+
+        if (cfCache) {
+            // waitUntil-style: store in background, don't block the response
+            cfCache.put(cacheKey, response.clone()).catch(() => {});
+        }
+
+        return response;
 
     } catch (e: any) {
         console.error("Error generating recent.json cache:", e);
