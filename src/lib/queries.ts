@@ -6,109 +6,137 @@ function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
     try { return JSON.parse(json); } catch { return fallback; }
 }
 
-// Batched version of getCanonicalUrl — single query for all entry IDs
-// Self-chunking at 50 IDs per query to stay within D1's effective IN() limit
-// for multi-join queries (entry_terms JOIN terms JOIN taxonomies).
-export async function getCanonicalUrls(db: any, entryIds: number[]): Promise<Record<number, string>> {
+// Batched version of getCanonicalUrl — no JOINs anywhere.
+// All three lookups (entry_terms, terms, taxonomies) are separate PK queries
+// joined in JS. This avoids the SQLite planner choosing a JOIN full-scan over
+// individual PK index lookups.
+// allCollections is passed in from the caller (already CF-cached) so we never
+// fetch collections from D1 inside this function.
+export async function getCanonicalUrls(
+    db: any,
+    entryIds: number[],
+    allCollections?: any[]
+): Promise<Record<number, string>> {
     if (!entryIds.length) return {};
 
-    // D1's SQLite chokes on large IN() with multi-join queries.
-    // Chunk internally so all callers are protected without needing to chunk themselves.
+    // ── Step A: Fetch taxonomies once — tiny table, cache in CF edge ──────────
+    const TAX_CACHE_KEY = 'https://waritaku.internal/cache/taxonomies';
+    const TAX_CACHE_TTL = 1800; // 30 minutes — taxonomies almost never change
+    let allTaxonomies: any[] = [];
+    const cfTaxCache = (typeof caches !== 'undefined')
+        ? await caches.default.match(new Request(TAX_CACHE_KEY)) : null;
+    if (cfTaxCache) {
+        try { allTaxonomies = await cfTaxCache.json(); } catch {}
+    }
+    if (allTaxonomies.length === 0) {
+        allTaxonomies = await db.select({
+            id: taxonomies.id, slug: taxonomies.slug, entryUrlFormat: taxonomies.entryUrlFormat
+        }).from(taxonomies);
+        if (typeof caches !== 'undefined' && allTaxonomies.length > 0) {
+            caches.default.put(new Request(TAX_CACHE_KEY), new Response(JSON.stringify(allTaxonomies), {
+                headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${TAX_CACHE_TTL}` }
+            })).catch(() => {});
+        }
+    }
+    const taxById = new Map(allTaxonomies.map((t: any) => [t.id, t]));
+
+    // ── Step B: Build collections map from passed-in cache (zero D1) ──────────
+    const collectionById = new Map((allCollections || []).map((c: any) => [c.id, c]));
+
+    // ── Process entryIds in chunks of 50 ─────────────────────────────────────
     const D1_SAFE_CHUNK = 50;
-    if (entryIds.length > D1_SAFE_CHUNK) {
-        const merged: Record<number, string> = {};
-        for (let i = 0; i < entryIds.length; i += D1_SAFE_CHUNK) {
-            const partial = await getCanonicalUrls(db, entryIds.slice(i, i + D1_SAFE_CHUNK));
-            Object.assign(merged, partial);
+    const merged: Record<number, string> = {};
+
+    for (let i = 0; i < entryIds.length; i += D1_SAFE_CHUNK) {
+        const chunk = entryIds.slice(i, i + D1_SAFE_CHUNK);
+
+        // Step 1: entry_terms for this chunk — uses (entryId, termId) PK index
+        const etRows = await db.select({ entryId: entryTerms.entryId, termId: entryTerms.termId })
+            .from(entryTerms)
+            .where(inArray(entryTerms.entryId, chunk));
+
+        const termIds = Array.from(new Set(etRows.map((r: any) => r.termId))) as number[];
+
+        // Step 2: terms by PK — id is the primary key, pure PK lookup
+        const termRows = termIds.length > 0
+            ? await db.select({ id: terms.id, slug: terms.slug, taxonomyId: terms.taxonomyId })
+                .from(terms).where(inArray(terms.id, termIds))
+            : [];
+
+        // Step 3: entries by PK — fetch data + collectionId, no JOIN to collections
+        const entryRows = await db.select({ id: entries.id, data: entries.data, collectionId: entries.collectionId })
+            .from(entries)
+            .where(inArray(entries.id, chunk));
+
+        // ── JS joins (zero D1 reads) ──────────────────────────────────────────
+        const termById = new Map(termRows.map((t: any) => [t.id, t]));
+
+        // Build entryData map (data JSON + supports from cached collections)
+        const entryDataMap: Record<number, { data: string, supports: string }> = {};
+        for (const e of entryRows) {
+            const col = collectionById.get(e.collectionId);
+            entryDataMap[e.id] = { data: e.data || '{}', supports: col?.supports || '{}' };
         }
-        return merged;
-    }
-    
-    // Split into two queries to avoid confusing the SQLite query planner and causing a full table scan
-    const termsResults = await db.select({
-        entryId: entryTerms.entryId,
-        termId: terms.id,
-        termSlug: terms.slug,
-        taxonomySlug: taxonomies.slug,
-        entryUrlFormat: taxonomies.entryUrlFormat,
-    })
-    .from(entryTerms)
-    .innerJoin(terms, eq(entryTerms.termId, terms.id))
-    .innerJoin(taxonomies, eq(terms.taxonomyId, taxonomies.id))
-    .where(inArray(entryTerms.entryId, entryIds));
 
-    const entriesResults = await db.select({
-        id: entries.id,
-        data: entries.data,
-        supports: collections.supports
-    })
-    .from(entries)
-    .innerJoin(collections, eq(entries.collectionId, collections.id))
-    .where(inArray(entries.id, entryIds));
+        // Group terms by entry
+        const byEntry: Record<number, any[]> = {};
+        for (const et of etRows) {
+            const term = termById.get(et.termId);
+            if (!term) continue;
+            const tax = taxById.get(term.taxonomyId);
+            if (!tax || tax.entryUrlFormat === 'none') continue;
+            if (!byEntry[et.entryId]) byEntry[et.entryId] = [];
+            byEntry[et.entryId].push({
+                termId: term.id,
+                termSlug: term.slug,
+                taxonomySlug: tax.slug,
+                entryUrlFormat: tax.entryUrlFormat,
+                supports: entryDataMap[et.entryId]?.supports || '{}',
+                entryData: entryDataMap[et.entryId]?.data || '{}'
+            });
+        }
 
-    const entryDataMap: Record<number, any> = {};
-    for (const r of entriesResults) {
-        entryDataMap[r.id] = { data: r.data, supports: r.supports };
-    }
-    
-    // Group by entryId
-    const byEntry: Record<number, any[]> = {};
-    for (const r of termsResults) {
-        const mapped = {
-            entryId: r.entryId,
-            termId: r.termId,
-            termSlug: r.termSlug,
-            taxonomySlug: r.taxonomySlug,
-            entryUrlFormat: r.entryUrlFormat,
-            supports: entryDataMap[r.entryId]?.supports || '{}',
-            entryData: entryDataMap[r.entryId]?.data || '{}'
-        };
-        if (mapped.entryUrlFormat === 'none') continue; // Manual filter to bypass Drizzle Cloudflare bug
-        if (!byEntry[mapped.entryId]) byEntry[mapped.entryId] = [];
-        byEntry[mapped.entryId].push(mapped);
-    }
+        const formatPrefix = (match: any) =>
+            match.entryUrlFormat === 'long'
+                ? `${match.taxonomySlug}/${match.termSlug}`
+                : match.termSlug;
 
-    const map: Record<number, string> = {};
-    for (const entryIdStr of Object.keys(byEntry)) {
-        const entryId = parseInt(entryIdStr, 10);
-        const rows = byEntry[entryId];
-        if (!rows || rows.length === 0) continue;
-        const formatPrefix = (match: any) => match.entryUrlFormat === 'long' ? `${match.taxonomySlug}/${match.termSlug}` : match.termSlug;
+        for (const entryIdStr of Object.keys(byEntry)) {
+            const entryId = parseInt(entryIdStr, 10);
+            const rows = byEntry[entryId];
+            if (!rows || rows.length === 0) continue;
 
-        const parsedData = safeJsonParse(rows[0].entryData, {} as any);
-        const termOverride = parsedData.primaryTermId;
-        if (termOverride) {
-            const overrideMatch = rows.find(r => r.termId === termOverride || r.termId.toString() === termOverride.toString());
-            if (overrideMatch) {
-                map[entryId] = formatPrefix(overrideMatch);
-                continue;
+            const parsedData = safeJsonParse(rows[0].entryData, {} as any);
+
+            const termOverride = parsedData.primaryTermId;
+            if (termOverride) {
+                const overrideMatch = rows.find((r: any) =>
+                    r.termId === termOverride || r.termId.toString() === termOverride.toString());
+                if (overrideMatch) { merged[entryId] = formatPrefix(overrideMatch); continue; }
             }
-        }
-        
-        const override = parsedData.primaryTaxonomyOverride;
-        if (override) {
-            const overrideMatch = rows.find(r => r.taxonomySlug === override);
-            if (overrideMatch) {
-                map[entryId] = formatPrefix(overrideMatch);
-                continue;
+
+            const taxOverride = parsedData.primaryTaxonomyOverride;
+            if (taxOverride) {
+                const overrideMatch = rows.find((r: any) => r.taxonomySlug === taxOverride);
+                if (overrideMatch) { merged[entryId] = formatPrefix(overrideMatch); continue; }
             }
+
+            let supportsData: any = {};
+            try { supportsData = JSON.parse(rows[0].supports || '{}'); } catch {}
+            const priorityArray: string[] = supportsData.taxonomies || [];
+
+            rows.sort((a: any, b: any) => {
+                const idxA = priorityArray.indexOf(a.taxonomySlug);
+                const idxB = priorityArray.indexOf(b.taxonomySlug);
+                return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+            });
+            merged[entryId] = formatPrefix(rows[0]);
         }
-
-        let supportsData: any = {};
-        try { supportsData = JSON.parse(rows[0].supports || '{}'); } catch(e) {}
-        const priorityArray: string[] = supportsData.taxonomies || [];
-
-        rows.sort((a, b) => {
-            const idxA = priorityArray.indexOf(a.taxonomySlug);
-            const idxB = priorityArray.indexOf(b.taxonomySlug);
-            const rankA = idxA === -1 ? 999 : idxA;
-            const rankB = idxB === -1 ? 999 : idxB;
-            return rankA - rankB;
-        });
-        map[entryId] = formatPrefix(rows[0]);
     }
-    return map;
+
+    return merged;
 }
+
 
 export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: string) => {
     // Split into two queries to avoid full table scan
@@ -359,7 +387,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
 
         const categoryArticles = [];
         const entryIds = articlesResult.map((r: any) => r.entry.id);
-        const canonicalMap = await getCanonicalUrls(db, entryIds);
+        const canonicalMap = await getCanonicalUrls(db, entryIds, allCollections);
         
         // Batch fetch primary categories for display
         let categoryMap: Record<number, any[]> = {};
@@ -462,7 +490,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
             }
 
             const categoryArticles = [];
-            const canonicalMap = await getCanonicalUrls(db, entryIds);
+            const canonicalMap = await getCanonicalUrls(db, entryIds, allCollections);
             
             const categoryMap: any = {};
             if (entryIds.length > 0) {
@@ -811,7 +839,7 @@ export async function resolveRouteData(db: any, slug: string, currentPage: numbe
         const categoryArticles = [];
         // Batch canonical URL lookup — single query instead of N
         const entryIds = articlesResult.map((r: any) => r.entry.id);
-        const canonicalMap = await getCanonicalUrls(db, entryIds);
+        const canonicalMap = await getCanonicalUrls(db, entryIds, allCollections);
         
         const categoryMap: any = {};
         if (entryIds.length > 0) {
