@@ -21,13 +21,28 @@ function isPublicHtmlPath(pathname: string): boolean {
     return true;
 }
 
-// Simple in-memory settings cache with 60s TTL
-let settingsCache: { config: any; timestamp: number } | null = null;
-const SETTINGS_CACHE_TTL = 60_000; // 60 seconds
+// CF Cache API helpers — replaces module-level in-memory caches.
+// Module-level JS variables die with each CF isolate restart.
+// caches.default persists across restarts within the same CF PoP.
+const SETTINGS_CACHE_TTL = 300;   // 5 minutes
+const REDIRECTS_CACHE_TTL = 300;  // 5 minutes
+const SETTINGS_CACHE_KEY = 'https://waritaku.internal/cache/general_settings';
+const REDIRECTS_CACHE_KEY = 'https://waritaku.internal/cache/redirects';
 
-// Simple in-memory redirects cache with 60s TTL
-let redirectsCache: { map: Record<string, any>; timestamp: number } | null = null;
-const REDIRECTS_CACHE_TTL = 60_000;
+async function getCfCacheJson(key) {
+    if (typeof caches === 'undefined') return null;
+    const res = await caches.default.match(new Request(key));
+    if (!res) return null;
+    try { return await res.json(); } catch { return null; }
+}
+
+function setCfCacheJson(key, data, ttl) {
+    if (typeof caches === 'undefined') return;
+    const res = new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=' + ttl }
+    });
+    caches.default.put(new Request(key), res).catch(() => {});
+}
 
 import { env } from 'cloudflare:workers';
 
@@ -79,49 +94,50 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     let enableRedirections = true;
     let enable404Tracking = true;
+    let generalSettings: any = null;
 
     if (db) {
-        const now = Date.now();
-        if (settingsCache && (now - settingsCache.timestamp) < SETTINGS_CACHE_TTL) {
-            enableRedirections = settingsCache.config.enableRedirections !== false;
-            enable404Tracking = settingsCache.config.enable404Tracking !== false;
-        } else {
+        // Try CF edge cache first — avoids D1 on every request
+        generalSettings = await getCfCacheJson(SETTINGS_CACHE_KEY);
+        if (!generalSettings) {
             try {
                 const configRow = await db.select().from(settings).where(eq(settings.key, 'general_settings')).get();
                 if (configRow) {
-                    const config = JSON.parse(configRow.value);
-                    settingsCache = { config, timestamp: now };
-                    enableRedirections = config.enableRedirections !== false;
-                    enable404Tracking = config.enable404Tracking !== false;
+                    generalSettings = JSON.parse(configRow.value);
+                    setCfCacheJson(SETTINGS_CACHE_KEY, generalSettings, SETTINGS_CACHE_TTL);
                 }
             } catch(e) {}
         }
-        if (settingsCache) {
-            (context.locals as any).generalSettings = settingsCache.config;
+        if (generalSettings) {
+            enableRedirections = generalSettings.enableRedirections !== false;
+            enable404Tracking = generalSettings.enable404Tracking !== false;
+            (context.locals as any).generalSettings = generalSettings;
         }
     }
 
     // Set up i18n from the cached config language
-    const language = settingsCache?.config?.language || 'id';
+    const language = generalSettings?.language || 'id';
     context.locals.t = useTranslation(language);
 
     // --- 0. Redirect Engine ---
     if (db && enableRedirections) {
-        const now = Date.now();
-        if (!redirectsCache || (now - redirectsCache.timestamp) > REDIRECTS_CACHE_TTL) {
+        // Try CF edge cache first — avoids D1 on every request
+        let redirectMap = await getCfCacheJson(REDIRECTS_CACHE_KEY);
+        if (!redirectMap) {
             try {
                 const allRedirects = await db.select().from(redirects).all();
-                const map: Record<string, any> = {};
+                redirectMap = {};
                 for (const r of allRedirects) {
-                    map[r.sourceUrl] = r;
+                    redirectMap[r.sourceUrl] = r;
                 }
-                redirectsCache = { map, timestamp: now };
+                setCfCacheJson(REDIRECTS_CACHE_KEY, redirectMap, REDIRECTS_CACHE_TTL);
             } catch (e) {
-                console.error("Failed to fetch redirects cache", e);
+                console.error('Failed to fetch redirects cache', e);
+                redirectMap = {};
             }
         }
         
-        const redirect = redirectsCache?.map[url.pathname];
+        const redirect = redirectMap[url.pathname];
         if (redirect) {
             // Increment hit counter asynchronously without blocking the response
             const updatePromise = db.update(redirects).set({ hits: sql`${redirects.hits} + 1` }).where(eq(redirects.id, redirect.id)).execute();
