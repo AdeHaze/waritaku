@@ -182,14 +182,29 @@ export const getCanonicalUrl = async (db: any, entryId: number, entrySlug: strin
 export async function resolveRouteData(db: any, slug: string, currentPage: number = 1, pageSize: number = 12, sortTermBy: string = 'popular', options: { dateArchiveMode?: string } = {}) {
     if (!db || !slug) return null;
 
-    // Helper to get collections
-    const getCollection = async (cSlug: string) => {
-        const res = await db.select().from(collections).where(eq(collections.slug, cSlug)).limit(1);
-        return res.length > 0 ? res[0] : null;
+    // Helper to get a collection by slug — uses the already-cached allCollections (zero D1)
+    // Note: allCollections is loaded below; this helper is only called AFTER that block.
+    const getCollection = (cSlug: string) => {
+        return allCollections.find((c: any) => c.slug === cSlug) || null;
     };
 
-    
-    const allCollections = await db.select().from(collections);
+    // Cache all collections at the CF edge — they rarely change (new collection type = very rare).
+    // This eliminates ~9k D1 reads/day from resolveRouteData being called on every SSR render.
+    const COLLECTIONS_CACHE_KEY = 'https://waritaku.internal/cache/all_collections';
+    const COLLECTIONS_CACHE_TTL = 600; // 10 minutes
+    let allCollections: any[] = [];
+    const cfColCache = (typeof caches !== 'undefined') ? await caches.default.match(new Request(COLLECTIONS_CACHE_KEY)) : null;
+    if (cfColCache) {
+        try { allCollections = await cfColCache.json(); } catch {}
+    }
+    if (allCollections.length === 0) {
+        allCollections = await db.select().from(collections);
+        if (typeof caches !== 'undefined' && allCollections.length > 0) {
+            caches.default.put(new Request(COLLECTIONS_CACHE_KEY), new Response(JSON.stringify(allCollections), {
+                headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${COLLECTIONS_CACHE_TTL}` }
+            })).catch(() => {});
+        }
+    }
     const contentCollections = allCollections.filter((c: any) => c.slug !== 'pages');
     const contentCollectionIds = contentCollections.map((c: any) => c.id);
     const totalContentItems = contentCollections.reduce((sum: any, c: any) => sum + (c.entryCount || 0), 0);
