@@ -59,21 +59,21 @@ export const GET: APIRoute = async ({ request }) => {
                 const candidateIds = Array.from(new Set(etRows.map(r => r.entryId)));
 
                 if (candidateIds.length > 0) {
-                    // Fetch in chunks of 50 to stay within D1 IN() safe limit
+                    // Step 3: Pure PK lookup — id IN (chunk) ONLY.
+                    // Adding collection_id + status here causes SQLite to choose
+                    // a composite index scan (~150 rows/call) instead of 50 PK lookups.
+                    // Filter collection + status in JS instead.
                     const D1_CHUNK = 50;
-                    let confirmedRows: any[] = [];
+                    let confirmedRows: { id: number, collectionId: number, status: string }[] = [];
                     for (let i = 0; i < candidateIds.length; i += D1_CHUNK) {
                         const chunk = candidateIds.slice(i, i + D1_CHUNK);
-                        const rows = await db.select({ id: entries.id })
+                        const rows = await db.select({ id: entries.id, collectionId: entries.collectionId, status: entries.status })
                             .from(entries)
-                            .where(and(
-                                inArray(entries.id, chunk),
-                                eq(entries.collectionId, collectionId),
-                                eq(entries.status, 'published')
-                            ));
+                            .where(inArray(entries.id, chunk));
                         confirmedRows = confirmedRows.concat(rows);
                     }
-                    // Sort by id desc (newest first) and slice to limit
+                    // JS filter — zero extra D1 reads
+                    confirmedRows = confirmedRows.filter(r => r.collectionId === collectionId && r.status === 'published');
                     confirmedRows.sort((a, b) => b.id - a.id);
                     entryIds = confirmedRows.slice(0, limit).map(r => r.id);
                 }
